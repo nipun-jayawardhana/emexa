@@ -1,13 +1,14 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import { connectDB } from './config/db.js';
+import { connectDB } from './services/dbService.js';
 import userRoutes from './routes/userRoutes.js';
 
 dotenv.config();
 const app = express();
 
 // Connect to DB
+// Initialize DB connection (service will skip if MONGO_URI is not set)
 connectDB();
 
 // Middleware

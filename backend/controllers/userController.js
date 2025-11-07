@@ -1,8 +1,8 @@
-import User from '../models/user.js';
+import * as userService from '../services/userService.js';
 
 export const getUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password');
+    const users = await userService.findUsers();
     res.json(users);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -16,12 +16,11 @@ export const createUser = async (req, res) => {
       return res.status(400).json({ message: 'Missing fields' });
     }
 
-    const exists = await User.findOne({ email });
+    const exists = await userService.findUserByEmail(email);
     if (exists) return res.status(400).json({ message: 'User already exists' });
 
-    const user = new User({ name, email, password });
-    await user.save();
-    res.status(201).json({ id: user._id, name: user.name, email: user.email });
+    const user = await userService.createUser({ name, email, password });
+    res.status(201).json(user);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }

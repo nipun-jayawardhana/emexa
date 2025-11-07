@@ -1,3 +1,42 @@
+# Backend
+
+This is the backend for the emexa project.
+
+Quick start
+
+1. Install dependencies
+
+```powershell
+cd backend
+npm install
+```
+
+2. Copy environment variables
+
+```powershell
+copy .env.example .env
+# edit .env to set MONGO_URI if you want DB-backed behaviour
+```
+
+3. Start the server
+
+```powershell
+# development (requires nodemon)
+npm run dev
+
+# or run directly
+node server.js
+```
+
+Notes
+
+- If `MONGO_URI` is not set the server will skip connecting to MongoDB (useful for quick local runs).
+- For local development the `protect` middleware allows bypassing Authorization when `ALLOW_DEV_AUTH_BYPASS=true`.
+
+API
+
+- `GET /api/users` - requires Authorization header in production, returns users without passwords.
+- `POST /api/users` - create a new user. Body: `{ name, email, password }`.
 # Backend (Express + Mongoose)
 
 This is a minimal starter backend for the Emexa project.
