@@ -125,7 +125,7 @@ export default function Register() {
           <div className="auth-title">Create your account</div>
 
           <div className="auth-inner">
-            <form onSubmit={onSubmit}>
+            <form noValidate onSubmit={onSubmit}>
               <div className={`field ${errors.fullName ? "error" : ""}`}>
                 <label>Full Name</label>
                 <input

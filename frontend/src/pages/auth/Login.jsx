@@ -1,6 +1,6 @@
 import { useState } from "react";
 import logo from "../../assets/auth-pages-images/EMEXA Logo.png";
-import api from '../../lib/api';
+import api from "../../lib/api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -83,7 +83,7 @@ export default function Login() {
       <div className="auth-sub">Enter your details to access your account</div>
 
       <div className="auth-inner">
-        <form onSubmit={onSubmit}>
+      <form noValidate onSubmit={onSubmit}>
           {success && (
             <div
               style={{
