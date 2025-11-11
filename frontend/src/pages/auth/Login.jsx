@@ -83,7 +83,7 @@ export default function Login() {
       <div className="auth-sub">Enter your details to access your account</div>
 
       <div className="auth-inner">
-      <form noValidate onSubmit={onSubmit}>
+        <form noValidate onSubmit={onSubmit}>
           {success && (
             <div
               style={{

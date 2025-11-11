@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import "./pages/auth/Forms.css";
 import Login from "./pages/auth/Login";
-import Register from "./pages/auth/Rejister";
+import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 
 export default function App() {

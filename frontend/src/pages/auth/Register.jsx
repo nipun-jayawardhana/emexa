@@ -55,63 +55,48 @@ export default function Register() {
         password: "***",
         accountType,
       });
-      console.log("📍 Backend URL:", "http://localhost:5000/auth/register");
+      // Note: API base is provided by Vite env VITE_API_URL, default is http://localhost:5000/api
+      console.log(
+        "📍 Backend URL (example):",
+        "http://localhost:5000/api/auth/register"
+      );
 
       api
         .post("/auth/register", { fullName, email, password, accountType })
         .then((res) => {
-          // Log what backend returned
-          console.log("✅ Registration response:", res);
-          console.log("👤 User created:", res.user);
-          console.log("🔑 JWT Token:", res.token);
-          console.log("✨ SUCCESS! Showing success message...");
-
           // Save token
           if (res.token) localStorage.setItem("token", res.token);
 
-          // Show beautiful success message
-          setUserName(res.user.full_name);
+          // Use returned user name field
+          setUserName(res.user?.name || "");
           setRegistered(true);
-
-          console.log("⏱️ Will redirect to login in 3 seconds...");
 
           // Redirect after 3 seconds
           setTimeout(() => {
-            console.log("🔄 Redirecting to login page...");
             window.location.hash = "#/login";
           }, 3000);
         })
         .catch((err) => {
           console.error("❌ Registration error:", err);
-          console.error("Error details:", {
-            isNetworkError: err.isNetworkError,
-            message: err.message,
-            response: err.response,
-          });
 
-          // Handle different types of errors
           let errorMessage = "Registration failed. Please try again.";
 
-          if (err.isNetworkError) {
+          // Detect network failure (fetch throws), or HTTP errors where message is available
+          if (err.message && err.message.startsWith("HTTP")) {
+            // Generic HTTP error (e.g. HTTP 409)
+            errorMessage = `Server returned an error (${err.message})`;
+          } else if (err.isNetworkError) {
             errorMessage =
               "⚠️ Cannot connect to server. Please check if backend is running on http://localhost:5000";
-            console.error(
-              "💡 TIP: Run CHECK_BACKEND.bat to verify backend status"
-            );
           } else if (err.message) {
             errorMessage = err.message;
           }
 
-          // Show error message
           setErrors({ form: errorMessage });
-          console.error("💥 Registration failed:", errorMessage);
         })
         .finally(() => {
           setLoading(false);
-          console.log("🏁 Registration request completed");
         });
-    } else {
-      console.log("⚠️ Validation failed:", e);
     }
   };
 
@@ -180,8 +165,6 @@ export default function Register() {
                       lineHeight: "1",
                       transition: "color 0.2s ease",
                     }}
-                    onMouseEnter={(e) => (e.target.style.color = "#333")}
-                    onMouseLeave={(e) => (e.target.style.color = "#888")}
                     aria-label={
                       showPassword ? "Hide password" : "Show password"
                     }
@@ -222,8 +205,6 @@ export default function Register() {
                       lineHeight: "1",
                       transition: "color 0.2s ease",
                     }}
-                    onMouseEnter={(e) => (e.target.style.color = "#333")}
-                    onMouseLeave={(e) => (e.target.style.color = "#888")}
                     aria-label={showConfirm ? "Hide password" : "Show password"}
                   >
                     {showConfirm ? "👁️" : "👁️‍🗨️"}

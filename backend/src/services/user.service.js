@@ -1,5 +1,5 @@
-const userRepository = require('../repositories/user.repository');
-const ApiError = require('../utils/apiError');
+import userRepository from '../repositories/user.repository.js';
+import ApiError from '../utils/apiError.js';
 
 class UserService {
   async registerUser(userData) {
@@ -85,4 +85,4 @@ class UserService {
   }
 }
 
-module.exports = new UserService();
+export default new UserService();

@@ -1,8 +1,10 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import { connectDB } from './services/dbService.js';
-import userRoutes from './routes/userRoutes.js';
+import os from 'os';
+import { connectDB } from './src/services/dbService.js';
+import userRoutes from './src/routes/userRoutes.js';
+import authRoutes from './src/routes/authRoutes.js';
 
 dotenv.config();
 const app = express();
@@ -17,9 +19,19 @@ app.use(express.json());
 
 // Routes
 app.use('/api/users', userRoutes);
+// Auth routes mounted at /api/auth
+app.use('/api/auth', authRoutes);
 
 // Health
 app.get('/', (req, res) => res.json({ ok: true, message: 'API is running' }));
+app.get('/health', (req, res) => {
+	const ifaces = os.networkInterfaces();
+	return res.json({ ok: true, host: req.hostname, interfaces: Object.keys(ifaces) });
+});
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const HOST = process.env.HOST || '127.0.0.1';
+app.listen(PORT, HOST, () => {
+	console.log(`Server running on http://${HOST}:${PORT}`);
+	console.log('Available network interfaces:', Object.keys(os.networkInterfaces()).join(', '));
+});

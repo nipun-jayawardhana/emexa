@@ -70,8 +70,8 @@ export default function ForgotPassword() {
         password.
       </div>
 
-  <div className="auth-inner">
-  <form noValidate onSubmit={onSubmit}>
+      <div className="auth-inner">
+        <form noValidate onSubmit={onSubmit}>
           {success && (
             <div
               style={{
