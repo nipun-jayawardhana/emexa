@@ -1,27 +1,28 @@
-import * as userService from '../services/userService.js';
+// Add this logout method to your existing userController.js
 
-export const getUsers = async (req, res) => {
+const logout = async (req, res) => {
   try {
-    const users = await userService.findUsers();
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    // Clear the HTTP-only cookie
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error during logout'
+    });
   }
 };
 
-export const createUser = async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Missing fields' });
-    }
-
-    const exists = await userService.findUserByEmail(email);
-    if (exists) return res.status(400).json({ message: 'User already exists' });
-
-    const user = await userService.createUser({ name, email, password });
-    res.status(201).json(user);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
-  }
+module.exports = {
+  // ...other exports
+  logout
 };

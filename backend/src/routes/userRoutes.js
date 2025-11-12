@@ -1,10 +1,12 @@
-import express from 'express';
-import { getUsers, createUser } from '../controllers/userController.js';
-import { protect } from '../middleware/auth.js';
-
+const express = require('express');
 const router = express.Router();
+const { logout } = require('../controllers/userController');
+const { authenticate } = require('../middleware/auth'); // if you have auth middleware
 
-router.get('/', protect, getUsers);
-router.post('/', createUser);
+// Logout route
+router.post('/logout', logout);
 
-export default router;
+// Or with authentication middleware:
+// router.post('/logout', authenticate, logout);
+
+module.exports = router;
