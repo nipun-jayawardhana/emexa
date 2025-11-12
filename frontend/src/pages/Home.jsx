@@ -1,11 +1,12 @@
-import React from "react";
-import Hello from "../components/Hello";
+import Hello from '../components/Hello'
 
-export default function Home() {
+const Home = () => {
   return (
-    <main style={{ padding: 20 }}>
-      <h1>Home</h1>
+    <>
+      <div className='bg-pink-500 p-4 text-4xl text-white'>Home Page</div>
       <Hello />
-    </main>
-  );
+    </>
+  )
 }
+
+export default Home
