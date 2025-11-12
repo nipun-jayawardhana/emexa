@@ -1,18 +1,12 @@
-import React from 'react';
+import Hello from '../components/Hello'
 
 const Home = () => {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          Welcome to Your App
-        </h1>
-        <p className="text-gray-600 mb-8">
-          This is your home page. Click Logout in the navbar to test the logout functionality.
-        </p>
-      </div>
-    </div>
-  );
-};
+    <>
+      <div className='bg-pink-500 p-4 text-4xl text-white'>Home Page</div>
+      <Hello />
+    </>
+  )
+}
 
-export default Home;
+export default Home
