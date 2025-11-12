@@ -48,8 +48,9 @@ export default function Login() {
           }
         }
 
-        // Show success message
-        setSuccess(`✅ Login successful! Welcome back ${res.user.full_name}!`);
+        // Show success message (backend returns `user.name`)
+        const userName = res.user?.name || res.user?.full_name || "user";
+        setSuccess(`✅ Login successful! Welcome back ${userName}!`);
 
         // Redirect after 1.5 seconds
         setTimeout(() => {
