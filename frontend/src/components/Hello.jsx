@@ -1,5 +1,9 @@
-import React from "react";
+import React from 'react'
 
-export default function Hello() {
-  return <div style={{ padding: 12 }}>Hello from components/Hello.jsx</div>;
+const Hello = () => {
+  return (
+    <div>This is sample component.</div>
+  )
 }
+
+export default Hello
