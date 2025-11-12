@@ -1,4 +1,5 @@
 import userService from '../services/user.service.js';
+import userRepository from '../repositories/user.repository.js';
 
 export const register = async (req, res) => {
   try {
@@ -24,16 +25,10 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'Missing fields' });
-
-    const user = await User.findOne({ email }).select('+password');
-    if (!user) return res.status(401).json({ message: 'Invalid email or password' });
-
-    const valid = await user.comparePassword(password);
-    if (!valid) return res.status(401).json({ message: 'Invalid email or password' });
-
-    const token = user.generateAuthToken();
-    const safeUser = { id: user._id, name: user.name, email: user.email };
-    res.json({ user: safeUser, token });
+    // Delegate login logic to userService
+    const result = await userService.loginUser(email, password);
+    // userService.loginUser returns { user, token }
+    return res.json(result);
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ message: 'Server error' });
@@ -46,7 +41,7 @@ export const forgotPassword = async (req, res) => {
     if (!email) return res.status(400).json({ message: 'Missing email' });
 
     // For now just respond success if user exists (no email sending implemented)
-    const user = await User.findOne({ email });
+    const user = await userRepository.findByEmail(email);
     if (!user) return res.status(200).json({ message: 'If the email exists we sent a link' });
 
     // TODO: generate reset token and send email

@@ -16,6 +16,10 @@ class UserService {
     return { user, token };
   }
 
+  async findByEmail(email) {
+    return await userRepository.findByEmail(email);
+  }
+
   async loginUser(email, password) {
     // Check if user exists
     const user = await userRepository.findByEmail(email);
