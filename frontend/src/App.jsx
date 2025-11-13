@@ -200,9 +200,9 @@ export default function App() {
             <div className="mb-16 rounded-2xl overflow-hidden shadow-2xl aspect-[803/535.5]">
               <img 
                 // The source is changed to the uploaded image file name
-                src="office.jpg" 
+                src="/src/assets/1.jpg"
                 alt="Students collaborating on laptops"
-                className="w-full h-full object-cover"
+                className="w-803px h-535.5px object-cover"
               />
             </div>
 
