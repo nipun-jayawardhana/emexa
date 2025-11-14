@@ -2,6 +2,20 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 export default function Navbar() {
+  const scrollToSection = (sectionId) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      const offset = 80; // Height of navbar
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   return (
     <nav className="shadow-sm fixed top-0 w-full bg-white z-10">
       <div className="mx-auto px-6 lg:px-8">
@@ -28,13 +42,22 @@ export default function Navbar() {
           {/* Navigation */}
           <div className="flex items-center gap-12">
             <div className="flex items-center gap-10">
-              <a href="#features" className="text-gray-700 hover:text-gray-900 text-base font-normal transition-colors">
+              <button 
+                onClick={() => scrollToSection('features')}
+                className="text-gray-700 hover:text-gray-900 text-base font-normal transition-colors cursor-pointer bg-transparent border-none"
+              >
                 Features
-              </a>
-              <a href="#how-it-works" className="text-gray-700 hover:text-gray-900 text-base font-normal transition-colors">
+              </button>
+              <button 
+                onClick={() => scrollToSection('how-it-works')}
+                className="text-gray-700 hover:text-gray-900 text-base font-normal transition-colors cursor-pointer bg-transparent border-none"
+              >
                 How It Works
-              </a>
-              <a href="#testimonials" className="text-gray-700 hover:text-gray-900 text-base font-normal transition-colors">
+              </button>
+              <button 
+                onClick={() => scrollToSection('testimonials')}
+                className="text-gray-700 hover:text-gray-900 text-base font-normal transition-colors cursor-pointer bg-transparent border-none"
+              >
                 Testimonials
               </a>
               <Link to="/user-management" className="text-gray-700 hover:text-emerald-600 text-base font-normal transition-colors">
