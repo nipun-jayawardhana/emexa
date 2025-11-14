@@ -6,7 +6,7 @@ import Modal from "react-modal";
 
 // Helper tag components for status and roles
 const StatusTag = ({ status }) => (
-  <span className={`px-2 py-1 rounded text-xs ${
+  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
     status === "Active" ? "bg-green-100 text-green-700"
     : status === "Inactive" ? "bg-red-100 text-red-700"
     : "bg-gray-100 text-gray-700"
@@ -16,7 +16,7 @@ const StatusTag = ({ status }) => (
 );
 
 const RoleTag = ({ role }) => (
-  <span className={`px-2 py-1 rounded text-xs ${
+  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
     role === "Admin" ? "bg-purple-100 text-purple-700"
     : role === "Teacher" ? "bg-blue-100 text-blue-700"
     : role === "Student" ? "bg-green-100 text-green-700"
@@ -33,9 +33,11 @@ const UserManagement = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState(""); // "add" | "edit" | "delete"
   const [selectedUser, setSelectedUser] = useState(null);
-  const [roleFilter, setRoleFilter] = useState({Admin:true, Teacher:true, Student:true});
+  const [roleFilter, setRoleFilter] = useState("All Roles");
   const [tab, setTab] = useState("users");
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
 
   // Fetch users and approvals
   useEffect(() => {
@@ -131,207 +133,271 @@ const UserManagement = () => {
       });
   };
 
-  // Filtering and rendering
-  const filteredUsers = users.filter(u => roleFilter[u.role]);
+  // Filtering
+  const filteredUsers = users.filter(u => {
+    const matchesRole = roleFilter === "All Roles" || u.role === roleFilter;
+    const matchesSearch = u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         u.email?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesRole && matchesSearch;
+  });
+
+  const pendingApprovals = teacherApprovals.filter(x => !x.status).length;
   
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="text-xl text-gray-600">Loading...</div>
       </div>
     );
   }
   
   return (
-    <div className="p-6 user-management-page pt-24">
-      <div className="mb-4 flex items-center justify-between border-b pb-2">
-        <div className="text-2xl font-semibold">User Management</div>
-        <div>
-          <button
-            className="px-6 py-2 rounded bg-green-700 text-white hover:bg-green-800 transition-colors"
-            onClick={() => openModal("add")}
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">User Management</h1>
+          <p className="text-gray-600">Add, edit, and manage users in your quiz system</p>
+        </div>
+        
+        {/* Tabs */}
+        <div className="mb-6 flex gap-2 border-b border-gray-200">
+          <button 
+            className={`px-6 py-3 font-medium text-sm ${
+              tab === "users" 
+                ? "text-emerald-600 border-b-2 border-emerald-600" 
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+            onClick={() => setTab("users")}
           >
-            + Add User
+            All Users
+          </button>
+          <button 
+            className={`px-6 py-3 font-medium text-sm relative ${
+              tab === "approvals" 
+                ? "text-emerald-600 border-b-2 border-emerald-600" 
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+            onClick={() => setTab("approvals")}
+          >
+            Teacher Approvals
+            {pendingApprovals > 0 && (
+              <span className="ml-2 px-2 py-0.5 rounded-full bg-pink-100 text-pink-600 text-xs font-semibold">
+                {pendingApprovals}
+              </span>
+            )}
           </button>
         </div>
-      </div>
-      
-      <div className="mb-4 flex gap-8">
-        <button 
-          className={`px-6 py-1 font-bold ${tab==="users"?"border-b-2 border-green-700":""}`} 
-          onClick={() => setTab("users")}
-        >
-          All Users
-        </button>
-        <button 
-          className={`px-6 py-1 font-bold ${tab==="approvals"?"border-b-2 border-green-700":""}`} 
-          onClick={() => setTab("approvals")}
-        >
-          Teacher Approvals
-          {teacherApprovals.filter(x => !x.status).length > 0 && (
-            <span className="ml-1 px-2 py-0.5 rounded bg-green-700 text-white text-xs inline-block">
-              {teacherApprovals.filter(x => !x.status).length}
-            </span>
-          )}
-        </button>
-      </div>
-      
-      {tab === "users" && (
-        <div>
-          {/* Role filter */}
-          <div className="mb-2 flex gap-4">
-            {["Admin","Teacher","Student"].map(role => (
-              <label key={role} className="flex items-center">
+        
+        {tab === "users" && (
+          <div className="bg-white rounded-lg shadow">
+            {/* Toolbar */}
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4 flex-1">
                 <input 
-                  type="checkbox" 
-                  checked={roleFilter[role]} 
-                  onChange={() => {
-                    setRoleFilter({...roleFilter, [role]: !roleFilter[role]});
-                  }}
+                  type="text"
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 flex-1 max-w-sm" 
+                  placeholder="Search users..." 
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
                 />
-                <span className="ml-2">{role}</span>
-              </label>
-            ))}
-            <input 
-              className="ml-auto px-3 py-1 border rounded" 
-              placeholder="Search…" 
-              onChange={e => {
-                // Optional: Add search functionality
-              }} 
-            />
-          </div>
-          
-          {/* Users Table */}
-          <table className="w-full text-left border bg-white rounded shadow mt-2">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="p-2">Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Date Added</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="p-4 text-center text-gray-500">
-                    No users found. Click "Add User" to create one.
-                  </td>
-                </tr>
-              ) : (
-                filteredUsers.map(u => (
-                  <tr key={u._id} className="border-t hover:bg-gray-50">
-                    <td className="p-2">{u.name}</td>
-                    <td>{u.email}</td>
-                    <td><RoleTag role={u.role}/></td>
-                    <td><StatusTag status={u.status}/></td>
-                    <td>{u.dateAdded ? new Date(u.dateAdded).toLocaleDateString() : 'N/A'}</td>
-                    <td>
-                      <button 
-                        className="text-blue-700 mr-2 underline hover:text-blue-900" 
-                        onClick={() => openModal("edit", u)}
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        className="text-red-700 underline hover:text-red-900" 
-                        onClick={() => openModal("delete", u)}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-      
-      {tab === "approvals" && (
-        <div>
-          {teacherApprovals.length === 0 ? (
-            <div className="text-center p-8 bg-gray-50 rounded">
-              <p className="text-gray-500">No teacher approval requests at this time.</p>
-            </div>
-          ) : (
-            teacherApprovals.map(ap => (
-              <div 
-                key={ap._id} 
-                className={`mb-3 p-4 rounded border shadow ${
-                  ap.status === "Rejected" ? "bg-red-50" : "bg-green-50"
-                }`}
-              >
-                <div className="font-semibold text-lg">{ap.name}</div>
-                <div className="text-gray-700">{ap.email}</div>
-                <div className="text-xs text-gray-500">
-                  Requested on: {ap.requestedOn ? new Date(ap.requestedOn).toLocaleDateString() : 'N/A'}
-                </div>
-                <div className="text-sm mt-2">
-                  <span className="font-bold">Qualifications:</span> {ap.qualifications || 'Not provided'}
-                </div>
-                <div className="mt-2 flex gap-2">
-                  {!ap.status && (
-                    <>
-                      <button 
-                        className="px-4 py-1 rounded bg-green-700 text-white hover:bg-green-800 transition-colors" 
-                        onClick={() => handleApproveTeacher(ap._id)}
-                      >
-                        Approve
-                      </button>
-                      <button 
-                        className="px-4 py-1 rounded bg-gray-300 text-gray-700 hover:bg-gray-400 transition-colors" 
-                        onClick={() => handleRejectTeacher(ap._id)}
-                      >
-                        Reject
-                      </button>
-                    </>
-                  )}
-                  {ap.status === "Approved" && (
-                    <span className="px-3 py-1 rounded bg-green-100 text-green-700">Approved</span>
-                  )}
-                  {ap.status === "Rejected" && (
-                    <span className="px-3 py-1 rounded bg-red-100 text-red-700">Rejected</span>
+                
+                <div className="relative">
+                  <button
+                    className="px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => setShowRoleDropdown(!showRoleDropdown)}
+                  >
+                    <span>{roleFilter}</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {showRoleDropdown && (
+                    <div className="absolute top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                      {["All Roles", "Admin", "Teacher", "Student"].map(role => (
+                        <button
+                          key={role}
+                          className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center justify-between"
+                          onClick={() => {
+                            setRoleFilter(role);
+                            setShowRoleDropdown(false);
+                          }}
+                        >
+                          <span>{role}</span>
+                          {roleFilter === role && (
+                            <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
-            ))
+              
+              <button
+                className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors font-medium flex items-center gap-2"
+                onClick={() => openModal("add")}
+              >
+                <span className="text-xl">+</span>
+                Add User
+              </button>
+            </div>
+            
+            {/* Users Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Added</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                        No users found. Click "Add User" to create one.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map(u => (
+                      <tr key={u._id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{u.name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{u.email}</td>
+                        <td className="px-6 py-4 whitespace-nowrap"><RoleTag role={u.role}/></td>
+                        <td className="px-6 py-4 whitespace-nowrap"><StatusTag status={u.status}/></td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {u.dateAdded ? new Date(u.dateAdded).toLocaleDateString() : 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm space-x-3">
+                          <button 
+                            className="text-blue-600 hover:text-blue-800 font-medium" 
+                            onClick={() => openModal("edit", u)}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            className="text-red-600 hover:text-red-800 font-medium" 
+                            onClick={() => openModal("delete", u)}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        
+        {tab === "approvals" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Teacher Approval Requests</h2>
+              <p className="text-gray-600">Review and approve teacher registration requests</p>
+            </div>
+            
+            {teacherApprovals.length === 0 ? (
+              <div className="bg-white rounded-lg shadow p-8 text-center">
+                <p className="text-gray-500">No teacher approval requests at this time.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {teacherApprovals.map(ap => (
+                  <div 
+                    key={ap._id} 
+                    className="bg-white rounded-lg shadow p-6"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">{ap.name}</h3>
+                        <p className="text-gray-600 mb-2">{ap.email}</p>
+                        <p className="text-sm text-gray-500 mb-3">
+                          Requested on: {ap.requestedOn ? new Date(ap.requestedOn).toLocaleDateString() : 'N/A'}
+                        </p>
+                        <div className="text-sm">
+                          <span className="font-semibold text-gray-900">Qualifications:</span>
+                          <p className="text-gray-700 mt-1">{ap.qualifications || 'Not provided'}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2 ml-4">
+                        {!ap.status ? (
+                          <>
+                            <button 
+                              className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors font-medium flex items-center gap-2" 
+                              onClick={() => handleApproveTeacher(ap._id)}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Approve
+                            </button>
+                            <button 
+                              className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors font-medium flex items-center gap-2" 
+                              onClick={() => handleRejectTeacher(ap._id)}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              Reject
+                            </button>
+                          </>
+                        ) : ap.status === "Approved" ? (
+                          <span className="px-4 py-2 rounded-lg bg-green-100 text-green-700 font-medium">Approved</span>
+                        ) : (
+                          <span className="px-4 py-2 rounded-lg bg-red-100 text-red-700 font-medium">Rejected</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Modals */}
+        <Modal
+          isOpen={modalOpen} 
+          onRequestClose={closeModal}
+          className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 outline-none"
+          overlayClassName="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          ariaHideApp={false}
+        >
+          {modalType === "add" && (
+            <AddEditUserForm
+              onSubmit={handleAddUser}
+              onCancel={closeModal}
+              type="Add"
+            />
           )}
-        </div>
-      )}
-      
-      {/* Modal: Add/Edit/Delete */}
-      <Modal
-        isOpen={modalOpen} 
-        onRequestClose={closeModal}
-        className="bg-white border p-8 rounded shadow max-w-md mx-auto mt-32"
-        overlayClassName="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"
-      >
-        {modalType === "add" && (
-          <AddEditUserForm
-            onSubmit={handleAddUser}
-            onCancel={closeModal}
-            type="Add"
-          />
-        )}
-        {modalType === "edit" && (
-          <AddEditUserForm
-            user={selectedUser}
-            onSubmit={handleUpdateUser}
-            onCancel={closeModal}
-            type="Edit"
-          />
-        )}
-        {modalType === "delete" && (
-          <DeleteUserModal 
-            user={selectedUser} 
-            onSubmit={() => handleDeleteUser(selectedUser._id)} 
-            onCancel={closeModal}
-          />
-        )}
-      </Modal>
+          {modalType === "edit" && (
+            <AddEditUserForm
+              user={selectedUser}
+              onSubmit={handleUpdateUser}
+              onCancel={closeModal}
+              type="Edit"
+            />
+          )}
+          {modalType === "delete" && (
+            <DeleteUserModal 
+              user={selectedUser} 
+              onSubmit={() => handleDeleteUser(selectedUser._id)} 
+              onCancel={closeModal}
+            />
+          )}
+        </Modal>
+      </div>
     </div>
   );
 };
@@ -342,43 +408,47 @@ const AddEditUserForm = ({user, onSubmit, onCancel, type}) => {
   
   return (
     <form className="space-y-4" onSubmit={e => {e.preventDefault(); onSubmit(data);}}>
-      <div className="text-xl font-bold mb-2">{type} User</div>
+      <h2 className="text-xl font-bold text-gray-900 mb-4">{type === "Add" ? "Add New User" : "Edit User"}</h2>
+      
       <div>
-        <label className="block text-sm font-medium">Name</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
         <input 
-          className="mt-1 border px-2 py-1 rounded w-full focus:outline-none focus:ring-2 focus:ring-green-500" 
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" 
           required 
           value={data.name} 
           onChange={e => setData({...data, name: e.target.value})}
         />
       </div>
+      
       <div>
-        <label className="block text-sm font-medium">Email</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
         <input 
-          className="mt-1 border px-2 py-1 rounded w-full focus:outline-none focus:ring-2 focus:ring-green-500" 
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" 
           required 
           type="email" 
           value={data.email} 
           onChange={e => setData({...data, email: e.target.value})}
         />
       </div>
+      
       <div>
-        <label className="block text-sm font-medium">Role</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
         <select 
-          className="mt-1 border px-2 py-1 rounded w-full focus:outline-none focus:ring-2 focus:ring-green-500" 
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" 
           required 
           value={data.role} 
           onChange={e => setData({...data, role: e.target.value})}
         >
-          <option value="Admin">Admin</option>
-          <option value="Teacher">Teacher</option>
           <option value="Student">Student</option>
+          <option value="Teacher">Teacher</option>
+          <option value="Admin">Admin</option>
         </select>
       </div>
+      
       <div>
-        <label className="block text-sm font-medium">Status</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
         <select 
-          className="mt-1 border px-2 py-1 rounded w-full focus:outline-none focus:ring-2 focus:ring-green-500" 
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" 
           required 
           value={data.status} 
           onChange={e => setData({...data, status: e.target.value})}
@@ -387,17 +457,18 @@ const AddEditUserForm = ({user, onSubmit, onCancel, type}) => {
           <option value="Inactive">Inactive</option>
         </select>
       </div>
-      <div className="flex gap-4 items-center justify-end mt-4">
+      
+      <div className="flex gap-3 justify-end pt-4">
         <button 
           type="button" 
-          className="px-4 py-1 rounded bg-gray-300 text-gray-700 hover:bg-gray-400 transition-colors" 
+          className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors font-medium" 
           onClick={onCancel}
         >
           Cancel
         </button>
         <button 
           type="submit" 
-          className="px-4 py-1 rounded bg-green-700 text-white hover:bg-green-800 transition-colors"
+          className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors font-medium"
         >
           {type === "Add" ? "Add User" : "Update User"}
         </button>
@@ -408,21 +479,21 @@ const AddEditUserForm = ({user, onSubmit, onCancel, type}) => {
 
 // Delete Modal
 const DeleteUserModal = ({user, onSubmit, onCancel}) => (
-  <div className="space-y-5">
-    <div className="text-xl font-bold">Confirm Delete</div>
-    <div>
-      Are you sure you want to delete the user <span className="font-bold">{user.name}</span>? 
+  <div>
+    <h2 className="text-xl font-bold text-gray-900 mb-4">Confirm Delete</h2>
+    <p className="text-gray-600 mb-6">
+      Are you sure you want to delete the user <span className="font-semibold text-gray-900">{user.name}</span>? 
       This action cannot be undone.
-    </div>
-    <div className="flex gap-4 justify-end">
+    </p>
+    <div className="flex gap-3 justify-end">
       <button 
-        className="px-4 py-1 rounded bg-gray-300 text-gray-700 hover:bg-gray-400 transition-colors" 
+        className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors font-medium" 
         onClick={onCancel}
       >
         Cancel
       </button>
       <button 
-        className="px-4 py-1 rounded bg-red-700 text-white hover:bg-red-800 transition-colors" 
+        className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium" 
         onClick={onSubmit}
       >
         Delete User
