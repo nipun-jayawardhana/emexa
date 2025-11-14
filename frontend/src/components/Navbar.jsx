@@ -59,7 +59,7 @@ export default function Navbar() {
                 className="text-gray-700 hover:text-gray-900 text-base font-normal transition-colors cursor-pointer bg-transparent border-none"
               >
                 Testimonials
-              </a>
+              </button>
               <Link to="/user-management" className="text-gray-700 hover:text-emerald-600 text-base font-normal transition-colors">
                 User Management
               </Link>
