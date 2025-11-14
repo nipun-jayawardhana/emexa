@@ -5,10 +5,14 @@ const {
   getUserById,
   createUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  getTeacherApprovals
 } = require('../controllers/userController');
 
-// Routes
+// TEACHER APPROVALS — BEFORE :id
+router.get('/teacher-approvals', getTeacherApprovals);
+
+// CRUD ROUTES
 router.route('/')
   .get(getUsers)
   .post(createUser);
@@ -19,5 +23,3 @@ router.route('/:id')
   .delete(deleteUser);
 
 module.exports = router;
-
-
