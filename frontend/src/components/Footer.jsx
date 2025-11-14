@@ -5,27 +5,19 @@ const Footer = () => {
   const footerLinks = {
     product: [
       { name: 'Features', href: '#' },
-      { name: 'Pricing', href: '#' },
-      { name: 'Case Studies', href: '#' },
-      { name: 'API', href: '#' }
-    ],
+      { name: 'Help Center', href: '#' }
+     ],
     support: [
-      { name: 'Documentation', href: '#' },
       { name: 'Guides', href: '#' },
-      { name: 'Help Center', href: '#' },
       { name: 'Contact Us', href: '#' }
     ],
     company: [
       { name: 'About', href: '#' },
       { name: 'Blog', href: '#' },
-      { name: 'Careers', href: '#' },
-      { name: 'Press', href: '#' }
     ],
     legal: [
       { name: 'Privacy', href: '#' },
       { name: 'Terms', href: '#' },
-      { name: 'Cookie Policy', href: '#' },
-      { name: 'Data Processing', href: '#' }
     ]
   };
 
