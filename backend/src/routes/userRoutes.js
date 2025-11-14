@@ -1,10 +1,25 @@
-import express from 'express';
-import { getUsers, createUser } from '../controllers/userController.js';
-import { protect } from '../middleware/auth.js';
-
+const express = require('express');
 const router = express.Router();
+const {
+  getUsers,
+  getUserById,
+  createUser,
+  updateUser,
+  deleteUser,
+  getTeacherApprovals
+} = require('../controllers/userController');
 
-router.get('/', protect, getUsers);
-router.post('/', createUser);
+// TEACHER APPROVALS — BEFORE :id
+router.get('/teacher-approvals', getTeacherApprovals);
 
-export default router;
+// CRUD ROUTES
+router.route('/')
+  .get(getUsers)
+  .post(createUser);
+
+router.route('/:id')
+  .get(getUserById)
+  .put(updateUser)
+  .delete(deleteUser);
+
+module.exports = router;
