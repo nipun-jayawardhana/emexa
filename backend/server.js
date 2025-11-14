@@ -1,81 +1,71 @@
+// backend/server.js
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+require('express-async-errors'); // ← MUST BE BEFORE app
+
 const connectDB = require('./src/config/db');
 const userRoutes = require('./src/routes/userRoutes');
 
-
-// Load environment variables
+// Load env
 dotenv.config();
 
-// Connect to MongoDB
-connectDB();
+// Start server only after DB is connected
+const startServer = async () => {
+  try {
+    await connectDB();
+    console.log('MongoDB Connected Successfully');
 
-// Initialize Express app
-const app = express();
+    const app = express();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+    // Middleware
+    app.use(cors());
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
 
-// Request logging middleware
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`);
-  next();
-});
+    // Logging
+    app.use((req, res, next) => {
+      console.log(`${req.method} ${req.path}`);
+      next();
+    });
 
-// Routes
-app.use('/api/users', userRoutes);
+    // Routes
+    app.use('/api/users', userRoutes);
 
-// Health check route
-app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Server is running',
-    timestamp: new Date().toISOString()
-  });
-});
+    // Health
+    app.get('/api/health', (req, res) => {
+      res.json({ success: true, message: 'Server running' });
+    });
 
-// Root route
-app.get('/', (req, res) => {
-  res.json({
-    message: 'EMEXA User Management API',
-    version: '1.0.0',
-    endpoints: {
-      health: '/api/health',
-      users: '/api/users'
-    }
-  });
-});
+    // Root
+    app.get('/', (req, res) => {
+      res.json({ message: 'EMEXA API v1.0' });
+    });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found'
-  });
-});
+    // 404
+    app.use((req, res) => {
+      res.status(404).json({ success: false, message: 'Route not found' });
+    });
 
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Something went wrong!',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
-});
+    // Global error handler
+    app.use((err, req, res, next) => {
+      console.error('Error:', err.stack);
+      res.status(500).json({
+        success: false,
+        message: 'Server Error',
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+      });
+    });
 
-// Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`
-╔════════════════════════════════════════╗
-║   🚀 EMEXA Server Running              ║
-║   📍 Port: ${PORT}                       ║
-║   🌍 Environment: ${process.env.NODE_ENV || 'development'}          ║
-║   📊 API: http://localhost:${PORT}/api    ║
-╚════════════════════════════════════════╝
-  `);
-});
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+
+  } catch (error) {
+    console.error('Failed to start:', error.message);
+    process.exit(1);
+  }
+};
+
+startServer();
