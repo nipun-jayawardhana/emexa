@@ -6,7 +6,7 @@ import Modal from "react-modal";
 
 // Helper tag components for status and roles
 const StatusTag = ({ status }) => (
-  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+  <span className={`px-3 py-1 rounded text-xs font-medium ${
     status === "Active" ? "bg-green-100 text-green-700"
     : status === "Inactive" ? "bg-red-100 text-red-700"
     : "bg-gray-100 text-gray-700"
@@ -16,7 +16,7 @@ const StatusTag = ({ status }) => (
 );
 
 const RoleTag = ({ role }) => (
-  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+  <span className={`px-3 py-1 rounded text-xs font-medium ${
     role === "Admin" ? "bg-purple-100 text-purple-700"
     : role === "Teacher" ? "bg-blue-100 text-blue-700"
     : role === "Student" ? "bg-green-100 text-green-700"
@@ -31,13 +31,30 @@ const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [teacherApprovals, setTeacherApprovals] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalType, setModalType] = useState(""); // "add" | "edit" | "delete"
+  const [modalType, setModalType] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
-  const [roleFilter, setRoleFilter] = useState("All Roles");
+  const [selectedRoles, setSelectedRoles] = useState({
+    Admin: false,
+    Teacher: false,
+    Student: false
+  });
   const [tab, setTab] = useState("users");
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
+  const dropdownRef = React.useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowRoleDropdown(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Fetch users and approvals
   useEffect(() => {
@@ -133,9 +150,27 @@ const UserManagement = () => {
       });
   };
 
+  const toggleRole = (role) => {
+    setSelectedRoles(prev => ({
+      ...prev,
+      [role]: !prev[role]
+    }));
+  };
+
+  const allRolesSelected = selectedRoles.Admin && selectedRoles.Teacher && selectedRoles.Student;
+  const noRolesSelected = !selectedRoles.Admin && !selectedRoles.Teacher && !selectedRoles.Student;
+  
+  const getRoleDisplayText = () => {
+    if (noRolesSelected || allRolesSelected) return "All Roles";
+    const selected = Object.keys(selectedRoles).filter(key => selectedRoles[key]);
+    if (selected.length === 1) return selected[0];
+    return "All Roles";
+  };
+
   // Filtering
   const filteredUsers = users.filter(u => {
-    const matchesRole = roleFilter === "All Roles" || u.role === roleFilter;
+    // If no roles selected, show all users
+    const matchesRole = noRolesSelected || allRolesSelected || selectedRoles[u.role];
     const matchesSearch = u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          u.email?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesRole && matchesSearch;
@@ -145,27 +180,27 @@ const UserManagement = () => {
   
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-white">
         <div className="text-xl text-gray-600">Loading...</div>
       </div>
     );
   }
   
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-white pt-24">
+      <div className="max-w-7xl mx-auto px-8 py-6">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">User Management</h1>
-          <p className="text-gray-600">Add, edit, and manage users in your quiz system</p>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">User Management</h1>
+          <p className="text-sm text-gray-600">Add, edit, and manage users in your quiz system</p>
         </div>
         
         {/* Tabs */}
-        <div className="mb-6 flex gap-2 border-b border-gray-200">
+        <div className="mb-6 flex gap-6 border-b border-gray-200">
           <button 
-            className={`px-6 py-3 font-medium text-sm ${
+            className={`pb-3 font-medium text-sm ${
               tab === "users" 
-                ? "text-emerald-600 border-b-2 border-emerald-600" 
+                ? "text-teal-600 border-b-2 border-teal-600" 
                 : "text-gray-600 hover:text-gray-900"
             }`}
             onClick={() => setTab("users")}
@@ -173,16 +208,16 @@ const UserManagement = () => {
             All Users
           </button>
           <button 
-            className={`px-6 py-3 font-medium text-sm relative ${
+            className={`pb-3 font-medium text-sm relative ${
               tab === "approvals" 
-                ? "text-emerald-600 border-b-2 border-emerald-600" 
+                ? "text-teal-600 border-b-2 border-teal-600" 
                 : "text-gray-600 hover:text-gray-900"
             }`}
             onClick={() => setTab("approvals")}
           >
             Teacher Approvals
             {pendingApprovals > 0 && (
-              <span className="ml-2 px-2 py-0.5 rounded-full bg-pink-100 text-pink-600 text-xs font-semibold">
+              <span className="ml-2 px-2 py-0.5 rounded-full bg-pink-100 text-pink-600 text-xs font-medium">
                 {pendingApprovals}
               </span>
             )}
@@ -190,43 +225,63 @@ const UserManagement = () => {
         </div>
         
         {tab === "users" && (
-          <div className="bg-white rounded-lg shadow">
+          <div>
             {/* Toolbar */}
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4 flex-1">
+            <div className="mb-6 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
                 <input 
                   type="text"
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 flex-1 max-w-sm" 
+                  className="px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 w-80" 
                   placeholder="Search users..." 
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                 />
                 
-                <div className="relative">
+                <div className="relative" ref={dropdownRef}>
                   <button
-                    className="px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 flex items-center gap-2"
+                    className="px-4 py-2 border border-gray-300 rounded bg-white hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between"
                     onClick={() => setShowRoleDropdown(!showRoleDropdown)}
                   >
-                    <span>{roleFilter}</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <span className="text-sm">{getRoleDisplayText()}</span>
+                    <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
                   
                   {showRoleDropdown && (
-                    <div className="absolute top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
-                      {["All Roles", "Admin", "Teacher", "Student"].map(role => (
+                    <div className="absolute top-full mt-1 w-48 bg-white border border-gray-200 rounded shadow-lg z-20">
+                      <button
+                        className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center justify-between text-sm border-b border-gray-100"
+                        onClick={() => {
+                          const allSelected = allRolesSelected;
+                          setSelectedRoles({
+                            Admin: !allSelected,
+                            Teacher: !allSelected,
+                            Student: !allSelected
+                          });
+                          setShowRoleDropdown(false);
+                        }}
+                      >
+                        <span>All Roles</span>
+                        {(allRolesSelected || noRolesSelected) && (
+                          <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                      
+                      {["Admin", "Teacher", "Student"].map(role => (
                         <button
                           key={role}
-                          className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center justify-between"
+                          className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center justify-between text-sm"
                           onClick={() => {
-                            setRoleFilter(role);
+                            toggleRole(role);
                             setShowRoleDropdown(false);
                           }}
                         >
                           <span>{role}</span>
-                          {roleFilter === role && (
-                            <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          {selectedRoles[role] && (
+                            <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
                           )}
@@ -238,45 +293,45 @@ const UserManagement = () => {
               </div>
               
               <button
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors font-medium flex items-center gap-2"
+                className="px-4 py-2 rounded bg-teal-600 text-white hover:bg-teal-700 transition-colors font-medium text-sm flex items-center gap-2"
                 onClick={() => openModal("add")}
               >
-                <span className="text-xl">+</span>
+                <span className="text-lg font-normal">+</span>
                 Add User
               </button>
             </div>
             
             {/* Users Table */}
-            <div className="overflow-x-auto">
+            <div className="border border-gray-200 rounded">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Added</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">NAME</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">EMAIL</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">ROLE</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">STATUS</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">DATE ADDED</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan="6" className="px-6 py-8 text-center text-gray-500 text-sm">
                         No users found. Click "Add User" to create one.
                       </td>
                     </tr>
                   ) : (
                     filteredUsers.map(u => (
                       <tr key={u._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{u.name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{u.name}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{u.email}</td>
                         <td className="px-6 py-4 whitespace-nowrap"><RoleTag role={u.role}/></td>
                         <td className="px-6 py-4 whitespace-nowrap"><StatusTag status={u.status}/></td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {u.dateAdded ? new Date(u.dateAdded).toLocaleDateString() : 'N/A'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm space-x-3">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm space-x-4">
                           <button 
                             className="text-blue-600 hover:text-blue-800 font-medium" 
                             onClick={() => openModal("edit", u)}
@@ -302,26 +357,26 @@ const UserManagement = () => {
         {tab === "approvals" && (
           <div>
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Teacher Approval Requests</h2>
-              <p className="text-gray-600">Review and approve teacher registration requests</p>
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">Teacher Approval Requests</h2>
+              <p className="text-sm text-gray-600">Review and approve teacher registration requests</p>
             </div>
             
             {teacherApprovals.length === 0 ? (
-              <div className="bg-white rounded-lg shadow p-8 text-center">
-                <p className="text-gray-500">No teacher approval requests at this time.</p>
+              <div className="border border-gray-200 rounded p-8 text-center">
+                <p className="text-gray-500 text-sm">No teacher approval requests at this time.</p>
               </div>
             ) : (
               <div className="space-y-4">
                 {teacherApprovals.map(ap => (
                   <div 
                     key={ap._id} 
-                    className="bg-white rounded-lg shadow p-6"
+                    className="border border-gray-200 rounded p-6 bg-white"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-1">{ap.name}</h3>
-                        <p className="text-gray-600 mb-2">{ap.email}</p>
-                        <p className="text-sm text-gray-500 mb-3">
+                        <h3 className="text-base font-semibold text-gray-900 mb-1">{ap.name}</h3>
+                        <p className="text-sm text-gray-600 mb-2">{ap.email}</p>
+                        <p className="text-xs text-gray-500 mb-3">
                           Requested on: {ap.requestedOn ? new Date(ap.requestedOn).toLocaleDateString() : 'N/A'}
                         </p>
                         <div className="text-sm">
@@ -334,7 +389,7 @@ const UserManagement = () => {
                         {!ap.status ? (
                           <>
                             <button 
-                              className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors font-medium flex items-center gap-2" 
+                              className="px-4 py-2 rounded bg-teal-600 text-white hover:bg-teal-700 transition-colors font-medium text-sm flex items-center gap-2" 
                               onClick={() => handleApproveTeacher(ap._id)}
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -343,7 +398,7 @@ const UserManagement = () => {
                               Approve
                             </button>
                             <button 
-                              className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors font-medium flex items-center gap-2" 
+                              className="px-4 py-2 rounded bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors font-medium text-sm flex items-center gap-2" 
                               onClick={() => handleRejectTeacher(ap._id)}
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -353,9 +408,9 @@ const UserManagement = () => {
                             </button>
                           </>
                         ) : ap.status === "Approved" ? (
-                          <span className="px-4 py-2 rounded-lg bg-green-100 text-green-700 font-medium">Approved</span>
+                          <span className="px-4 py-2 rounded bg-green-100 text-green-700 font-medium text-sm">Approved</span>
                         ) : (
-                          <span className="px-4 py-2 rounded-lg bg-red-100 text-red-700 font-medium">Rejected</span>
+                          <span className="px-4 py-2 rounded bg-red-100 text-red-700 font-medium text-sm">Rejected</span>
                         )}
                       </div>
                     </div>
@@ -408,12 +463,12 @@ const AddEditUserForm = ({user, onSubmit, onCancel, type}) => {
   
   return (
     <form className="space-y-4" onSubmit={e => {e.preventDefault(); onSubmit(data);}}>
-      <h2 className="text-xl font-bold text-gray-900 mb-4">{type === "Add" ? "Add New User" : "Edit User"}</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">{type === "Add" ? "Add New User" : "Edit User"}</h2>
       
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
         <input 
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+          className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500" 
           required 
           value={data.name} 
           onChange={e => setData({...data, name: e.target.value})}
@@ -423,7 +478,7 @@ const AddEditUserForm = ({user, onSubmit, onCancel, type}) => {
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
         <input 
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+          className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500" 
           required 
           type="email" 
           value={data.email} 
@@ -434,7 +489,7 @@ const AddEditUserForm = ({user, onSubmit, onCancel, type}) => {
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
         <select 
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+          className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500" 
           required 
           value={data.role} 
           onChange={e => setData({...data, role: e.target.value})}
@@ -448,7 +503,7 @@ const AddEditUserForm = ({user, onSubmit, onCancel, type}) => {
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
         <select 
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+          className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500" 
           required 
           value={data.status} 
           onChange={e => setData({...data, status: e.target.value})}
@@ -461,14 +516,14 @@ const AddEditUserForm = ({user, onSubmit, onCancel, type}) => {
       <div className="flex gap-3 justify-end pt-4">
         <button 
           type="button" 
-          className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors font-medium" 
+          className="px-4 py-2 rounded bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors font-medium text-sm" 
           onClick={onCancel}
         >
           Cancel
         </button>
         <button 
           type="submit" 
-          className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors font-medium"
+          className="px-4 py-2 rounded bg-teal-600 text-white hover:bg-teal-700 transition-colors font-medium text-sm"
         >
           {type === "Add" ? "Add User" : "Update User"}
         </button>
@@ -480,20 +535,20 @@ const AddEditUserForm = ({user, onSubmit, onCancel, type}) => {
 // Delete Modal
 const DeleteUserModal = ({user, onSubmit, onCancel}) => (
   <div>
-    <h2 className="text-xl font-bold text-gray-900 mb-4">Confirm Delete</h2>
-    <p className="text-gray-600 mb-6">
+    <h2 className="text-lg font-semibold text-gray-900 mb-4">Confirm Delete</h2>
+    <p className="text-sm text-gray-600 mb-6">
       Are you sure you want to delete the user <span className="font-semibold text-gray-900">{user.name}</span>? 
       This action cannot be undone.
     </p>
     <div className="flex gap-3 justify-end">
       <button 
-        className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors font-medium" 
+        className="px-4 py-2 rounded bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors font-medium text-sm" 
         onClick={onCancel}
       >
         Cancel
       </button>
       <button 
-        className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium" 
+        className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 transition-colors font-medium text-sm" 
         onClick={onSubmit}
       >
         Delete User
