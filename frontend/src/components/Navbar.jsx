@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 export default function Navbar() {
   return (
@@ -6,7 +7,7 @@ export default function Navbar() {
       <div className="mx-auto px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
-          <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2">
             <div className="w-12 h-12">
               <svg viewBox="0 0 100 100" className="w-full h-full">
                 <line x1="50" y1="8" x2="50" y2="18" stroke="#374151" strokeWidth="2.5" strokeLinecap="round"/>
@@ -22,7 +23,7 @@ export default function Navbar() {
               </svg>
             </div>
             <span className="text-xl font-semibold text-gray-800">EMEXA</span>
-          </div>
+          </Link>
 
           {/* Navigation */}
           <div className="flex items-center gap-12">
@@ -36,6 +37,9 @@ export default function Navbar() {
               <a href="#testimonials" className="text-gray-700 hover:text-gray-900 text-base font-normal transition-colors">
                 Testimonials
               </a>
+              <Link to="/user-management" className="text-gray-700 hover:text-emerald-600 text-base font-normal transition-colors">
+                User Management
+              </Link>
             </div>
             <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2.5 rounded-lg text-base font-medium transition-colors shadow-sm">
               Get Started
