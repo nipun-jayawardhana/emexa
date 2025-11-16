@@ -1,5 +1,9 @@
-const express = require('express');
+import express from 'express';
+import { getUsers, createUser } from '../controllers/userController.js';
+import { protect } from '../middleware/auth.js';
+
 const router = express.Router();
+<<<<<<< HEAD
 const {
   getUsers,
   getUserById,
@@ -16,10 +20,10 @@ router.get('/teacher-approvals', getTeacherApprovals);
 router.route('/')
   .get(getUsers)
   .post(createUser);
+=======
 
-router.route('/:id')
-  .get(getUserById)
-  .put(updateUser)
-  .delete(deleteUser);
+router.get('/', protect, getUsers);
+router.post('/', createUser);
+>>>>>>> new-auth-pages
 
-module.exports = router;
+export default router;
