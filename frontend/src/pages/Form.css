@@ -38,7 +38,7 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
 
 .auth-container{
   width:100%;
-  max-width:760px; /* reduced from 960px */
+  max-width:640px; /* decreased to make the auth card narrower */
   max-height:96vh; /* prevent overflow beyond viewport */
   overflow-y:auto; /* allow internal scroll if needed */
   background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.98));
@@ -54,7 +54,7 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
 .auth-container::-webkit-scrollbar { display: none; }
 
 .auth-inner{
-  max-width:460px; /* reduced from 520px */
+  max-width:420px; /* decreased inner content width for better balance */
   margin:0 auto;
 }
 
