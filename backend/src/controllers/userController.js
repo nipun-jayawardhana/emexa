@@ -1,10 +1,12 @@
+<<<<<<< HEAD
 const User = require('../models/user');
+=======
+import userService from '../services/user.service.js';
+>>>>>>> new-auth-pages
 
-// @desc    Get all users with filtering
-// @route   GET /api/users
-// @access  Public
-const getUsers = async (req, res) => {
+export const getUsers = async (req, res) => {
   try {
+<<<<<<< HEAD
     console.log('🔍 Fetching users with query:', req.query);
     const { search, role } = req.query;
     let query = {};
@@ -35,14 +37,23 @@ const getUsers = async (req, res) => {
       message: 'Error fetching users',
       error: error.message
     });
+=======
+    const { role, page, limit, sort } = req.query;
+    const filter = {};
+    if (role) filter.role = role;
+    const options = { page: parseInt(page) || 1, limit: parseInt(limit) || 10, sort: sort || '-createdAt' };
+    const result = await userService.getAllUsers(filter, options);
+    res.json(result);
+  } catch (err) {
+    console.error('Get users error:', err);
+    res.status(500).json({ message: 'Server error' });
+>>>>>>> new-auth-pages
   }
 };
 
-// @desc    Get single user by ID
-// @route   GET /api/users/:id
-// @access  Public
-const getUserById = async (req, res) => {
+export const createUser = async (req, res) => {
   try {
+<<<<<<< HEAD
     console.log('🔍 Fetching user by ID:', req.params.id);
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -254,3 +265,18 @@ module.exports = {
   deleteUser,
   getTeacherApprovals
 };
+=======
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Missing fields' });
+    }
+
+    const result = await userService.registerUser({ name, email, password });
+    // registerUser returns { user, token }
+    res.status(201).json(result);
+  } catch (err) {
+    console.error('Create user error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+>>>>>>> new-auth-pages
