@@ -1,10 +1,9 @@
 import { Brain, Smile, TrendingUp, Zap, Shield, BarChart3 } from "lucide-react";
 import { useEffect, useState } from "react";
 import "./App.css";
-import "./pages/auth/Forms.css";
-import Login from "./pages/auth/Login";
-import Register from "./pages/auth/Register";
-import ForgotPassword from "./pages/auth/ForgotPassword";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
 
 // Navbar Component
 function Navbar() {
