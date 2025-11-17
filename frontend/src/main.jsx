@@ -1,10 +1,3 @@
-<<<<<<< HEAD
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
-import './index.css';
-import App from './App';
-=======
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -17,17 +10,9 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import RequireAuth from "./components/RequireAuth";
->>>>>>> new-auth-pages
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-<<<<<<< HEAD
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </StrictMode>
-)
-=======
     <div className="app-root">
       <BrowserRouter>
         <Routes>
@@ -44,11 +29,9 @@ createRoot(document.getElementById("root")).render(
           <Route path="/register" element={<Register />} />
           <Route path="/forgot" element={<ForgotPassword />} />
           <Route path="/logout" element={<Logout />} />
-          {/* add protected routes */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </div>
   </StrictMode>
 );
->>>>>>> new-auth-pages
