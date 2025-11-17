@@ -1,11 +1,11 @@
 // main.jsx
-import App from "./App";
-import "@fortawesome/fontawesome-free/css/all.min.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import './index.css';
+import "@fortawesome/fontawesome-free/css/all.min.css";
+import './index.css'; // This imports Tailwind
 import "./pages/Form.css";
+
 import Home from "./pages/Home";
 import SecondPage from "./pages/SecondPage";
 import Login from "./pages/Login";
@@ -13,6 +13,7 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
+import StudentDashboard from "./pages/StudentDashboard";
 import RequireAuth from "./components/RequireAuth";
 
 const hasSeenLanding = () => {
@@ -27,7 +28,7 @@ createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
-        {/* FIRST RUN LOGIC */}
+        {/* Landing page - first visit */}
         <Route
           path="/"
           element={
@@ -37,10 +38,13 @@ createRoot(document.getElementById("root")).render(
           }
         />
 
-        {/* All App.jsx routes */}
-        <Route path="/*" element={<App />} />
+        {/* Auth routes */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot" element={<ForgotPassword />} />
+        <Route path="/logout" element={<Logout />} />
 
-        {/* Protected & other pages */}
+        {/* Protected routes */}
         <Route
           path="/home"
           element={
@@ -49,10 +53,8 @@ createRoot(document.getElementById("root")).render(
             </RequireAuth>
           }
         />
+        <Route path="/student-dashboard" element={<StudentDashboard />} />
         <Route path="/second" element={<SecondPage />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot" element={<ForgotPassword />} />
-        <Route path="/logout" element={<Logout />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

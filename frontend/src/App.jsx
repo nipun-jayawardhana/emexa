@@ -6,17 +6,14 @@ import StudentDashboard from "./pages/StudentDashboard";
 <div className="bg-red-500 text-white p-4">Test Tailwind</div>
 
 
+// App.jsx
+// This file is now optional since we're handling all routing in main.jsx
+// You can either delete this file or keep it minimal
+
 export default function App() {
   return (
-    <Routes>
-      {/* Landing page */}
-      <Route path="/landing" element={<LandingPage />} />
-
-      {/* Login */}
-      <Route path="/login" element={<Login />} />
-
-      {/* Dashboard */}
-      <Route path="/student-dashboard" element={<StudentDashboard />} />
-    </Routes>
+    <div className="bg-red-500 text-white p-4">
+      This App.jsx is no longer needed - all routes are in main.jsx
+    </div>
   );
 }
