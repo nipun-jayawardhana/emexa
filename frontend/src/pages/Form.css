@@ -5,36 +5,23 @@
   --accent: #0b6b3a;
 }
 
-/* Ensure app background overrides any global/root dark theme styles */
+/* Scope background and scroll-lock to the auth root only */
 html,body,#root{height:100%;}
-:root{background:none !important}
-body{
+
+/* Use .app-root to avoid affecting other pages */
+.app-root{
   margin:0;
   font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
-  background: linear-gradient(135deg,var(--bg-start),var(--bg-end)) !important;
+  background: linear-gradient(135deg,var(--bg-start),var(--bg-end));
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
   min-height:100vh;
-  /* completely disable scrolling */
-  overflow: hidden;
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
-}
-html { overflow: hidden; }
-html::-webkit-scrollbar, body::-webkit-scrollbar { 
-  display: none; 
-  width: 0; 
-  height: 0; 
-}
-
-.app-root{
-  height:100vh;
   display:flex;
   align-items:center;
   justify-content:center;
   padding:1rem;
-  overflow:hidden;
 }
+
 
 .auth-container{
   width:100%;
@@ -56,25 +43,6 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
 .auth-inner{
   max-width:420px; /* decreased inner content width for better balance */
   margin:0 auto;
-}
-
-.brand{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  margin-bottom:6px;
-}
-.brand .logo-circle{
-  width:100px; /* reduced from 160px */
-  height:100px;
-  border-radius:50%;
-  background: radial-gradient(circle at 35% 20%, rgba(11,107,58,0.12), rgba(11,107,58,0.06));
-  border:8px solid rgba(11,107,58,0.06);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-weight:700;
-  color:var(--accent);
 }
 
 .brand img.brand-logo{
