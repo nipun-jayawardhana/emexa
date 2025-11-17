@@ -3,38 +3,10 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
 const userSchema = new mongoose.Schema({
-<<<<<<< HEAD
-  name: {
-    type: String,
-    required: [true, 'Name is required'],
-    trim: true
-  },
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-    unique: true,
-    trim: true,
-    lowercase: true
-  },
-  role: {
-    type: String,
-    required: [true, 'Role is required'],
-    enum: ['Student', 'Teacher', 'Admin'],
-    default: 'Student'
-  },
-  status: {
-    type: String,
-    required: [true, 'Status is required'],
-    enum: ['Active', 'Inactive', 'Pending'],
-    default: 'Active'
-  }
-}, {
-  timestamps: true
-=======
-  name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
+  name: { type: String, required: true, trim: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true, select: false },
-  role: { type: String, enum: ['student', 'teacher'], default: 'student' },
+  role: { type: String, enum: ['student', 'teacher', 'admin'], default: 'student' },
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });
 
@@ -44,7 +16,6 @@ userSchema.pre('save', async function(next) {
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
   next();
->>>>>>> new-auth-pages
 });
 
 // Compare plain password with hashed
