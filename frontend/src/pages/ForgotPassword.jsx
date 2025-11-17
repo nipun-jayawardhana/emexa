@@ -1,6 +1,7 @@
 import { useState } from "react";
 import logo from "../assets/auth-pages-images/EMEXA Logo.png";
 import api from "../lib/api";
+import "./Form.css";
 import { Link } from "react-router-dom";
 
 export default function ForgotPassword() {
@@ -61,63 +62,65 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="auth-container">
-      <div className="brand">
-        <img src={logo} alt="EMEXA logo" className="brand-logo" />
-      </div>
-      <div className="auth-title">Reset your password</div>
-      <div className="auth-sub">
-        Enter your email address and we'll send you a link to reset your
-        password.
-      </div>
-
-      <div className="auth-inner">
-        <form noValidate onSubmit={onSubmit}>
-          {success && (
-            <div
-              style={{
-                padding: "12px",
-                marginBottom: "16px",
-                backgroundColor: "#d4edda",
-                color: "#155724",
-                borderRadius: "8px",
-                border: "1px solid #c3e6cb",
-                textAlign: "center",
-                fontWeight: "500",
-              }}
-            >
-              {success}
-            </div>
-          )}
-
-          <div className={`field ${error ? "error" : ""}`}>
-            <label>Email address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-            />
-            {error && <div className="error-text">{error}</div>}
-          </div>
-
-          <button className="btn" type="submit" disabled={loading}>
-            {loading ? "Sending..." : "Send reset link"}
-          </button>
-
-          <div style={{ marginTop: 12, textAlign: "center" }}>
-            <Link className="link" to="/login">
-              Back to login
-            </Link>
-          </div>
-        </form>
-      </div>
-
-      {sent && (
-        <div className="success-overlay">
-          Your reset link has been sent successfully!
+    <div className="app-root">
+      <div className="auth-container">
+        <div className="brand">
+          <img src={logo} alt="EMEXA logo" className="brand-logo" />
         </div>
-      )}
+        <div className="auth-title">Reset your password</div>
+        <div className="auth-sub">
+          Enter your email address and we'll send you a link to reset your
+          password.
+        </div>
+
+        <div className="auth-inner">
+          <form noValidate onSubmit={onSubmit}>
+            {success && (
+              <div
+                style={{
+                  padding: "12px",
+                  marginBottom: "16px",
+                  backgroundColor: "#d4edda",
+                  color: "#155724",
+                  borderRadius: "8px",
+                  border: "1px solid #c3e6cb",
+                  textAlign: "center",
+                  fontWeight: "500",
+                }}
+              >
+                {success}
+              </div>
+            )}
+
+            <div className={`field ${error ? "error" : ""}`}>
+              <label>Email address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+              />
+              {error && <div className="error-text">{error}</div>}
+            </div>
+
+            <button className="btn" type="submit" disabled={loading}>
+              {loading ? "Sending..." : "Send reset link"}
+            </button>
+
+            <div style={{ marginTop: 12, textAlign: "center" }}>
+              <Link className="link" to="/login">
+                Back to login
+              </Link>
+            </div>
+          </form>
+        </div>
+
+        {sent && (
+          <div className="success-overlay">
+            Your reset link has been sent successfully!
+          </div>
+        )}
+      </div>
     </div>
   );
 }
