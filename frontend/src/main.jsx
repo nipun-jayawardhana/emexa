@@ -1,3 +1,5 @@
+import App from './App';
+import '@fortawesome/fontawesome-free/css/all.min.css';
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -10,6 +12,7 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import RequireAuth from "./components/RequireAuth";
+
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
