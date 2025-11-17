@@ -1,6 +1,42 @@
-module.exports = {
+import axios from 'axios';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+const client = axios.create({
+  baseURL: API_BASE,
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 10000,
+});
+
+export async function getJSON(path) {
+  try {
+    const res = await client.get(path);
+    return res.data;
+  } catch (err) {
+    if (!err.response) err.isNetworkError = true;
+    const e = new Error(err.response?.data?.message || err.message);
+    e.status = err.response?.status;
+    e.body = err.response?.data;
+    e.isNetworkError = !!err.isNetworkError;
+    throw e;
+  }
+}
+
+export async function postJSON(path, body) {
+  try {
+    const res = await client.post(path, body);
+    return res.data;
+  } catch (err) {
+    if (!err.response) err.isNetworkError = true;
+    const e = new Error(err.response?.data?.message || err.message);
+    e.status = err.response?.status;
+    e.body = err.response?.data;
+    e.isNetworkError = !!err.isNetworkError;
+    throw e;
+  }
+}module.exports = {
   NODE_ENV: process.env.NODE_ENV || 'development',
-  PORT: process.env.PORT || 5173,
+  PORT: process.env.PORT || 5000,
   API_VERSION: process.env.API_VERSION || 'v1',
   
   // Database
