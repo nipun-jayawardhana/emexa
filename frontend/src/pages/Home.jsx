@@ -15,7 +15,7 @@ const Home = () => {
 
   return (
     <>
-      <div className="bg-pink-500 p-4 text-4xl text-white">
+      <div className="p-4 text-4xl text-white bg-pink-500">
         Home Page
         {user && (
           <div style={{ fontSize: 16, marginTop: 8 }}>Welcome, {user.name}</div>
