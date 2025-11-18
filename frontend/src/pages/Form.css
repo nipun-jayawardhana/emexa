@@ -45,6 +45,13 @@ html,body,#root{height:100%;}
   margin:0 auto;
 }
 
+.brand{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin-bottom:6px;
+}
+
 .brand img.brand-logo{
   width:90px; /* reduced from 140px */
   height:90px;
