@@ -1,32 +1,113 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Name is required'],
-    trim: true
-  },
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-    unique: true,
-    trim: true,
-    lowercase: true
-  },
-  role: {
-    type: String,
-    required: [true, 'Role is required'],
-    enum: ['Student', 'Teacher', 'Admin'],
-    default: 'Student'
-  },
-  status: {
-    type: String,
-    required: [true, 'Status is required'],
-    enum: ['Active', 'Inactive', 'Pending'],
-    default: 'Active'
-  }
-}, {
-  timestamps: true
+// Quiz schema for upcoming quizzes
+const quizSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  date: { type: Date, required: true },
+  description: { type: String },
+  score: { type: Number },
+  completed: { type: Boolean, default: false }
 });
 
-module.exports = mongoose.model('User', userSchema);
+// Activity schema for recent activity
+const activitySchema = new mongoose.Schema({
+  type: { 
+    type: String, 
+    enum: ['Completed Quiz', 'Started Quiz', 'Viewed Results'],
+    required: true 
+  },
+  title: { type: String, required: true },
+  date: { type: Date, required: true },
+  score: { type: Number },
+  status: { 
+    type: String, 
+    enum: ['completed', 'in-progress', 'viewed'] 
+  }
+});
+
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  password: { type: String, required: true, select: false },
+  role: { type: String, enum: ['student', 'teacher', 'admin'], default: 'student' },
+  isActive: { type: Boolean, default: true },
+  
+  // Dashboard statistics
+  totalQuizzes: { type: Number, default: 24 },
+  averageScore: { type: Number, default: 82 },
+  studyTime: { type: Number, default: 32 },
+  
+  // Upcoming quizzes
+  upcomingQuizzes: {
+    type: [quizSchema],
+    default: [
+      {
+        title: 'Matrix',
+        date: new Date('2025-10-20'),
+        description: 'Prepare for your Matrix quiz by revising matrix operations, determinants, and inverse concepts to strengthen your problem-solving skills.'
+      },
+      {
+        title: 'Vectors',
+        date: new Date('2025-10-25'),
+        description: 'Review vector basics, dot and cross products, and geometric interpretations to get ready for your Vectors quiz.'
+      },
+      {
+        title: 'Limits',
+        date: new Date('2025-10-30'),
+        description: 'Study the fundamentals of limits, continuity, and approaching values to perform well in your Limits quiz.'
+      }
+    ]
+  },
+  
+  // Recent activity
+  recentActivity: {
+    type: [activitySchema],
+    default: [
+      {
+        type: 'Completed Quiz',
+        title: 'Limits Basics',
+        date: new Date('2025-10-10'),
+        score: 85,
+        status: 'completed'
+      },
+      {
+        type: 'Started Quiz',
+        title: 'Trigonometry Fundamentals',
+        date: new Date('2025-10-09'),
+        status: 'in-progress'
+      },
+      {
+        type: 'Viewed Results',
+        title: 'History Timeline',
+        date: new Date('2025-10-07'),
+        score: 78,
+        status: 'viewed'
+      }
+    ]
+  }
+}, { timestamps: true });
+
+// Hash password before saving
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+// Compare plain password with hashed
+userSchema.methods.comparePassword = function(plain) {
+  return bcrypt.compare(plain, this.password);
+};
+
+// Generate JWT token
+userSchema.methods.generateAuthToken = function() {
+  const secret = process.env.JWT_SECRET || 'dev_secret';
+  const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
+  return jwt.sign({ id: this._id }, secret, { expiresIn });
+};
+
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+export default User;

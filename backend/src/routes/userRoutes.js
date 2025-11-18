@@ -1,25 +1,15 @@
-const express = require('express');
+import express from 'express';
+import { getUsers, createUser, getDashboardData, getProfile } from '../controllers/userController.js';
+import { protect } from '../middleware/auth.js';
+
 const router = express.Router();
-const {
-  getUsers,
-  getUserById,
-  createUser,
-  updateUser,
-  deleteUser,
-  getTeacherApprovals
-} = require('../controllers/userController');
 
-// TEACHER APPROVALS — BEFORE :id
-router.get('/teacher-approvals', getTeacherApprovals);
+// Existing routes
+router.get('/', protect, getUsers);
+router.post('/', createUser);
 
-// CRUD ROUTES
-router.route('/')
-  .get(getUsers)
-  .post(createUser);
+// New dashboard routes
+router.get('/dashboard', protect, getDashboardData);
+router.get('/profile', protect, getProfile);
 
-router.route('/:id')
-  .get(getUserById)
-  .put(updateUser)
-  .delete(deleteUser);
-
-module.exports = router;
+export default router;
