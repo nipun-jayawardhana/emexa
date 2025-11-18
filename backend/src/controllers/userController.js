@@ -1,5 +1,7 @@
 import userService from '../services/user.service.js';
+import User from '../models/user.js';
 
+// Existing functions
 export const getUsers = async (req, res) => {
   try {
     const { role, page, limit, sort } = req.query;
@@ -30,3 +32,41 @@ export const createUser = async (req, res) => {
   }
 };
 
+// New dashboard functions
+export const getDashboardData = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({
+      name: user.name,
+      email: user.email,
+      totalQuizzes: user.totalQuizzes,
+      averageScore: user.averageScore,
+      studyTime: user.studyTime,
+      upcomingQuizzes: user.upcomingQuizzes,
+      recentActivity: user.recentActivity,
+    });
+  } catch (error) {
+    console.error('Get dashboard data error:', error);
+    res.status(500).json({ message: 'Error fetching dashboard data', error: error.message });
+  }
+};
+
+export const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ message: 'Error fetching profile', error: error.message });
+  }
+};
