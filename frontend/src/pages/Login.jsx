@@ -54,14 +54,16 @@ export default function Login() {
         }
         if (res.user) {
           localStorage.setItem("user", JSON.stringify(res.user));
+          // Save userName for dashboard
+          localStorage.setItem("userName", res.user.name || res.user.full_name || "User");
         }
 
         // Show success message (backend returns `user.name`)
         const userName = res.user?.name || res.user?.full_name || "user";
         setSuccess(`✅ Login successful! Welcome back ${userName}!`);
 
-        // Navigate to home
-        navigate("/");
+        // Navigate to dashboard
+        navigate("/dashboard");
       })
       .catch((err) => {
         console.error("❌ Login failed:", err);

@@ -1,11 +1,12 @@
-const jwt = require('jsonwebtoken');
-const { JWT_SECRET } = require('../config/environment');
-const ApiError = require('../utils/apiError');
-const Student = require('../models/student');
-const Teacher = require('../models/teacher');
-const User = require('../models/user.model');
+// auth.middleware.js (ESM, merged)
+import jwt from 'jsonwebtoken';
+import ApiError from '../utils/apiError.js';
+import Student from '../models/student.js';
+import Teacher from '../models/teacher.js';
+import User from '../models/user.js';
 
-const protect = async (req, res, next) => {
+// Protect middleware — verifies JWT, finds user in Student | Teacher | User, sets req.user and req.userId
+export const protect = async (req, res, next) => {
   try {
     let token;
 
@@ -16,12 +17,13 @@ const protect = async (req, res, next) => {
 
     // Check if token exists
     if (!token) {
-      throw ApiError.unauthorized('Not authorized to access this route');
+      return res.status(401).json({ message: 'Not authorized to access this route' });
     }
 
     try {
       // Verify token
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const secret = process.env.JWT_SECRET || 'dev_secret';
+      const decoded = jwt.verify(token, secret);
 
       // Get user from token - check student, teacher, or user collections
       let user = await Student.findById(decoded.id).select('-password');
@@ -33,28 +35,64 @@ const protect = async (req, res, next) => {
       }
 
       if (!user) {
+        // Keep the ApiError semantics from auth-fix
+        // If you prefer plain JSON responses instead, replace with res.status(...)
         throw ApiError.unauthorized('User no longer exists');
       }
 
+      // Set both req.user and req.userId for compatibility with older and new routes
       req.user = user;
+      req.userId = decoded.id;
+
       next();
     } catch (error) {
-      throw ApiError.unauthorized('Not authorized to access this route');
+      // For token verification errors or ApiError.unauthorized above
+      return res.status(401).json({ message: 'Not authorized to access this route' });
     }
   } catch (error) {
     next(error);
   }
 };
 
-const authorize = (...roles) => {
+// Authorize middleware — ensures role is allowed
+export const authorize = (...roles) => {
   return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+
     if (!roles.includes(req.user.role)) {
-      return next(
-        ApiError.forbidden(`User role ${req.user.role} is not authorized to access this route`)
-      );
+      return res.status(403).json({
+        message: `User role ${req.user.role} is not authorized to access this route`
+      });
     }
     next();
   };
 };
 
-module.exports = { protect, authorize };
+// Simple auth middleware for some dashboard routes (alternative)
+export const authMiddleware = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const secret = process.env.JWT_SECRET || 'dev_secret';
+    const decoded = jwt.verify(token, secret);
+
+    req.userId = decoded.id;
+    req.user = await User.findById(decoded.id).select('-password');
+
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};
+
+export default protect;
