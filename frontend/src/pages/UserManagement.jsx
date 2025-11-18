@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { userAPI } from '../services/api';
-import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 
 const UserManagement = () => {
