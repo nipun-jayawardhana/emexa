@@ -13,7 +13,7 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
-import StudentDashboard from "./pages/StudentDashboard";
+import StudentDashboard from "./pages/stdashboard";
 import RequireAuth from "./components/RequireAuth";
 
 const hasSeenLanding = () => {
@@ -53,7 +53,20 @@ createRoot(document.getElementById("root")).render(
             </RequireAuth>
           }
         />
-        <Route path="/student-dashboard" element={<StudentDashboard />} />
+        
+        {/* Dashboard route - Protected */}
+        <Route
+          path="/dashboard"
+          element={
+            <RequireAuth>
+              <StudentDashboard />
+            </RequireAuth>
+          }
+        />
+        
+        {/* Legacy dashboard route - redirect to /dashboard */}
+        <Route path="/student-dashboard" element={<Navigate to="/dashboard" replace />} />
+        
         <Route path="/second" element={<SecondPage />} />
 
         {/* Fallback */}
