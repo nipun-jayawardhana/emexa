@@ -1,7 +1,7 @@
 import userService from '../services/user.service.js';
 import User from '../models/user.js';
 
-// Existing functions
+
 export const getUsers = async (req, res) => {
   try {
     const { role, page, limit, sort } = req.query;
