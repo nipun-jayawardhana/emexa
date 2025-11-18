@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('../config/environment');
 const ApiError = require('../utils/apiError');
+const Student = require('../models/student');
+const Teacher = require('../models/teacher');
 const User = require('../models/user.model');
 
 const protect = async (req, res, next) => {
@@ -21,13 +23,20 @@ const protect = async (req, res, next) => {
       // Verify token
       const decoded = jwt.verify(token, JWT_SECRET);
 
-      // Get user from token
-      req.user = await User.findById(decoded.id).select('-password');
+      // Get user from token - check student, teacher, or user collections
+      let user = await Student.findById(decoded.id).select('-password');
+      if (!user) {
+        user = await Teacher.findById(decoded.id).select('-password');
+      }
+      if (!user) {
+        user = await User.findById(decoded.id).select('-password');
+      }
 
-      if (!req.user) {
+      if (!user) {
         throw ApiError.unauthorized('User no longer exists');
       }
 
+      req.user = user;
       next();
     } catch (error) {
       throw ApiError.unauthorized('Not authorized to access this route');

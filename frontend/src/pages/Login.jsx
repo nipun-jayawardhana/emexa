@@ -8,7 +8,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -16,20 +16,22 @@ export default function Login() {
 
   const onSubmit = (e) => {
     e.preventDefault();
-    setError("");
+    setErrors({});
     setSuccess("");
 
     // Validation
+    const newErrors = {};
     if (!email.trim()) {
-      setError("Please enter your email address");
-      return;
-    }
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      setError("Please enter a valid email address");
-      return;
+      newErrors.email = "Please enter your email address";
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      newErrors.email = "Please enter a valid email address";
     }
     if (!password) {
-      setError("Please enter your password");
+      newErrors.password = "Please enter your password";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
@@ -74,7 +76,9 @@ export default function Login() {
           errorMessage = err.message;
         }
 
-        setError(errorMessage);
+        // Set as general form error
+        setErrors({ form: errorMessage });
+        setSuccess(""); // Clear any success message
       })
       .finally(() => setLoading(false));
   };
@@ -109,23 +113,30 @@ export default function Login() {
               </div>
             )}
 
-            <div className={`field`}>
+            <div className={`field ${errors.email ? "error" : ""}`}>
               <label>Email</label>
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setErrors({}); // Clear errors when user types
+                }}
                 placeholder="Enter your email"
               />
+              {errors.email && <div className="error-text">{errors.email}</div>}
             </div>
 
-            <div className={`field`}>
+            <div className={`field ${errors.password ? "error" : ""}`}>
               <label>Password</label>
               <div style={{ position: "relative" }}>
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setErrors({}); // Clear errors when user types
+                  }}
                   placeholder="Enter your password"
                   style={{ paddingRight: "40px" }}
                 />
@@ -154,18 +165,27 @@ export default function Login() {
                   {showPassword ? "👁️" : "👁️‍🗨️"}
                 </button>
               </div>
+              {errors.password && (
+                <div className="error-text">{errors.password}</div>
+              )}
             </div>
 
-            {error && (
+            {errors.form && (
               <div
-                className="error-text"
                 style={{
+                  padding: "12px",
                   marginTop: "8px",
                   marginBottom: "12px",
+                  backgroundColor: "#fee",
+                  color: "#c0392b",
+                  borderRadius: "8px",
+                  border: "1px solid #f5c6cb",
                   textAlign: "center",
+                  fontWeight: "500",
+                  fontSize: "14px",
                 }}
               >
-                {error}
+                ❌ {errors.form}
               </div>
             )}
 
