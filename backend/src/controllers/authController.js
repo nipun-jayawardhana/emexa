@@ -1,5 +1,7 @@
 import userService from '../services/user.service.js';
 import userRepository from '../repositories/user.repository.js';
+import studentRepository from '../repositories/student.repository.js';
+import teacherRepository from '../repositories/teacher.repository.js';
 
 export const register = async (req, res) => {
   try {
@@ -8,10 +10,18 @@ export const register = async (req, res) => {
     const userName = fullName || name;
     if (!userName || !email || !password) return res.status(400).json({ message: 'Missing fields' });
 
-    const payload = { name: userName, email, password, role: accountType || 'student' };
-    const result = await userService.registerUser(payload);
+    const role = accountType || 'student';
+    const payload = { name: userName, email, password, role };
+    
+    // Register based on account type - store in separate collections
+    let result;
+    if (role === 'teacher') {
+      result = await userService.registerTeacher(payload);
+    } else {
+      result = await userService.registerStudent(payload);
+    }
 
-    // userService.registerUser returns { user, token }
+    // userService returns { user, token }
     res.status(201).json(result);
   } catch (err) {
     console.error('Register error:', err);
@@ -25,13 +35,20 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'Missing fields' });
-    // Delegate login logic to userService
+    
+    // Try to login as student or teacher
     const result = await userService.loginUser(email, password);
+    
     // userService.loginUser returns { user, token }
     return res.json(result);
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ message: 'Server error' });
+    
+    // Return the specific error message from the service
+    const statusCode = err.statusCode || 401;
+    const message = err.message || 'Invalid email or password';
+    
+    return res.status(statusCode).json({ message });
   }
 };
 
@@ -40,9 +57,16 @@ export const forgotPassword = async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'Missing email' });
 
-    // For now just respond success if user exists (no email sending implemented)
-    const user = await userRepository.findByEmail(email);
-    if (!user) return res.status(200).json({ message: 'If the email exists we sent a link' });
+    // Normalize email
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Check in both student and teacher collections
+    const student = await studentRepository.findByEmail(normalizedEmail);
+    const teacher = await teacherRepository.findByEmail(normalizedEmail);
+    
+    if (!student && !teacher) {
+      return res.status(200).json({ message: 'If the email exists we sent a link' });
+    }
 
     // TODO: generate reset token and send email
     return res.json({ message: 'If the email exists we sent a link' });
