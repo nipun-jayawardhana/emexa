@@ -6,19 +6,22 @@ import "@fortawesome/fontawesome-free/css/all.min.css";
 import './index.css'; // This imports Tailwind
 import "./pages/Form.css";
 
-import Home from "./pages/Home";
-import SecondPage from "./pages/SecondPage";
+// Note: `Home` and `SecondPage` were removed/renamed in the pages folder.
+// Use the existing `StudentDashboard` component for protected dashboard routes.
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
-import StudentDashboard from "./pages/stdashboard";
-import QuizPage from "./pages/quizpage"; 
+import StudentDashboard from "./pages/StudentDashboard";
 import RequireAuth from "./components/RequireAuth";
 
+// In development it's convenient to always show the landing page.
+// Vite exposes `import.meta.env.DEV` which is true in dev mode.
 const hasSeenLanding = () => {
   try {
+    // Force showing landing during development for easier iteration
+    if (import.meta.env && import.meta.env.DEV) return false;
     return localStorage.getItem("seenLanding") === "true";
   } catch {
     return false;
@@ -45,16 +48,15 @@ createRoot(document.getElementById("root")).render(
         <Route path="/forgot" element={<ForgotPassword />} />
         <Route path="/logout" element={<Logout />} />
 
-        {/* Protected routes */}
+        {/* Protected routes: use `StudentDashboard` for authenticated users */}
         <Route
           path="/home"
           element={
             <RequireAuth>
-              <Home />
+              <StudentDashboard />
             </RequireAuth>
           }
         />
-        
         {/* Dashboard route - Protected */}
         <Route
           path="/dashboard"
@@ -78,7 +80,7 @@ createRoot(document.getElementById("root")).render(
         {/* Legacy dashboard route - redirect to /dashboard */}
         <Route path="/student-dashboard" element={<Navigate to="/dashboard" replace />} />
         
-        <Route path="/second" element={<SecondPage />} />
+        {/* removed /second route (no matching component file) */}
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
