@@ -122,16 +122,19 @@ const StudentDashboard = () => {
               <div className="space-y-3">
                 {(dashboardData?.upcomingQuizzes || [
                   {
+                    id: 'matrix-quiz',
                     title: 'Matrix',
                     date: '2025-10-20',
                     description: 'Prepare for your Matrix quiz by revising matrix operations, determinants, and inverse concepts to strengthen your problem-solving skills.'
                   },
                   {
+                    id: 'vectors-quiz',
                     title: 'Vectors',
                     date: '2025-10-25',
                     description: 'Review vector basics, dot and cross products, and geometric interpretations to get ready for your Vectors quiz.'
                   },
                   {
+                     id: 'limits-quiz',
                     title: 'Limits',
                     date: '2025-10-30',
                     description: 'Study the fundamentals of limits, continuity, and approaching values to perform well in your Limits quiz.'
@@ -145,8 +148,11 @@ const StudentDashboard = () => {
                       </p>
                       <p className="text-xs text-gray-600 leading-relaxed">{quiz.description}</p>
                     </div>
-                    <button className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-600 transition whitespace-nowrap">
-                      Take Quiz
+                    <button 
+                        onClick={() => navigate(`/quiz/${quiz.id}`)}
+                        className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-600 transition whitespace-nowrap"
+                         >
+                          Take Quiz
                     </button>
                   </div>
                 ))}
