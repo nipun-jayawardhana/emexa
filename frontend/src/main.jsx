@@ -14,6 +14,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
 import StudentDashboard from "./pages/stdashboard";
+import QuizPage from "./pages/quizpage"; 
 import RequireAuth from "./components/RequireAuth";
 
 const hasSeenLanding = () => {
@@ -60,6 +61,16 @@ createRoot(document.getElementById("root")).render(
           element={
             <RequireAuth>
               <StudentDashboard />
+            </RequireAuth>
+          }
+        />
+        
+        {/* Quiz route - Protected - NEW */}
+        <Route
+          path="/quiz/:quizId"
+          element={
+            <RequireAuth>
+              <QuizPage />
             </RequireAuth>
           }
         />
