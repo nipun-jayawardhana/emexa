@@ -3,7 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "@fortawesome/fontawesome-free/css/all.min.css";
-import './index.css'; // This imports Tailwind
+import "./index.css"; // This imports Tailwind
 import "./pages/Form.css";
 
 // Note: `Home` and `SecondPage` were removed/renamed in the pages folder.
@@ -37,9 +37,11 @@ createRoot(document.getElementById("root")).render(
         <Route
           path="/"
           element={
-            hasSeenLanding()
-              ? <Navigate to="/login" replace />
-              : <LandingPage />
+            hasSeenLanding() ? (
+              <Navigate to="/login" replace />
+            ) : (
+              <LandingPage />
+            )
           }
         />
 
@@ -79,8 +81,11 @@ createRoot(document.getElementById("root")).render(
         />
         
         {/* Legacy dashboard route - redirect to /dashboard */}
-        <Route path="/student-dashboard" element={<Navigate to="/dashboard" replace />} />
-        
+        <Route
+          path="/student-dashboard"
+          element={<Navigate to="/dashboard" replace />}
+        />
+
         {/* removed /second route (no matching component file) */}
 
         {/* Fallback */}
