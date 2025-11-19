@@ -67,6 +67,16 @@ createRoot(document.getElementById("root")).render(
           }
         />
         
+        {/* Quiz route - Protected - NEW */}
+        <Route
+          path="/quiz/:quizId"
+          element={
+            <RequireAuth>
+              <QuizPage />
+            </RequireAuth>
+          }
+        />
+        
         {/* Legacy dashboard route - redirect to /dashboard */}
         <Route path="/student-dashboard" element={<Navigate to="/dashboard" replace />} />
         
