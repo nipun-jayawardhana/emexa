@@ -14,6 +14,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
 import StudentDashboard from "./pages/StudentDashboard";
+import Permission from "./pages/Permission";
 import RequireAuth from "./components/RequireAuth";
 
 // In development it's convenient to always show the landing page.
@@ -47,6 +48,7 @@ createRoot(document.getElementById("root")).render(
         <Route path="/register" element={<Register />} />
         <Route path="/forgot" element={<ForgotPassword />} />
         <Route path="/logout" element={<Logout />} />
+        <Route path="/permission" element={<Permission />} />
 
         {/* Protected routes: use `StudentDashboard` for authenticated users */}
         <Route
