@@ -70,7 +70,7 @@ createRoot(document.getElementById("root")).render(
             </RequireAuth>
           }
         />
-        
+
         {/* Teacher Dashboard route - Protected */}
         <Route
           path="/teacher-dashboard"
@@ -80,7 +80,7 @@ createRoot(document.getElementById("root")).render(
             </RequireAuth>
           }
         />
-        
+
         {/* Quiz route - Protected - NEW */}
         <Route
           path="/quiz/:quizId"
@@ -90,7 +90,7 @@ createRoot(document.getElementById("root")).render(
             </RequireAuth>
           }
         />
-        
+
         {/* Legacy dashboard route - redirect to /dashboard */}
         <Route
           path="/student-dashboard"
