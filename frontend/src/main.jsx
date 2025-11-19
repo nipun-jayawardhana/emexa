@@ -13,8 +13,8 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
-import StudentDashboard from "./pages/StudentDashboard";
-import TeacherDashboard from "./pages/TeacherDashboard";
+import StudentDashboard from "./pages/stdashboard";
+import QuizPage from "./pages/quizpage";
 import RequireAuth from "./components/RequireAuth";
 
 // In development it's convenient to always show the landing page.
@@ -69,17 +69,17 @@ createRoot(document.getElementById("root")).render(
             </RequireAuth>
           }
         />
-
-        {/* Teacher Dashboard - Protected */}
+        
+        {/* Quiz route - Protected - NEW */}
         <Route
-          path="/teacher-dashboard"
+          path="/quiz/:quizId"
           element={
             <RequireAuth>
-              <TeacherDashboard />
+              <QuizPage />
             </RequireAuth>
           }
         />
-
+        
         {/* Legacy dashboard route - redirect to /dashboard */}
         <Route
           path="/student-dashboard"
