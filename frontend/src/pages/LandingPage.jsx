@@ -65,13 +65,6 @@ function Navbar({ onGetStarted }) {
 
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate("/login")}
-                className="text-gray-700 hover:text-gray-900 text-base font-medium transition-colors bg-transparent px-3 py-2"
-              >
-                Log in
-              </button>
-
-              <button
                 onClick={onGetStarted}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg text-base font-medium transition-colors shadow-sm"
               >
