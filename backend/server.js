@@ -5,6 +5,7 @@ import os from 'os';
 import { connectDB } from './src/services/dbService.js';
 import userRoutes from './src/routes/userRoutes.js';
 import authRoutes from './src/routes/authRoutes.js';
+import quizRoutes from './src/routes/quizroutes.js';
 
 dotenv.config();
 const app = express();
@@ -19,8 +20,8 @@ app.use(express.json());
 
 // Routes
 app.use('/api/users', userRoutes);
-// Auth routes mounted at /api/auth
 app.use('/api/auth', authRoutes);
+app.use('/api/quiz', quizRoutes);
 
 // Health
 app.get('/', (req, res) => res.json({ ok: true, message: 'API is running' }));
