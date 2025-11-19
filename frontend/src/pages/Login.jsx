@@ -55,7 +55,10 @@ export default function Login() {
         if (res.user) {
           localStorage.setItem("user", JSON.stringify(res.user));
           // Save userName for dashboard
-          localStorage.setItem("userName", res.user.name || res.user.full_name || "User");
+          localStorage.setItem(
+            "userName",
+            res.user.name || res.user.full_name || "User"
+          );
         }
 
         // Show success message (backend returns `user.name`)

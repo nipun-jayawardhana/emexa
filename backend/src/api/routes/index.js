@@ -3,6 +3,7 @@ const router = express.Router();
 const userRoutes = require('./user.routes');
 const healthRoutes = require('./health.routes');
 const authRoutes = require('./auth.routes');
+const teacherRoutes = require('../../routes/teacherRoutes');
 
 // API welcome message
 router.get('/', (req, res) => {
@@ -23,6 +24,14 @@ router.get('/', (req, res) => {
         update: 'PUT /api/v1/users/:id',
         delete: 'DELETE /api/v1/users/:id'
       },
+      teacher: {
+        dashboardStats: 'GET /api/v1/teacher/dashboard/stats',
+        classProgress: 'GET /api/v1/teacher/dashboard/class-progress',
+        engagementTrend: 'GET /api/v1/teacher/dashboard/engagement-trend',
+        emotionalState: 'GET /api/v1/teacher/dashboard/emotional-state',
+        students: 'GET /api/v1/teacher/dashboard/students',
+        quizzes: 'GET /api/v1/teacher/dashboard/quizzes'
+      },
       health: 'GET /api/v1/health'
     }
   });
@@ -32,5 +41,6 @@ router.get('/', (req, res) => {
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/health', healthRoutes);
+router.use('/teacher', teacherRoutes);
 
 module.exports = router;
