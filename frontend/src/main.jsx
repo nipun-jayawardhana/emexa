@@ -14,6 +14,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
 import StudentDashboard from "./pages/stdashboard";
+import TeacherDashboard from "./pages/TeacherDashboard";
 import QuizPage from "./pages/quizpage";
 import RequireAuth from "./components/RequireAuth";
 
@@ -66,6 +67,16 @@ createRoot(document.getElementById("root")).render(
           element={
             <RequireAuth>
               <StudentDashboard />
+            </RequireAuth>
+          }
+        />
+        
+        {/* Teacher Dashboard route - Protected */}
+        <Route
+          path="/teacher-dashboard"
+          element={
+            <RequireAuth>
+              <TeacherDashboard />
             </RequireAuth>
           }
         />
