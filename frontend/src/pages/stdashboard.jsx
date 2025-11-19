@@ -251,8 +251,11 @@ const StudentDashboard = () => {
                         {quiz.description}
                       </p>
                     </div>
-                    <button className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-600 transition whitespace-nowrap">
-                      Take Quiz
+                    <button 
+                        onClick={() => navigate(`/quiz/${quiz.id}`)}
+                        className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-600 transition whitespace-nowrap"
+                         >
+                          Take Quiz
                     </button>
                   </div>
                 ))}
