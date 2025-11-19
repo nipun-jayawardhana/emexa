@@ -13,7 +13,8 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
-import StudentDashboard from "./pages/StudentDashboard";
+import StudentDashboard from "./pages/stdashboard";
+import QuizPage from "./pages/quizpage";
 import RequireAuth from "./components/RequireAuth";
 
 // In development it's convenient to always show the landing page.
