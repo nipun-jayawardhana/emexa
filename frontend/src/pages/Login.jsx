@@ -68,7 +68,8 @@ export default function Login() {
 
         // Navigate based on user role
         const userRole = res.user?.role || "student";
-        const dashboardPath = userRole === "teacher" ? "/teacher-dashboard" : "/dashboard";
+        const dashboardPath =
+          userRole === "teacher" ? "/teacher-dashboard" : "/dashboard";
         console.log(`🚀 Navigating to ${dashboardPath} (role: ${userRole})`);
         navigate(dashboardPath);
       })
