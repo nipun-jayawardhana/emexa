@@ -25,6 +25,8 @@ export default function Login() {
       newErrors.email = "Please enter your email address";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
       newErrors.email = "Please enter a valid email address";
+    } else if (email !== email.toLowerCase()) {
+      newErrors.email = "Email must be in lowercase only";
     }
     if (!password) {
       newErrors.password = "Please enter your password";
