@@ -54,24 +54,23 @@ export default function Login() {
         }
         if (res.user) {
           localStorage.setItem("user", JSON.stringify(res.user));
-          // Save userName for dashboard
           localStorage.setItem(
             "userName",
             res.user.name || res.user.full_name || "User"
           );
         }
 
-        // Show success message (backend returns `user.name`)
+        // Show success message
         const userName = res.user?.name || res.user?.full_name || "user";
         setSuccess(`✅ Login successful! Welcome back ${userName}!`);
 
         // Navigate to dashboard
+        console.log("🚀 Navigating to /dashboard");
         navigate("/dashboard");
       })
       .catch((err) => {
         console.error("❌ Login failed:", err);
 
-        // Handle different types of errors
         let errorMessage = "Login failed. Please check your credentials.";
 
         if (err.isNetworkError) {
@@ -81,9 +80,8 @@ export default function Login() {
           errorMessage = err.message;
         }
 
-        // Set as general form error
         setErrors({ form: errorMessage });
-        setSuccess(""); // Clear any success message
+        setSuccess("");
       })
       .finally(() => setLoading(false));
   };
@@ -125,7 +123,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
-                  setErrors({}); // Clear errors when user types
+                  setErrors({});
                 }}
                 placeholder="Enter your email"
               />
@@ -140,7 +138,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
-                    setErrors({}); // Clear errors when user types
+                    setErrors({});
                   }}
                   placeholder="Enter your password"
                   style={{ paddingRight: "40px" }}
@@ -163,8 +161,12 @@ export default function Login() {
                     lineHeight: "1",
                     transition: "color 0.2s ease",
                   }}
-                  onMouseEnter={(e) => (e.target.style.color = "#333")}
-                  onMouseLeave={(e) => (e.target.style.color = "#888")}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "#333";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "#888";
+                  }}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? "👁️" : "👁️‍🗨️"}
@@ -203,7 +205,7 @@ export default function Login() {
                 />{" "}
                 Remember me
               </label>
-              <Link className="link" to="/forgot">
+              <Link className="link" to="/forgot-password">
                 Forgot your password?
               </Link>
             </div>
