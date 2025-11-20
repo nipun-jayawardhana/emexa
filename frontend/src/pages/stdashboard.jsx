@@ -34,15 +34,11 @@ const StudentDashboard = () => {
       );
       setDashboardData(response.data);
     } catch (error) {
-      // Only show error in console if it's a real auth issue
+      console.error("Error fetching dashboard data:", error);
       if (error.response?.status === 401) {
-        console.error("Authentication error:", error);
         localStorage.removeItem("token");
         localStorage.removeItem("userName");
         navigate("/login");
-      } else {
-        // For other errors (like 404), just log quietly and continue
-        console.log("Dashboard data not available, using default content");
       }
     } finally {
       setLoading(false);
@@ -217,21 +213,18 @@ const StudentDashboard = () => {
                 {(
                   dashboardData?.upcomingQuizzes || [
                     {
-                      id: "1",
                       title: "Matrix",
                       date: "2025-10-20",
                       description:
                         "Prepare for your Matrix quiz by revising matrix operations, determinants, and inverse concepts to strengthen your problem-solving skills.",
                     },
                     {
-                      id: "2",
                       title: "Vectors",
                       date: "2025-10-25",
                       description:
                         "Review vector basics, dot and cross products, and geometric interpretations to get ready for your Vectors quiz.",
                     },
                     {
-                      id: "3",
                       title: "Limits",
                       date: "2025-10-30",
                       description:
