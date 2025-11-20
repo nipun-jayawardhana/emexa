@@ -58,15 +58,19 @@ export default function Login() {
             "userName",
             res.user.name || res.user.full_name || "User"
           );
+          // Store user role for routing and UI
+          localStorage.setItem("userRole", res.user.role || "student");
         }
 
         // Show success message
         const userName = res.user?.name || res.user?.full_name || "user";
         setSuccess(`✅ Login successful! Welcome back ${userName}!`);
 
-        // Navigate to dashboard
-        console.log("🚀 Navigating to /dashboard");
-        navigate("/dashboard");
+        // Navigate based on user role
+        const userRole = res.user?.role || "student";
+        const dashboardPath = userRole === "teacher" ? "/teacher-dashboard" : "/dashboard";
+        console.log(`🚀 Navigating to ${dashboardPath} (role: ${userRole})`);
+        navigate(dashboardPath);
       })
       .catch((err) => {
         console.error("❌ Login failed:", err);
