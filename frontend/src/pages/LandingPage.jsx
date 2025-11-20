@@ -193,14 +193,14 @@ export default function LandingPage() {
   const navigate = useNavigate();
 
   // Set 'seenLanding' and navigate to the supplied target
-  const handleContinue = (target = "/login") => {
+  const handleContinue = () => { 
     try {
       localStorage.setItem("seenLanding", "true");
     // eslint-disable-next-line no-unused-vars
     } catch (e) {
-      // ignore storage errors (incognito, etc.)
+      console.error("Failed to set seenLanding:", e);
     }
-    navigate(target);
+    navigate("/login");
   };
 
   const features = [
@@ -293,7 +293,7 @@ export default function LandingPage() {
 
   return (
     <>
-      <Navbar onGetStarted={() => handleContinue("/student-dashboard")} />
+      <Navbar onGetStarted={handleContinue} />
 
       <main className="bg-white">
         {/* Hero Section */}
@@ -314,7 +314,7 @@ export default function LandingPage() {
 
               <div className="flex flex-wrap gap-4">
                 <button
-                  onClick={() => handleContinue("/student-dashboard")}
+                  onClick={handleContinue}
                   className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-3 rounded-lg font-medium transition-colors"
                 >
                   Try it free
@@ -443,7 +443,7 @@ export default function LandingPage() {
             <p className="text-xl text-teal-50 mb-8">Start using Emexa today.</p>
             <div className="flex flex-wrap gap-4 justify-center">
               <button
-                onClick={() => handleContinue("/student-dashboard")}
+                onClick={handleContinue}
                 className="bg-white hover:bg-gray-100 text-teal-600 px-8 py-3 rounded-lg font-semibold transition-colors shadow-lg"
               >
                 Get Started
