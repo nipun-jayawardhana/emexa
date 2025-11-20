@@ -47,21 +47,27 @@ export default function Login() {
         console.log("👤 User:", res.user);
         console.log("🔑 Token:", res.token);
 
-        // Save token and user
+        // Save token and user based on "Remember me" checkbox
         if (res.token) {
-          localStorage.setItem("token", res.token);
           if (remember) {
+            // Keep user logged in permanently
+            localStorage.setItem("token", res.token);
             localStorage.setItem("rememberMe", "true");
+          } else {
+            // Only keep logged in for this session
+            sessionStorage.setItem("token", res.token);
+            localStorage.removeItem("rememberMe");
           }
         }
         if (res.user) {
-          localStorage.setItem("user", JSON.stringify(res.user));
-          localStorage.setItem(
+          const storage = remember ? localStorage : sessionStorage;
+          storage.setItem("user", JSON.stringify(res.user));
+          storage.setItem(
             "userName",
             res.user.name || res.user.full_name || "User"
           );
           // Store user role for routing and UI
-          localStorage.setItem("userRole", res.user.role || "student");
+          storage.setItem("userRole", res.user.role || "student");
         }
 
         // Show success message

@@ -6,11 +6,17 @@ export default function Logout() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Clear auth token on logout
+    // Clear auth token from both localStorage and sessionStorage
     try {
       localStorage.removeItem("token");
       localStorage.removeItem("rememberMe");
       localStorage.removeItem("user");
+      localStorage.removeItem("userName");
+      localStorage.removeItem("userRole");
+      sessionStorage.removeItem("token");
+      sessionStorage.removeItem("user");
+      sessionStorage.removeItem("userName");
+      sessionStorage.removeItem("userRole");
     } catch {
       // ignore
     }
