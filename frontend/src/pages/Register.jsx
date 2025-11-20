@@ -76,7 +76,7 @@ export default function Register() {
           setRegistered(true);
 
           // Navigate to home
-          navigate("/");
+          navigate("/Login");
         })
         .catch((err) => {
           console.error("❌ Registration error:", err);
