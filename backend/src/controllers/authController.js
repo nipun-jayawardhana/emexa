@@ -2,6 +2,9 @@ import userService from '../services/user.service.js';
 import userRepository from '../repositories/user.repository.js';
 import studentRepository from '../repositories/student.repository.js';
 import teacherRepository from '../repositories/teacher.repository.js';
+import User from '../models/user.js';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
 export const register = async (req, res) => {
   try {
@@ -36,13 +39,69 @@ export const login = async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'Missing fields' });
     
-    // Try to login as student or teacher
-    const result = await userService.loginUser(email, password);
+    const normalizedEmail = email.toLowerCase().trim();
+    console.log('🔍 Login attempt for:', normalizedEmail);
+    
+    // FIRST: Check if user is admin (from User collection)
+    const adminUser = await User.findOne({ email: normalizedEmail }).select('+password');
+    console.log('👤 Checking admin in User collection:', adminUser ? 'FOUND' : 'NOT FOUND');
+    
+    if (adminUser) {
+      console.log('🎭 User role:', adminUser.role);
+      console.log('🔐 Password exists:', adminUser.password ? 'YES' : 'NO');
+      
+      // Check if this is an admin user
+      if (adminUser.role === 'admin' || adminUser.role === 'Admin') {
+        console.log('✅ Admin detected, processing admin login...');
+        
+        // Verify password
+        const isPasswordValid = await bcrypt.compare(password, adminUser.password);
+        console.log('🔑 Password valid:', isPasswordValid);
+        
+        if (!isPasswordValid) {
+          console.log('❌ Invalid password for admin');
+          return res.status(401).json({ message: 'Invalid email or password' });
+        }
+        
+        // Check if admin is active
+        if (adminUser.status && adminUser.status !== 'Active') {
+          console.log('⚠️ Admin account is inactive');
+          return res.status(403).json({ message: 'Account is inactive. Please contact support.' });
+        }
+        
+        // Generate JWT token for admin
+        const token = jwt.sign(
+          { 
+            id: adminUser._id, 
+            email: adminUser.email, 
+            role: adminUser.role 
+          },
+          process.env.JWT_SECRET || 'dev_secret',
+          { expiresIn: '24h' }
+        );
+        
+        console.log('✅ Admin login successful! Token generated.');
+        return res.json({
+          message: 'Login successful',
+          token,
+          user: {
+            id: adminUser._id,
+            name: adminUser.name,
+            email: adminUser.email,
+            role: adminUser.role
+          }
+        });
+      }
+    }
+    
+    // If not admin, try regular user login (student/teacher)
+    console.log('👨‍🎓 Not admin, trying student/teacher login...');
+    const result = await userService.loginUser(normalizedEmail, password);
     
     // userService.loginUser returns { user, token }
     return res.json(result);
   } catch (err) {
-    console.error('Login error:', err);
+    console.error('❌ Login error:', err);
     
     // Return the specific error message from the service
     const statusCode = err.statusCode || 401;
@@ -76,4 +135,70 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-export default { register, login, forgotPassword };
+// Get Student Approvals
+export const getStudentApprovals = async (req, res) => {
+  try {
+    // Fetch students pending approval from User collection
+    const students = await User.find({ 
+      role: 'Student',
+      approvalStatus: { $in: ['pending', 'approved', 'rejected'] }
+    }).select('-password');
+    
+    res.json(students);
+  } catch (error) {
+    console.error('Error fetching student approvals:', error);
+    res.status(500).json({ message: 'Server error fetching student approvals' });
+  }
+};
+
+// Approve Student
+export const approveStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const student = await User.findByIdAndUpdate(
+      id,
+      { 
+        approvalStatus: 'approved',
+        status: 'Active'
+      },
+      { new: true }
+    ).select('-password');
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    res.json({ message: 'Student approved successfully', student });
+  } catch (error) {
+    console.error('Error approving student:', error);
+    res.status(500).json({ message: 'Server error approving student' });
+  }
+};
+
+// Reject Student
+export const rejectStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const student = await User.findByIdAndUpdate(
+      id,
+      { 
+        approvalStatus: 'rejected',
+        status: 'Inactive'
+      },
+      { new: true }
+    ).select('-password');
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    res.json({ message: 'Student rejected', student });
+  } catch (error) {
+    console.error('Error rejecting student:', error);
+    res.status(500).json({ message: 'Server error rejecting student' });
+  }
+};
+
+export default { register, login, forgotPassword, getStudentApprovals, approveStudent, rejectStudent };

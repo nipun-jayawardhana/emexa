@@ -3,7 +3,7 @@ import { Brain, Smile, TrendingUp, Zap, Shield, BarChart3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 // import assets (Vite-friendly)
-import logo from "../assets/logo.png";
+import logo from "../assets/headerlogo.png";
 import footerLogo from "../assets/footerlogo.png";
 import heroImage from "../assets/2.png";
 import howImage from "../assets/1.jpg";
