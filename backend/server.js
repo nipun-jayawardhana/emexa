@@ -5,6 +5,7 @@ import os from 'os';
 import { connectDB } from './src/services/dbService.js';
 import userRoutes from './src/routes/userRoutes.js';
 import authRoutes from './src/routes/authRoutes.js';
+import quizRoutes from './src/routes/quizroutes.js';
 import cameraRoutes from './src/routes/cameraRoutes.js';
 
 dotenv.config();
@@ -20,8 +21,8 @@ app.use(express.json());
 
 // Routes
 app.use('/api/users', userRoutes);
-// Auth routes mounted at /api/auth
 app.use('/api/auth', authRoutes);
+app.use('/api/quiz', quizRoutes);
 // Camera frames endpoint
 app.use('/api/camera', cameraRoutes);
 
