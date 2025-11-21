@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { getUsers, updateUser, deleteUser, getTeacherApprovals, approveTeacher, rejectTeacher } from "../services/user.service";
 import Modal from "react-modal";
 import Header from "../components/headerorigin.jsx";
+import Sidebar from "../components/sidebarorigin.jsx";
 
 // Helper tag components for status and roles
 const StatusTag = ({ status }) => (
@@ -37,13 +38,14 @@ const UserManagement = () => {
   const [studentApprovals, setStudentApprovals] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState("");
+  const [activeMenuItem, setActiveMenuItem] = useState("userManagement");
+  const [adminUser, setAdminUser] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRole, setSelectedRole] = useState("All Roles");
   const [tab, setTab] = useState("users");
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
-  const [adminUser, setAdminUser] = useState(null);
   const dropdownRef = React.useRef(null);
 
   // Get admin user info
