@@ -8,6 +8,15 @@ const client = axios.create({
   timeout: 10000,
 });
 
+// Add interceptor to include token from localStorage or sessionStorage
+client.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 function normalizeAxiosError(err) {
   const e = new Error(err.response?.data?.message || err.message || 'Request failed');
   e.status = err.response?.status;

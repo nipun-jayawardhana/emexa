@@ -27,6 +27,8 @@ export default function Register() {
       e.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
       e.email = "Please enter a valid email address";
+    } else if (email !== email.toLowerCase()) {
+      e.email = "Email must be in lowercase only";
     }
     if (!password) {
       e.password = "Password is required";
@@ -76,7 +78,7 @@ export default function Register() {
           setRegistered(true);
 
           // Navigate to home
-          navigate("/");
+          navigate("/Login");
         })
         .catch((err) => {
           console.error("❌ Registration error:", err);
