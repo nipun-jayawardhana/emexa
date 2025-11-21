@@ -1,4 +1,4 @@
-// auth.middleware.js (ESM, merged)
+// auth.middleware.js (ESM, merged with admin verification)
 import jwt from 'jsonwebtoken';
 import ApiError from '../utils/apiError.js';
 import Student from '../models/student.js';
@@ -92,6 +92,48 @@ export const authMiddleware = async (req, res, next) => {
     next();
   } catch (error) {
     return res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};
+
+// NEW: Verify Admin middleware - for protecting admin-only routes
+export const verifyAdmin = async (req, res, next) => {
+  try {
+    // Get token from header
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+
+    if (!token) {
+      return res.status(401).json({ message: 'Access denied. No token provided.' });
+    }
+
+    // Verify token
+    const secret = process.env.JWT_SECRET || 'dev_secret';
+    const decoded = jwt.verify(token, secret);
+
+    // Get user from User collection
+    const user = await User.findById(decoded.id).select('-password');
+
+    if (!user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+
+    // Check if user is admin
+    if (user.role !== 'Admin' && user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Admin only.' });
+    }
+
+    // Attach user info to request
+    req.user = user;
+    req.userId = decoded.id;
+    next();
+
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expired' });
+    }
+    res.status(500).json({ message: 'Server error verifying token' });
   }
 };
 
