@@ -6,6 +6,7 @@ let videoGlobal = null; // floating persistent preview
 let captureInterval = null;
 let streaming = false;
 let capturing = false;
+let attachedContainer = null; // DOM element where videoMain is attached (if any)
 
 const start = async ({ intervalMs = 2000, quality = 0.6, quizId = 'active-quiz', userId = null, previewElement = null, persistentPreview = false, capture = true } = {}) => {
   if (streaming) return true;
@@ -15,7 +16,15 @@ const start = async ({ intervalMs = 2000, quality = 0.6, quizId = 'active-quiz',
   }
 
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    // Request a lower resolution and frame rate to reduce camera start latency
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 320 },
+        height: { ideal: 240 },
+        frameRate: { ideal: 10 },
+        facingMode: 'user'
+      }
+    });
 
     // create main video element for the preview (if any)
     videoMain = document.createElement('video');
@@ -23,6 +32,10 @@ const start = async ({ intervalMs = 2000, quality = 0.6, quizId = 'active-quiz',
     videoMain.autoplay = true;
     videoMain.playsInline = true;
     videoMain.srcObject = stream;
+    // start hidden and only show when playback begins to avoid visual flashes
+    videoMain.style.opacity = '0';
+    videoMain.style.transition = 'opacity 150ms ease';
+    videoMain.style.background = '#000';
 
     // If a previewElement (DOM element) is provided, append the video there and style to fit.
     // Otherwise create a hidden tiny element appended to body to keep the stream alive.
@@ -34,20 +47,30 @@ const start = async ({ intervalMs = 2000, quality = 0.6, quizId = 'active-quiz',
         container = previewElement;
       }
 
-      if (container) {
-        // clear container
-        container.innerHTML = '';
-        videoMain.style.width = '100%';
-        videoMain.style.height = '100%';
-        videoMain.style.borderRadius = '12px';
-        videoMain.style.objectFit = 'cover';
-        videoMain.style.display = 'block';
-        videoMain.style.opacity = '1';
-        container.appendChild(videoMain);
-        // ensure container has position so React overlays can position elements inside it
-        if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
-      } else {
-        // fallback to hidden placement
+        if (container) {
+          // attach to provided container
+          container.innerHTML = '';
+          // ensure container has a neutral background while video warms up
+          const prevBg = container.style.background;
+          container.style.background = '#000';
+          videoMain.style.width = '100%';
+          videoMain.style.height = '100%';
+          videoMain.style.borderRadius = '12px';
+          videoMain.style.objectFit = 'cover';
+          videoMain.style.display = 'block';
+          container.appendChild(videoMain);
+          // When the video starts playing, reveal it and clear the temp background
+          const onPlaying = () => {
+            videoMain.style.opacity = '1';
+            try { container.style.background = prevBg || 'transparent'; } catch (e) {}
+            videoMain.removeEventListener('playing', onPlaying);
+          };
+          videoMain.addEventListener('playing', onPlaying);
+          attachedContainer = container;
+          // ensure container has position so React overlays can position elements inside it
+          if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
+        } else {
+        // fallback to hidden placement (keep background black while warming)
         videoMain.style.position = 'fixed';
         videoMain.style.right = '0';
         videoMain.style.bottom = '0';
@@ -66,7 +89,9 @@ const start = async ({ intervalMs = 2000, quality = 0.6, quizId = 'active-quiz',
       document.body.appendChild(videoMain);
     }
 
-    try { await videoMain.play(); } catch (e) { /* autoplay blocked or not important */ }
+    // Start playback but don't await it — awaiting can delay function return
+    // When playback actually starts the 'playing' event will reveal the video.
+    videoMain.play().catch(() => { /* autoplay blocked or not important */ });
 
     // start capture interval if requested
     if (capture) {
@@ -107,7 +132,8 @@ const start = async ({ intervalMs = 2000, quality = 0.6, quizId = 'active-quiz',
       globalContainer.appendChild(videoGlobal);
 
       // (no automatic control added here) global preview is managed by page UI
-      try { await videoGlobal.play(); } catch (e) { /* ignore */ }
+      // Start playback but don't await it for faster responsiveness
+      videoGlobal.play().catch(() => { /* ignore */ });
     }
 
     streaming = true;
@@ -139,7 +165,40 @@ const stop = () => {
     videoGlobal = null;
   }
   streaming = false;
+  attachedContainer = null;
   console.log('Camera streaming stopped');
+};
+
+// Attach an existing videoMain to a provided container. Useful when start() was called
+// before the preview container existed in the DOM (e.g., starting stream on button click
+// then attaching when React mounts the preview element).
+const attachPreview = (container) => {
+  if (!container) return false;
+  if (!videoMain) return false;
+  try {
+    container.innerHTML = '';
+    // Position video absolutely so it fills a parent container that uses
+    // the padding-top trick for aspect ratio (e.g., 16:9 via paddingTop: '56.25%').
+    videoMain.style.position = 'absolute';
+    videoMain.style.top = '0';
+    videoMain.style.left = '0';
+    videoMain.style.width = '100%';
+    videoMain.style.height = '100%';
+    videoMain.style.objectFit = 'cover';
+    videoMain.style.display = 'block';
+    videoMain.style.opacity = '1';
+    videoMain.style.borderRadius = '12px';
+    videoMain.style.zIndex = '1';
+    container.appendChild(videoMain);
+    attachedContainer = container;
+    if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
+    // ensure playback starts, non-blocking
+    videoMain.play().catch(() => {});
+    return true;
+  } catch (err) {
+    console.error('attachPreview error', err);
+    return false;
+  }
 };
 
 // Start periodic capture only (doesn't affect preview/video elements)
@@ -184,4 +243,4 @@ const stopCapture = () => {
 
 const isActive = () => streaming;
 
-export default { start, stop, isActive, startCapture, stopCapture };
+export default { start, stop, isActive, startCapture, stopCapture, attachPreview };
