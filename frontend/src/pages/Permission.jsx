@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import camera from '../lib/camera';
 import { Camera, Check, X, BookOpen } from 'lucide-react';
 
@@ -7,18 +8,9 @@ export default function Permission() {
   const [cancelled, setCancelled] = useState(false);
 
   const handleAllow = async () => {
+    // update state; actual camera start happens in useEffect to ensure previewRef exists
     setWebcamPermission('allowed');
     setCancelled(false);
-    // Start the persistent camera stream (singleton) so camera stays on across pages.
-    try {
-      const ok = await camera.start({ intervalMs: 2000, quality: 0.6, quizId: 'active-quiz', previewElement: previewRef.current });
-      if (!ok) {
-        setWebcamPermission('denied');
-      }
-    } catch (err) {
-      console.error('camera.start error', err);
-      setWebcamPermission('denied');
-    }
   };
 
   const handleDeny = () => {
@@ -39,8 +31,16 @@ export default function Permission() {
     // Allow starting quiz whether user allowed webcam or explicitly denied it
     if (webcamPermission === 'allowed' || webcamPermission === 'denied') {
       console.log('Starting quiz...', webcamPermission);
-      // Camera is already started when user clicked Allow (singleton). If denied, no camera.
-      // TODO: navigate to quiz route if desired (not wired here)
+      // If allowed, enable periodic capture every 1 minute, then navigate to quiz/dashboard
+      if (webcamPermission === 'allowed') {
+        try {
+          camera.startCapture({ intervalMs: 60000, quality: 0.6, quizId: 'active-quiz' });
+        } catch (err) {
+          console.error('startCapture failed', err);
+        }
+      }
+      // navigate to the dashboard/quiz page
+      navigate('/dashboard');
     } else {
       alert('Please choose Allow or Deny to continue');
     }
@@ -48,6 +48,32 @@ export default function Permission() {
 
   // Camera is now managed by the persistent singleton `frontend/src/lib/camera.js`.
   const previewRef = useRef(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    let mounted = true;
+    const startCamera = async () => {
+      if (!mounted) return;
+      try {
+        // start preview only; no periodic capture on the permission page
+        const ok = await camera.start({ previewElement: previewRef.current, capture: false });
+        if (!ok) setWebcamPermission('denied');
+      } catch (err) {
+        console.error('camera.start error', err);
+        setWebcamPermission('denied');
+      }
+    };
+
+    if (webcamPermission === 'allowed') {
+      // schedule after render to ensure previewRef is attached
+      setTimeout(startCamera, 0);
+    }
+
+    return () => {
+      mounted = false;
+      try { camera.stop(); } catch (e) {}
+    };
+  }, [webcamPermission]);
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-8">
