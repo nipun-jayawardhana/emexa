@@ -13,10 +13,9 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
-import StudentDashboard from "./pages/stdashboard";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import QuizPage from "./pages/quizpage";
-import StudentDashboard from "./pages/StudentDashboard";
+import StudentDashboard from "./pages/stdashboard";
 import Permission from "./pages/Permission";
 import RequireAuth from "./components/RequireAuth";
 
