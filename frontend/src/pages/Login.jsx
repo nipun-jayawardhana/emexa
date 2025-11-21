@@ -47,6 +47,19 @@ export default function Login() {
         console.log("👤 User:", res.user);
         console.log("🔑 Token:", res.token);
 
+        // Check if user is admin - redirect to admin panel
+        if (res.user?.role === "admin" || res.user?.role === "Admin") {
+          // Store admin token separately
+          localStorage.setItem("adminToken", res.token);
+          localStorage.setItem("adminUser", JSON.stringify(res.user));
+          
+          setSuccess(`✅ Login successful! Welcome Admin!`);
+          console.log("🚀 Navigating to admin panel");
+          navigate("/admin/user-management");
+          return;
+        }
+
+        // Regular user flow (students and teachers)
         // Save token and user based on "Remember me" checkbox
         if (res.token) {
           if (remember) {
