@@ -15,6 +15,8 @@ import StudentDashboard from "./pages/stdashboard";
 import QuizPage from "./pages/quizpage";
 import AdminLogin from "./pages/AdminLogin";
 import UserManagement from "./pages/usermgt";
+import TeacherDashboard from "./pages/TeacherDashboard";
+import Permission from "./pages/Permission";
 import RequireAuth from "./components/RequireAuth";
 
 createRoot(document.getElementById("root")).render(
@@ -33,6 +35,18 @@ createRoot(document.getElementById("root")).render(
         <Route path="/admin/user-management" element={<UserManagement />} />
         
         {/* Student Routes */}
+        <Route path="/permission" element={<Permission />} />
+
+        {/* Protected routes: use `StudentDashboard` for authenticated users */}
+        <Route
+          path="/home"
+          element={
+            <RequireAuth>
+              <StudentDashboard />
+            </RequireAuth>
+          }
+        />
+        {/* Dashboard route - Protected */}
         <Route
           path="/dashboard"
           element={
