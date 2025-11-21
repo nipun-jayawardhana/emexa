@@ -5,8 +5,9 @@ let videoMain = null; // video element shown in provided preview container
 let videoGlobal = null; // floating persistent preview
 let captureInterval = null;
 let streaming = false;
+let capturing = false;
 
-const start = async ({ intervalMs = 2000, quality = 0.6, quizId = 'active-quiz', userId = null, previewElement = null, persistentPreview = false } = {}) => {
+const start = async ({ intervalMs = 2000, quality = 0.6, quizId = 'active-quiz', userId = null, previewElement = null, persistentPreview = false, capture = true } = {}) => {
   if (streaming) return true;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     console.error('getUserMedia not supported');
@@ -67,26 +68,10 @@ const start = async ({ intervalMs = 2000, quality = 0.6, quizId = 'active-quiz',
 
     try { await videoMain.play(); } catch (e) { /* autoplay blocked or not important */ }
 
-    captureInterval = setInterval(() => {
-      try {
-        // pick a source video element for capture (prefer main, then global)
-        const src = (videoMain && videoMain.readyState >= 2) ? videoMain : (videoGlobal && videoGlobal.readyState >= 2 ? videoGlobal : null);
-        if (!src) return;
-        const canvas = document.createElement('canvas');
-        canvas.width = src.videoWidth || 640;
-        canvas.height = src.videoHeight || 480;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        fetch(`${API_BASE}/api/camera/frame`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: dataUrl, quizId, userId, timestamp: Date.now() })
-        }).catch(err => console.error('camera send frame error', err));
-      } catch (err) {
-        console.error('capture error', err);
-      }
-    }, intervalMs);
+    // start capture interval if requested
+    if (capture) {
+      startCapture({ intervalMs, quality, quizId, userId });
+    }
 
     // If persistent preview requested, create or attach a global floating preview
     if (persistentPreview) {
@@ -139,6 +124,7 @@ const stop = () => {
   if (captureInterval) {
     clearInterval(captureInterval);
     captureInterval = null;
+    capturing = false;
   }
   if (stream) {
     stream.getTracks().forEach(t => t.stop());
@@ -156,6 +142,46 @@ const stop = () => {
   console.log('Camera streaming stopped');
 };
 
+// Start periodic capture only (doesn't affect preview/video elements)
+const startCapture = ({ intervalMs = 60000, quality = 0.6, quizId = 'active-quiz', userId = null } = {}) => {
+  if (capturing) return true;
+  if (!stream) {
+    console.warn('startCapture: no active stream');
+    return false;
+  }
+
+  captureInterval = setInterval(() => {
+    try {
+      const src = (videoMain && videoMain.readyState >= 2) ? videoMain : (videoGlobal && videoGlobal.readyState >= 2 ? videoGlobal : null);
+      if (!src) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = src.videoWidth || 640;
+      canvas.height = src.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      fetch(`${API_BASE}/api/camera/frame`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl, quizId, userId, timestamp: Date.now() })
+      }).catch(err => console.error('camera send frame error', err));
+    } catch (err) {
+      console.error('capture error', err);
+    }
+  }, intervalMs);
+
+  capturing = true;
+  return true;
+};
+
+const stopCapture = () => {
+  if (captureInterval) {
+    clearInterval(captureInterval);
+    captureInterval = null;
+    capturing = false;
+  }
+};
+
 const isActive = () => streaming;
 
-export default { start, stop, isActive };
+export default { start, stop, isActive, startCapture, stopCapture };
