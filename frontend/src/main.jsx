@@ -1,4 +1,4 @@
-// main.jsx - CORRECTED
+// main.jsx - Updated with Admin Routes
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -13,6 +13,8 @@ import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
 import StudentDashboard from "./pages/stdashboard";
 import QuizPage from "./pages/quizpage";
+import AdminLogin from "./pages/AdminLogin";
+import UserManagement from "./pages/usermgt";
 import RequireAuth from "./components/RequireAuth";
 
 createRoot(document.getElementById("root")).render(
@@ -26,6 +28,11 @@ createRoot(document.getElementById("root")).render(
         <Route path="/forgot" element={<Navigate to="/forgot-password" replace />} />
         <Route path="/logout" element={<Logout />} />
         
+        {/* Admin Routes */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/user-management" element={<UserManagement />} />
+        
+        {/* Student Routes */}
         <Route
           path="/dashboard"
           element={
