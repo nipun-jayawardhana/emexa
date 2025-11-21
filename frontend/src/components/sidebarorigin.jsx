@@ -7,7 +7,22 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("userName");
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("adminUser");
     navigate("/login");
+  };
+
+  // Handle menu item click - supports both onClick and direct state update
+  const handleMenuClick = (item) => {
+    // Update active menu item
+    if (setActiveMenuItem) {
+      setActiveMenuItem(item.id);
+    }
+    
+    // If item has onClick handler, call it
+    if (item.onClick) {
+      item.onClick();
+    }
   };
 
   // Default menu items if none provided (for backward compatibility)
@@ -80,7 +95,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
         {items.map((item) => (
           <button
             key={item.id}
-            onClick={() => setActiveMenuItem(item.id)}
+            onClick={() => handleMenuClick(item)}
             className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-lg transition text-sm whitespace-nowrap ${
               activeMenuItem === item.id
                 ? "bg-white text-green-600 shadow-sm font-medium"
