@@ -38,15 +38,55 @@ const UserManagement = () => {
   const [studentApprovals, setStudentApprovals] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState("");
-  const [activeMenuItem, setActiveMenuItem] = useState("userManagement");
-  const [adminUser, setAdminUser] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRole, setSelectedRole] = useState("All Roles");
   const [tab, setTab] = useState("users");
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
+  const [adminUser, setAdminUser] = useState(null);
+  const [activeMenuItem, setActiveMenuItem] = useState("userManagement");
   const dropdownRef = React.useRef(null);
+
+  // Define menu items for admin sidebar
+  const adminMenuItems = [
+    {
+      id: "userManagement",
+      label: "User Management",
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ),
+    },
+    {
+      id: "studentDashboard",
+      label: "Student Dashboard",
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        </svg>
+      ),
+    },
+    {
+      id: "teacherDashboard",
+      label: "Teacher Dashboard",
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        </svg>
+      ),
+    },
+    {
+      id: "quizzes",
+      label: "Quizzes",
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      ),
+    },
+  ];
 
   // Get admin user info
   useEffect(() => {
@@ -60,7 +100,7 @@ const UserManagement = () => {
   useEffect(() => {
     const adminToken = localStorage.getItem("adminToken");
     if (!adminToken) {
-      navigate("/admin/login");
+      navigate("/login");
     }
   }, [navigate]);
 
@@ -225,18 +265,12 @@ const UserManagement = () => {
       });
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("adminToken");
-    localStorage.removeItem("adminUser");
-    navigate("/login");
-  };
-
   const handleRoleSelect = (role) => {
     setSelectedRole(role);
     setShowRoleDropdown(false);
   };
 
-  // Filtering - FIXED: Single role selection
+  // Filtering - Single role selection
   const filteredUsers = Array.isArray(users) ? users.filter(u => {
     const matchesRole = selectedRole === "All Roles" || u.role === selectedRole;
     const matchesSearch = u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -244,7 +278,6 @@ const UserManagement = () => {
     return matchesRole && matchesSearch;
   }) : [];
 
-  // FIXED: Added Array.isArray check
   const pendingTeacherApprovals = Array.isArray(teacherApprovals) ? teacherApprovals.filter(x => !x.status).length : 0;
   const pendingStudentApprovals = Array.isArray(studentApprovals) ? studentApprovals.filter(x => !x.status).length : 0;
   
@@ -264,54 +297,16 @@ const UserManagement = () => {
         userRole="admin"
       />
 
-      <div className="flex pt-14">
-        {/* Sidebar */}
-        <aside className="w-64 bg-gradient-to-b from-green-100 to-green-200 min-h-[calc(100vh-56px)] p-6">
-          <nav className="space-y-2">
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-teal-700 bg-white rounded-lg font-medium text-sm shadow-sm">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-              User Management
-            </button>
+      {/* Sidebar Component */}
+      <Sidebar 
+        activeMenuItem={activeMenuItem}
+        setActiveMenuItem={setActiveMenuItem}
+        menuItems={adminMenuItems}
+      />
 
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-white hover:bg-opacity-50 rounded-lg font-medium text-sm transition-all">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
-              Student Dashboard
-            </button>
-
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-white hover:bg-opacity-50 rounded-lg font-medium text-sm transition-all">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
-              Teacher Dashboard
-            </button>
-
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-white hover:bg-opacity-50 rounded-lg font-medium text-sm transition-all">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-              Quizzes
-            </button>
-
-            <div className="pt-8 border-t border-green-300 mt-auto">
-              <button 
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-white hover:bg-opacity-50 rounded-lg font-medium text-sm transition-all mt-4"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Log Out
-              </button>
-            </div>
-          </nav>
-        </aside>
-
-        {/* Main Content */}
-        <main className="flex-1 p-8 bg-gray-50">
+      {/* Main Content - Adjusted for sidebar */}
+      <div className="ml-52 pt-14">
+        <main className="p-8 bg-gray-50 min-h-[calc(100vh-56px)]">
           <div className="max-w-7xl mx-auto">
             <div className="mb-6">
               <h1 className="text-2xl font-semibold text-gray-900 mb-1">User Management Dashboard</h1>
@@ -362,126 +357,126 @@ const UserManagement = () => {
               </button>
             </div>
           
-          {tab === "users" && (
-            <div className="bg-white rounded-b-lg shadow-sm">
-              {/* Toolbar */}
-              <div className="p-6 border-b border-gray-200 flex items-center gap-3">
-                <input 
-                  type="text"
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 w-80 text-sm" 
-                  placeholder="Search users..." 
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                />
-                
-                <div className="relative" ref={dropdownRef}>
-                  <button
-                    className="px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between text-sm"
-                    onClick={() => setShowRoleDropdown(!showRoleDropdown)}
-                  >
-                    <span>{selectedRole}</span>
-                    <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
+            {tab === "users" && (
+              <div className="bg-white rounded-b-lg shadow-sm">
+                {/* Toolbar */}
+                <div className="p-6 border-b border-gray-200 flex items-center gap-3">
+                  <input 
+                    type="text"
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 w-80 text-sm" 
+                    placeholder="Search users..." 
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                  />
                   
-                  {showRoleDropdown && (
-                    <div className="absolute top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
-                      {["All Roles", "Admin", "Teacher", "Student"].map(role => (
-                        <button
-                          key={role}
-                          className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center justify-between text-sm first:rounded-t-lg last:rounded-b-lg"
-                          onClick={() => handleRoleSelect(role)}
-                        >
-                          <span>{role}</span>
-                          {selectedRole === role && (
-                            <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      className="px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 flex items-center gap-2 min-w-[140px] justify-between text-sm"
+                      onClick={() => setShowRoleDropdown(!showRoleDropdown)}
+                    >
+                      <span>{selectedRole}</span>
+                      <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    
+                    {showRoleDropdown && (
+                      <div className="absolute top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                        {["All Roles", "Admin", "Teacher", "Student"].map(role => (
+                          <button
+                            key={role}
+                            className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center justify-between text-sm first:rounded-t-lg last:rounded-b-lg"
+                            onClick={() => handleRoleSelect(role)}
+                          >
+                            <span>{role}</span>
+                            {selectedRole === role && (
+                              <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
               
-              {/* Users Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Email</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Role</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date Added</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-100">
-                    {filteredUsers.length === 0 ? (
+                {/* Users Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <td colSpan="6" className="px-6 py-12 text-center text-gray-500 text-sm">
-                          No users found.
-                        </td>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Email</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Role</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date Added</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
                       </tr>
-                    ) : (
-                      filteredUsers.map(u => (
-                        <tr key={u._id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{u.name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{u.email}</td>
-                          <td className="px-6 py-4 whitespace-nowrap"><RoleTag role={u.role}/></td>
-                          <td className="px-6 py-4 whitespace-nowrap"><StatusTag status={u.status}/></td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            {u.dateAdded ? new Date(u.dateAdded).toLocaleDateString() : u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm space-x-3">
-                            <button 
-                              className="text-blue-600 hover:text-blue-800 font-medium transition-colors" 
-                              onClick={() => openModal("view", u)}
-                            >
-                              View
-                            </button>
-                            <button 
-                              className="text-red-600 hover:text-red-800 font-medium transition-colors" 
-                              onClick={() => openModal("delete", u)}
-                            >
-                              Delete
-                            </button>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-100">
+                      {filteredUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" className="px-6 py-12 text-center text-gray-500 text-sm">
+                            No users found.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        filteredUsers.map(u => (
+                          <tr key={u._id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{u.name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{u.email}</td>
+                            <td className="px-6 py-4 whitespace-nowrap"><RoleTag role={u.role}/></td>
+                            <td className="px-6 py-4 whitespace-nowrap"><StatusTag status={u.status}/></td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                              {u.dateAdded ? new Date(u.dateAdded).toLocaleDateString() : u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm space-x-3">
+                              <button 
+                                className="text-blue-600 hover:text-blue-800 font-medium transition-colors" 
+                                onClick={() => openModal("view", u)}
+                              >
+                                View
+                              </button>
+                              <button 
+                                className="text-red-600 hover:text-red-800 font-medium transition-colors" 
+                                onClick={() => openModal("delete", u)}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            )}
           
-          {tab === "teacher-approvals" && (
-            <div className="bg-white rounded-b-lg shadow-sm p-6">
-              <ApprovalTab 
-                approvals={teacherApprovals}
-                title="Teacher Approval Requests"
-                description="Review and approve teacher registration requests"
-                onApprove={handleApproveTeacher}
-                onReject={handleRejectTeacher}
-              />
-            </div>
-          )}
+            {tab === "teacher-approvals" && (
+              <div className="bg-white rounded-b-lg shadow-sm p-6">
+                <ApprovalTab 
+                  approvals={teacherApprovals}
+                  title="Teacher Approval Requests"
+                  description="Review and approve teacher registration requests"
+                  onApprove={handleApproveTeacher}
+                  onReject={handleRejectTeacher}
+                />
+              </div>
+            )}
 
-          {tab === "student-approvals" && (
-            <div className="bg-white rounded-b-lg shadow-sm p-6">
-              <ApprovalTab 
-                approvals={studentApprovals}
-                title="Student Approval Requests"
-                description="Review and approve student registration requests"
-                onApprove={handleApproveStudent}
-                onReject={handleRejectStudent}
-              />
-            </div>
-          )}
+            {tab === "student-approvals" && (
+              <div className="bg-white rounded-b-lg shadow-sm p-6">
+                <ApprovalTab 
+                  approvals={studentApprovals}
+                  title="Student Approval Requests"
+                  description="Review and approve student registration requests"
+                  onApprove={handleApproveStudent}
+                  onReject={handleRejectStudent}
+                />
+              </div>
+            )}
           </div>
         </main>
       </div>
