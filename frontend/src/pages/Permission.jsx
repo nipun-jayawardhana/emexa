@@ -1,16 +1,75 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import camera from '../lib/camera';
 import { Camera, Check, X, BookOpen } from 'lucide-react';
 
 export default function Permission() {
   const [webcamPermission, setWebcamPermission] = useState(null);
   const [cancelled, setCancelled] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   const handleAllow = async () => {
-    // update state; actual camera start happens in useEffect to ensure previewRef exists
+    // update state and start camera immediately without blocking UI.
+    // We start the stream non-blocking and then repeatedly try to attach the
+    // preview element so it appears as soon as possible.
     setWebcamPermission('allowed');
     setCancelled(false);
+    setStarting(true);
+    try {
+      // If the preview ref exists, pass it so the camera attaches directly
+      // to the preview container and becomes visible immediately.
+      if (previewRef.current) {
+        camera.start({ previewElement: previewRef.current, capture: false }).then((ok) => {
+          if (!ok) {
+            setWebcamPermission('denied');
+            setStarting(false);
+          }
+        }).catch((err) => {
+          console.error('camera.start failed', err);
+          setWebcamPermission('denied');
+          setStarting(false);
+        });
+      } else {
+        // fallback: start without previewElement and attach later
+        camera.start({ capture: false }).then((ok) => {
+          if (!ok) {
+            setWebcamPermission('denied');
+            setStarting(false);
+          }
+        }).catch((err) => {
+          console.error('camera.start failed', err);
+          setWebcamPermission('denied');
+          setStarting(false);
+        });
+      }
+
+      // Try to attach the preview repeatedly for up to 1.5s so we catch the moment
+      // videoMain becomes available and attachPreview succeeds.
+      if (camera && camera.attachPreview) {
+        let tries = 0;
+        const attachInterval = setInterval(() => {
+          tries += 1;
+          try {
+            if (previewRef.current && camera.attachPreview(previewRef.current)) {
+              clearInterval(attachInterval);
+              setStarting(false);
+            } else if (tries > 60) { // ~3s timeout
+              clearInterval(attachInterval);
+              setStarting(false);
+            }
+          } catch (e) {
+            // ignore and retry
+            if (tries > 60) {
+              clearInterval(attachInterval);
+              setStarting(false);
+            }
+          }
+        }, 50); // faster retry frequency
+      }
+    } catch (err) {
+      console.error('Error starting camera on allow', err);
+      setWebcamPermission('denied');
+    }
   };
 
   const handleDeny = () => {
@@ -20,6 +79,11 @@ export default function Permission() {
       // ensure persistent camera is stopped when user explicitly denies
       if (camera && camera.isActive && camera.isActive()) {
         camera.stop();
+                  {starting && (
+                    <div className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none">
+                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
+                    </div>
+                  )}
         console.log('Camera stopped due to user deny');
       }
     } catch (err) {
@@ -31,16 +95,19 @@ export default function Permission() {
     // Allow starting quiz whether user allowed webcam or explicitly denied it
     if (webcamPermission === 'allowed' || webcamPermission === 'denied') {
       console.log('Starting quiz...', webcamPermission);
-      // If allowed, enable periodic capture every 1 minute, then navigate to quiz/dashboard
+      // determine target quiz id from URL query param (set by dashboard when clicking Take Quiz)
+      const params = new URLSearchParams(location.search);
+      const quizId = params.get('quizId') || 'active-quiz';
+      // If allowed, enable periodic capture every 1 minute using the quiz id
       if (webcamPermission === 'allowed') {
         try {
-          camera.startCapture({ intervalMs: 60000, quality: 0.6, quizId: 'active-quiz' });
+          camera.startCapture({ intervalMs: 60000, quality: 0.6, quizId });
         } catch (err) {
           console.error('startCapture failed', err);
         }
       }
-      // navigate to the dashboard/quiz page
-      navigate('/dashboard');
+      // navigate to the quiz page for the selected quiz
+      navigate(`/quiz/${encodeURIComponent(quizId)}`);
     } else {
       alert('Please choose Allow or Deny to continue');
     }
@@ -49,17 +116,23 @@ export default function Permission() {
   // Camera is now managed by the persistent singleton `frontend/src/lib/camera.js`.
   const previewRef = useRef(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     let mounted = true;
     const startCamera = async () => {
       if (!mounted) return;
       try {
-        // start preview only; no periodic capture on the permission page
-        const ok = await camera.start({ previewElement: previewRef.current, capture: false });
-        if (!ok) setWebcamPermission('denied');
+        // if the previewRef exists attach the already-started stream preview
+        if (previewRef.current && camera && camera.attachPreview) {
+          camera.attachPreview(previewRef.current);
+        } else {
+          // fallback: attempt to start preview directly
+          const ok = await camera.start({ previewElement: previewRef.current, capture: false });
+          if (!ok) setWebcamPermission('denied');
+        }
       } catch (err) {
-        console.error('camera.start error', err);
+        console.error('camera.start/attachPreview error', err);
         setWebcamPermission('denied');
       }
     };
@@ -111,12 +184,16 @@ export default function Permission() {
               Webcam Permission
             </h3>
             
-            <div className="bg-white rounded-lg p-4 border-2 border-dashed border-gray-300 mb-6 shadow-sm">
+            <div className={`rounded-lg mb-6 shadow-sm ${webcamPermission === 'allowed' ? 'bg-transparent p-0 border-none overflow-visible relative' : 'bg-white p-4 border-2 border-dashed border-gray-300'}`}>
               <div className="flex items-center justify-center text-center">
                   <div
                     ref={previewRef}
-                    style={{ width: '547.56px', height: '351.56px' }}
-                    className="flex items-center justify-center bg-white overflow-hidden rounded-lg relative"
+                    style={
+                      webcamPermission === 'allowed'
+                        ? { width: '100%', height: 0, paddingTop: '56.25%', position: 'relative' }
+                        : { width: '547.56px', height: '351.56px' }
+                    }
+                    className={`flex items-center justify-center overflow-hidden rounded-lg relative ${webcamPermission === 'allowed' ? 'bg-transparent' : 'bg-white'}`}
                   >
                   {/* placeholder shown when no camera preview is active */}
                   {webcamPermission !== 'allowed' && (
@@ -130,16 +207,26 @@ export default function Permission() {
                     </div>
                   )}
 
-                  {/* In-box cancel removed per design; a centered cancel circle will appear below the white box instead. */}
+                  {/* When allowed, the cancel button is rendered outside the preview box (sibling) */}
                 </div>
               </div>
-
               {/* centered cancel circle below the white box when camera is active (outside the preview) */}
               {webcamPermission === 'allowed' && (
-                <div className="flex justify-center mt-3">
+                <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 3, zIndex: 50 }}>
                   <button
                     onClick={() => {
+                      try { camera.stopCapture(); } catch (e) {}
                       try { camera.stop(); } catch (e) {}
+                      // defensive cleanup: stop tracks on any remaining video elements
+                      try {
+                        document.querySelectorAll('video').forEach(v => {
+                          try {
+                            const s = v.srcObject;
+                            if (s && s.getTracks) s.getTracks().forEach(t => t.stop());
+                          } catch (e) {}
+                          try { if (v.parentNode) v.parentNode.removeChild(v); } catch (e) {}
+                        });
+                      } catch (e) {}
                       setWebcamPermission(null);
                     }}
                     aria-label="Cancel camera"
@@ -155,6 +242,12 @@ export default function Permission() {
               {webcamPermission !== 'allowed' && (
                 <div className="flex items-center justify-center gap-4 mt-4">
                   <button
+                    onPointerDown={() => {
+                      // start requesting camera immediately on press to reduce latency
+                      try {
+                        if (camera && camera.isActive && !camera.isActive()) camera.start({ capture: false }).catch(() => {});
+                      } catch (e) {}
+                    }}
                     onClick={handleAllow}
                     className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm ${
                       webcamPermission === 'allowed'
@@ -213,7 +306,7 @@ export default function Permission() {
           }`}>
             {webcamPermission === 'allowed'
               ? '✓ Webcam access granted. You can now start the quiz.'
-              : '✗ Webcam access denied. You can still start the quiz.'}
+              : '✗ Quiz access is available, but personal analytics are currently unavailable.'}
           </div>
         )}
       </div>

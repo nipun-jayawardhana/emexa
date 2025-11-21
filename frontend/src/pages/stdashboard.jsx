@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import camera from "../lib/camera";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Sidebar from "../components/sidebarorigin";
@@ -232,10 +233,10 @@ const StudentDashboard = () => {
                     },
                   ]
                 ).map((quiz, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start justify-between p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition"
-                  >
+                    <div
+                      key={index}
+                      className="flex items-start justify-between p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition"
+                    >
                     <div className="flex-1 pr-4">
                       <h3 className="font-semibold text-gray-900 text-sm mb-0.5">
                         {quiz.title}
@@ -252,7 +253,16 @@ const StudentDashboard = () => {
                       </p>
                     </div>
                     <button
-                      onClick={() => navigate(`/quiz/${quiz.id}`)}
+                      onClick={() => {
+                        const targetId = quiz.id || `quiz-${index}`;
+                        try {
+                          // pre-warm camera permission/negotiation before opening permission page
+                          if (camera && camera.isActive && !camera.isActive()) {
+                            camera.start({ capture: false }).catch(() => {});
+                          }
+                        } catch (e) {}
+                        navigate(`/permission?quizId=${encodeURIComponent(targetId)}`);
+                      }}
                       className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-600 transition whitespace-nowrap"
                     >
                       Take Quiz
