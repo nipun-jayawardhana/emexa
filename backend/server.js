@@ -6,6 +6,7 @@ import { connectDB } from './src/services/dbService.js';
 import userRoutes from './src/routes/userRoutes.js';
 import authRoutes from './src/routes/authRoutes.js';
 import quizRoutes from './src/routes/quizroutes.js';
+import cameraRoutes from './src/routes/cameraRoutes.js';
 
 dotenv.config();
 const app = express();
@@ -22,6 +23,8 @@ app.use(express.json());
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/quiz', quizRoutes);
+// Camera frames endpoint
+app.use('/api/camera', cameraRoutes);
 
 // Health
 app.get('/', (req, res) => res.json({ ok: true, message: 'API is running' }));
