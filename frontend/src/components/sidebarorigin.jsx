@@ -1,5 +1,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import dashboardIcon from '../assets/Dashboard.png';
+import wellnessIcon from '../assets/Wellness.png';
+import profileIcon from '../assets/Profile.png';
 
 const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
   const navigate = useNavigate();
@@ -31,57 +34,34 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
       id: "dashboard",
       label: "Dashboard",
       icon: (
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
-          />
-        </svg>
+        <img 
+            src={dashboardIcon}
+            alt="Dashboard icon" 
+            className="w-5 h-5 object-contain"
+                    />
       ),
     },
     {
       id: "wellness",
       label: "Wellness Centre",
       icon: (
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
+        <img 
+            src={wellnessIcon}
+            alt="Wellness icon" 
+            className="w-5 h-5 object-contain"
+       />
+        
       ),
     },
     {
       id: "profile",
       label: "Profile",
       icon: (
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-          />
-        </svg>
+        <img 
+            src={profileIcon}
+            alt="Profile icon" 
+            className="w-5 h-5 object-contain"
+        />
       ),
     },
   ];
