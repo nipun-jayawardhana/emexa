@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Home, Lightbulb, ChevronRight, ChevronLeft, Check, X } from 'lucide-react';
 import headerLogo from '../assets/headerlogo.png';
+import DownloadIcon from '../assets/download.png';
 
 const QuizPage = () => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -207,6 +208,213 @@ const QuizPage = () => {
     setActiveFilter(filter);
   };
 
+  const handleDownloadPDF = () => {
+    // Create a printable version
+    const printWindow = window.open('', '_blank');
+    const score = calculateScore();
+    const percentage = Math.round((score / quizData.questions.length) * 100);
+    
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Quiz Results - ${quizData.title}</title>
+        <style>
+          body { 
+            font-family: Arial, sans-serif; 
+            padding: 40px; 
+            max-width: 800px; 
+            margin: 0 auto;
+          }
+          .header { 
+            background: #0f766e; 
+            color: white; 
+            padding: 20px; 
+            margin: -40px -40px 30px -40px;
+            border-radius: 8px 8px 0 0;
+          }
+          .header h1 { margin: 0; font-size: 24px; }
+          .success { text-align: center; margin-bottom: 30px; }
+          .success h2 { color: #047857; margin-bottom: 10px; }
+          .summary { 
+            background: #f0fdfa; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 30px;
+          }
+          .summary-title { 
+            font-size: 18px; 
+            font-weight: bold; 
+            margin-bottom: 15px;
+            color: #1f2937;
+          }
+          .summary-grid { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 20px; 
+            text-align: center;
+          }
+          .summary-item label { 
+            display: block; 
+            font-size: 12px; 
+            color: #6b7280; 
+            margin-bottom: 5px;
+          }
+          .summary-item value { 
+            display: block; 
+            font-weight: bold; 
+            color: #1f2937;
+          }
+          .score-box { 
+            background: #fef2f2; 
+            border-left: 4px solid #ef4444; 
+            padding: 20px; 
+            margin-bottom: 30px;
+          }
+          .score-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 15px;
+          }
+          .score-header h3 { margin: 0; font-size: 20px; }
+          .score-percentage { 
+            font-size: 36px; 
+            font-weight: bold; 
+            color: #ef4444;
+          }
+          .question-box { 
+            border: 1px solid #e5e7eb; 
+            border-radius: 8px; 
+            padding: 20px; 
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+          }
+          .question-header { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 15px;
+          }
+          .question-title { 
+            font-weight: bold; 
+            color: #1f2937; 
+            flex: 1;
+          }
+          .answer-box { 
+            padding: 12px; 
+            border-radius: 8px; 
+            margin-bottom: 10px;
+          }
+          .correct-answer { background: #f0fdf4; }
+          .wrong-answer { background: #fef2f2; }
+          .explanation { background: #eff6ff; }
+          .answer-label { 
+            font-size: 12px; 
+            color: #6b7280; 
+            margin-bottom: 5px;
+          }
+          .answer-text { 
+            font-weight: 500; 
+            margin: 0;
+          }
+          .correct-text { color: #166534; }
+          .wrong-text { color: #991b1b; }
+          .explanation-text { color: #1e40af; }
+          .status-icon { 
+            font-size: 20px; 
+            margin-left: 10px;
+          }
+          @media print {
+            body { padding: 20px; }
+            .header { margin: -20px -20px 20px -20px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Quiz Results: ${quizData.title}</h1>
+        </div>
+        
+        <div class="success">
+          <h2>Quiz Successfully Submitted!</h2>
+          <p>Thank you for completing the quiz. Your responses have been recorded.</p>
+        </div>
+        
+        <div class="summary">
+          <div class="summary-title">⭐ Quiz Summary</div>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <label>Date Submitted:</label>
+              <value>${new Date().toLocaleDateString()}</value>
+            </div>
+            <div class="summary-item">
+              <label>Time Taken:</label>
+              <value>${Math.floor(totalTime / 60)} minutes</value>
+            </div>
+            <div class="summary-item">
+              <label>Questions Answered:</label>
+              <value>${Object.keys(answers).length} of ${quizData.questions.length}</value>
+            </div>
+          </div>
+        </div>
+        
+        <div class="score-box">
+          <div class="score-header">
+            <h3>Your Score</h3>
+            <div class="score-percentage">${percentage}%</div>
+          </div>
+          <p>You answered <strong>${score} out of ${quizData.questions.length}</strong> questions correctly</p>
+        </div>
+        
+        ${quizData.questions.map((question, index) => {
+          const userAnswer = answers[index];
+          const isCorrect = userAnswer === question.correctAnswer;
+          
+          return `
+            <div class="question-box">
+              <div class="question-header">
+                <div class="question-title">
+                  Question ${question.id}: ${question.text}
+                </div>
+                <span class="status-icon">${isCorrect ? '✓' : '✗'}</span>
+              </div>
+              
+              ${userAnswer !== undefined ? `
+                <div class="answer-box ${isCorrect ? 'correct-answer' : 'wrong-answer'}">
+                  <div class="answer-label">Your Answer:</div>
+                  <p class="answer-text ${isCorrect ? 'correct-text' : 'wrong-text'}">
+                    ${question.options[userAnswer]}
+                  </p>
+                </div>
+              ` : ''}
+              
+              ${!isCorrect ? `
+                <div class="answer-box correct-answer">
+                  <div class="answer-label">Correct Answer:</div>
+                  <p class="answer-text correct-text">${question.options[question.correctAnswer]}</p>
+                </div>
+              ` : ''}
+              
+              <div class="answer-box explanation">
+                <div class="answer-label">Explanation:</div>
+                <p class="answer-text explanation-text">${question.hints[3]}</p>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </body>
+      </html>
+    `;
+    
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Automatically trigger print dialog with PDF option
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+  };
+
   if (quizSubmitted) {
     const score = calculateScore();
     const percentage = Math.round((score / quizData.questions.length) * 100);
@@ -301,6 +509,17 @@ const QuizPage = () => {
           })}
 
           <div className="flex justify-center gap-4 mt-8">
+            <button 
+              onClick={handleDownloadPDF}
+              className="flex items-center gap-2 bg-teal-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-teal-800 transition-colors"
+            >
+              Download as PDF
+              <img 
+                src={DownloadIcon}
+                alt="download icon" 
+                className="w-5 h-5 object-contain"
+              />
+            </button>
             <button 
               onClick={() => window.location.href = '/dashboard'}
               className="flex items-center gap-2 bg-teal-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-teal-800 transition-colors"
