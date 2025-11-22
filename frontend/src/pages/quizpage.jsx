@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, Home, FileText, Lightbulb, ChevronRight, ChevronLeft, Check, X } from 'lucide-react';
-import axios from 'axios';
+import { Clock, Home, Lightbulb, ChevronRight, ChevronLeft, Check, X } from 'lucide-react';
 
 const QuizPage = () => {
-  const { quizId } = useParams();
-  const navigate = useNavigate();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
   const [timeOnQuestion, setTimeOnQuestion] = useState(0);
@@ -16,10 +12,8 @@ const QuizPage = () => {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizStartTime] = useState(Date.now());
   const [totalTime, setTotalTime] = useState(0);
-  const [quizData, setQuizData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState('all'); // Start with NO filter selected
 
-  // Sample quiz data - Replace with API call
   const sampleQuestions = [
     {
       id: 1,
@@ -108,29 +102,9 @@ const QuizPage = () => {
     }
   ];
 
-  useEffect(() => {
-    fetchQuizData();
-  }, [quizId]);
-
-  const fetchQuizData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      // Uncomment when API is ready
-      // const response = await axios.get(`http://localhost:5000/api/quiz/${quizId}`, {
-      //   headers: { Authorization: `Bearer ${token}` }
-      // });
-      // setQuizData(response.data);
-      
-      // Using sample data for now
-      setQuizData({
-        title: "Introduction to Biology",
-        questions: sampleQuestions
-      });
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching quiz:', error);
-      setLoading(false);
-    }
+  const quizData = {
+    title: "Introduction to Biology",
+    questions: sampleQuestions
   };
 
   // Timer effect for current question
@@ -172,7 +146,7 @@ const QuizPage = () => {
   };
 
   const handleEmojiClick = (emoji) => {
-    if (emoji === 'frustrated') {
+    if (emoji === 'confused' || emoji === 'frustrated') {
       setShowHints(true);
     }
     setShowEmojiDialog(false);
@@ -194,21 +168,8 @@ const QuizPage = () => {
     }
   };
 
-  const handleSubmit = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      // Uncomment when API is ready
-      // await axios.post(`http://localhost:5000/api/quiz/${quizId}/submit`, {
-      //   answers,
-      //   timeTaken: totalTime
-      // }, {
-      //   headers: { Authorization: `Bearer ${token}` }
-      // });
-      
-      setQuizSubmitted(true);
-    } catch (error) {
-      console.error('Error submitting quiz:', error);
-    }
+  const handleSubmit = () => {
+    setQuizSubmitted(true);
   };
 
   const calculateScore = () => {
@@ -227,16 +188,23 @@ const QuizPage = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading quiz...</p>
-        </div>
-      </div>
-    );
-  }
+  // Check if question matches current filter
+  const matchesFilter = (index) => {
+    const answered = answers[index] !== undefined;
+    const isCurrent = index === currentQuestion;
+
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'current') return isCurrent;
+    if (activeFilter === 'answered') return answered;
+    if (activeFilter === 'unanswered') return !answered;
+    
+    return true;
+  };
+
+  const handleFilterClick = (filter) => {
+    // Always switch to the clicked filter (don't toggle off)
+    setActiveFilter(filter);
+  };
 
   if (quizSubmitted) {
     const score = calculateScore();
@@ -333,7 +301,7 @@ const QuizPage = () => {
 
           <div className="flex justify-center gap-4 mt-8">
             <button 
-              onClick={() => navigate('/student-dashboard')}
+              onClick={() => window.location.href = '/dashboard'}
               className="flex items-center gap-2 bg-teal-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-teal-800 transition-colors"
             >
               <Home className="w-5 h-5" />
@@ -346,7 +314,6 @@ const QuizPage = () => {
   }
 
   const question = quizData.questions[currentQuestion];
-  const isAnswered = answers[currentQuestion] !== undefined;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-50 flex">
@@ -358,22 +325,27 @@ const QuizPage = () => {
           {quizData.questions.map((_, index) => {
             const answered = answers[index] !== undefined;
             const isCurrent = index === currentQuestion;
+            const highlightQuestion = matchesFilter(index);
             
             return (
               <button
                 key={index}
                 onClick={() => setCurrentQuestion(index)}
                 className={`
-                  w-12 h-12 rounded-lg font-semibold flex items-center justify-center transition-all
-                  ${isCurrent ? 'bg-teal-700 text-white ring-4 ring-teal-300' : 
+                  w-12 h-12 rounded-lg font-semibold flex items-center justify-center transition-all relative
+                  ${isCurrent && activeFilter === 'all' ? 'bg-teal-700 text-white ring-4 ring-teal-300' : 
+                    isCurrent && activeFilter !== 'all' ? 'bg-teal-700 text-white' :
                     answered ? 'bg-white text-teal-700 border-2 border-teal-700' : 
                     'bg-white text-gray-400 border-2 border-gray-200'}
-                  ${answered && !isCurrent ? 'relative' : ''}
+                  ${highlightQuestion && !isCurrent && activeFilter !== 'all' ? 'bg-teal-50' : ''}
+                  ${!highlightQuestion && activeFilter !== 'all' ? 'opacity-40' : ''}
                 `}
               >
                 {index + 1}
                 {answered && !isCurrent && (
-                  <Check className="w-4 h-4 absolute -top-1 -right-1 bg-teal-700 text-white rounded-full p-0.5" />
+                  <div className="absolute -top-1 -right-1 bg-teal-700 rounded-full w-4 h-4 flex items-center justify-center">
+                    <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                  </div>
                 )}
               </button>
             );
@@ -381,20 +353,39 @@ const QuizPage = () => {
         </div>
 
         <div className="space-y-3 mb-8">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-teal-700 rounded"></div>
+          <button
+            onClick={() => handleFilterClick('current')}
+            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
+              activeFilter === 'current' ? 'bg-green-200' : 'hover:bg-green-50'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded ${
+              activeFilter === 'current' ? 'bg-green-500' : 'bg-white border-2 border-teal-700'
+            }`}></div>
             <span className="text-sm text-gray-700">Current question</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-white border-2 border-teal-700 rounded flex items-center justify-center">
-              <Check className="w-3 h-3 text-teal-700" />
-            </div>
+          </button>
+          <button
+            onClick={() => handleFilterClick('answered')}
+            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
+              activeFilter === 'answered' ? 'bg-green-200' : 'hover:bg-green-50'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded ${
+              activeFilter === 'answered' ? 'bg-green-500' : 'bg-white border-2 border-teal-700'
+            }`}></div>
             <span className="text-sm text-gray-700">Answered</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-white border-2 border-gray-200 rounded"></div>
+          </button>
+          <button
+            onClick={() => handleFilterClick('unanswered')}
+            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
+              activeFilter === 'unanswered' ? 'bg-green-200' : 'hover:bg-green-50'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded ${
+              activeFilter === 'unanswered' ? 'bg-green-500' : 'bg-white border-2 border-teal-700'
+            }`}></div>
             <span className="text-sm text-gray-700">Unanswered</span>
-          </div>
+          </button>
         </div>
 
         <button
