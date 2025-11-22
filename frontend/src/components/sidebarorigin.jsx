@@ -38,7 +38,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
             src={dashboardIcon}
             alt="Dashboard icon" 
             className="w-5 h-5 object-contain"
-                    />
+        />
       ),
     },
     {
