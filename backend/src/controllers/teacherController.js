@@ -1,154 +1,217 @@
-const db = require('../config/db');
-const ApiResponse = require('../utils/apiResponse');
-const ApiError = require('../utils/apiError');
+import Student from '../models/student.js';
+import Teacher from '../models/teacher.js';
+import User from '../models/user.js';
 
 /**
  * Get teacher dashboard statistics
  */
-exports.getDashboardStats = async (req, res, next) => {
+const getDashboardStats = async (req, res) => {
   try {
-    const teacherId = req.user.id;
+    const teacherId = req.userId || req.user._id;
+    
+    console.log('📊 Fetching dashboard stats for teacher:', teacherId);
 
-    // Get total students count
-    const [studentsResult] = await db.query(
-      `SELECT COUNT(DISTINCT s.id) as totalStudents 
-       FROM students s 
-       INNER JOIN teacher_students ts ON s.id = ts.student_id 
-       WHERE ts.teacher_id = ?`,
-      [teacherId]
-    );
-
-    // Get present students today
-    const [presentResult] = await db.query(
-      `SELECT COUNT(DISTINCT a.student_id) as presentToday 
-       FROM attendance a
-       INNER JOIN teacher_students ts ON a.student_id = ts.student_id
-       WHERE ts.teacher_id = ? 
-       AND DATE(a.attendance_date) = CURDATE() 
-       AND a.status = 'present'`,
-      [teacherId]
-    );
-
-    // Get average progress
-    const [progressResult] = await db.query(
-      `SELECT AVG(sp.progress_percentage) as avgProgress 
-       FROM student_progress sp
-       INNER JOIN teacher_students ts ON sp.student_id = ts.student_id
-       WHERE ts.teacher_id = ?`,
-      [teacherId]
-    );
-
-    // Get engagement level
-    const [engagementResult] = await db.query(
-      `SELECT AVG(se.engagement_score) as avgEngagement 
-       FROM student_engagement se
-       INNER JOIN teacher_students ts ON se.student_id = ts.student_id
-       WHERE ts.teacher_id = ? 
-       AND se.week_start >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`,
-      [teacherId]
-    );
-
+    // For now, return mock data
+    // TODO: Replace with actual database queries when your schema is ready
     const stats = {
-      totalStudents: studentsResult[0].totalStudents || 0,
-      presentToday: presentResult[0].presentToday || 0,
-      averageProgress: Math.round(progressResult[0].avgProgress || 0),
-      engagementLevel: engagementResult[0].avgEngagement >= 75 ? 'High' : 
-                       engagementResult[0].avgEngagement >= 50 ? 'Medium' : 'Low',
-      engagementScore: Math.round(engagementResult[0].avgEngagement || 0)
+      totalStudents: 24,
+      presentToday: 22,
+      averageProgress: 78,
+      targetProgress: 80,
+      engagementLevel: 'High',
+      weeklyChange: 5
     };
 
-    res.json(ApiResponse.success(stats, 'Dashboard stats retrieved successfully'));
+    /* 
+    // Example real implementation when you have the data:
+    const teacher = await Teacher.findById(teacherId).populate('students');
+    
+    const totalStudents = teacher.students.length;
+    
+    // Count present students today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const presentToday = await Attendance.countDocuments({
+      teacherId,
+      date: { $gte: today },
+      status: 'present'
+    });
+    
+    // Calculate average progress
+    const progressData = await StudentProgress.aggregate([
+      { $match: { teacherId } },
+      { $group: { _id: null, avgProgress: { $avg: '$progress' } } }
+    ]);
+    
+    const averageProgress = Math.round(progressData[0]?.avgProgress || 0);
+    */
+
+    res.json({
+      success: true,
+      data: stats,
+      message: 'Dashboard stats retrieved successfully'
+    });
   } catch (error) {
-    next(new ApiError(500, 'Failed to fetch dashboard stats', [error.message]));
+    console.error('❌ Error fetching dashboard stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch dashboard stats',
+      error: error.message
+    });
   }
 };
 
 /**
  * Get class progress data for chart
  */
-exports.getClassProgress = async (req, res, next) => {
+const getClassProgress = async (req, res) => {
   try {
-    const teacherId = req.user.id;
+    const teacherId = req.userId || req.user._id;
+    
+    console.log('📈 Fetching class progress for teacher:', teacherId);
 
-    const [progressData] = await db.query(
-      `SELECT 
-        WEEK(wp.week_start) as week,
-        wp.completed_percentage,
-        wp.target_percentage,
-        DATE_FORMAT(wp.week_start, '%b %d') as weekLabel
-       FROM weekly_progress wp
-       INNER JOIN teacher_students ts ON wp.class_id = ts.class_id
-       WHERE ts.teacher_id = ?
-       AND wp.week_start >= DATE_SUB(CURDATE(), INTERVAL 4 WEEK)
-       GROUP BY wp.week_start, wp.completed_percentage, wp.target_percentage
-       ORDER BY wp.week_start ASC
-       LIMIT 4`,
-      [teacherId]
-    );
+    // Mock data for now
+    const progressData = [
+      { label: 'Week 1', completed: 65, target: 82 },
+      { label: 'Week 2', completed: 72, target: 80 },
+      { label: 'Week 3', completed: 80, target: 82 },
+      { label: 'Week 4', completed: 88, target: 80 }
+    ];
 
+    /*
+    // Example real implementation:
+    const fourWeeksAgo = new Date();
+    fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+    
+    const progressData = await WeeklyProgress.find({
+      teacherId,
+      weekStart: { $gte: fourWeeksAgo }
+    })
+    .sort({ weekStart: 1 })
+    .limit(4)
+    .lean();
+    
     const formattedData = progressData.map((item, index) => ({
       label: `Week ${index + 1}`,
-      completed: Math.round(item.completed_percentage || 0),
-      target: Math.round(item.target_percentage || 80)
+      completed: Math.round(item.completedPercentage || 0),
+      target: Math.round(item.targetPercentage || 80)
     }));
+    */
 
-    res.json(ApiResponse.success(formattedData, 'Class progress retrieved successfully'));
+    res.json({
+      success: true,
+      data: progressData,
+      message: 'Class progress retrieved successfully'
+    });
   } catch (error) {
-    next(new ApiError(500, 'Failed to fetch class progress', [error.message]));
+    console.error('❌ Error fetching class progress:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch class progress',
+      error: error.message
+    });
   }
 };
 
 /**
  * Get engagement trend data for chart
  */
-exports.getEngagementTrend = async (req, res, next) => {
+const getEngagementTrend = async (req, res) => {
   try {
-    const teacherId = req.user.id;
+    const teacherId = req.userId || req.user._id;
+    
+    console.log('📊 Fetching engagement trend for teacher:', teacherId);
 
-    const [trendData] = await db.query(
-      `SELECT 
-        DAYNAME(se.date) as day,
-        AVG(se.engagement_score) as avgScore
-       FROM student_engagement se
-       INNER JOIN teacher_students ts ON se.student_id = ts.student_id
-       WHERE ts.teacher_id = ?
-       AND se.date >= DATE_SUB(CURDATE(), INTERVAL 5 DAY)
-       GROUP BY se.date, DAYNAME(se.date)
-       ORDER BY se.date ASC`,
-      [teacherId]
-    );
+    // Mock data
+    const engagementData = [
+      { day: 'Mon', score: 65 },
+      { day: 'Tue', score: 70 },
+      { day: 'Wed', score: 75 },
+      { day: 'Thu', score: 85 },
+      { day: 'Fri', score: 80 }
+    ];
 
+    /*
+    // Example real implementation:
+    const fiveDaysAgo = new Date();
+    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+    
+    const trendData = await StudentEngagement.aggregate([
+      {
+        $match: {
+          teacherId: mongoose.Types.ObjectId(teacherId),
+          date: { $gte: fiveDaysAgo }
+        }
+      },
+      {
+        $group: {
+          _id: { $dayOfWeek: '$date' },
+          avgScore: { $avg: '$engagementScore' }
+        }
+      },
+      { $sort: { '_id': 1 } }
+    ]);
+    
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const formattedData = trendData.map(item => ({
-      day: item.day.substring(0, 3), // Mon, Tue, etc.
+      day: dayNames[item._id - 1],
       score: Math.round(item.avgScore || 0)
     }));
+    */
 
-    res.json(ApiResponse.success(formattedData, 'Engagement trend retrieved successfully'));
+    res.json({
+      success: true,
+      data: engagementData,
+      message: 'Engagement trend retrieved successfully'
+    });
   } catch (error) {
-    next(new ApiError(500, 'Failed to fetch engagement trend', [error.message]));
+    console.error('❌ Error fetching engagement trend:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch engagement trend',
+      error: error.message
+    });
   }
 };
 
 /**
  * Get emotional state distribution
  */
-exports.getEmotionalState = async (req, res, next) => {
+const getEmotionalState = async (req, res) => {
   try {
-    const teacherId = req.user.id;
+    const teacherId = req.userId || req.user._id;
+    
+    console.log('😊 Fetching emotional state for teacher:', teacherId);
 
-    const [emotionalData] = await db.query(
-      `SELECT 
-        es.emotion_type,
-        COUNT(*) as count
-       FROM emotional_state es
-       INNER JOIN teacher_students ts ON es.student_id = ts.student_id
-       WHERE ts.teacher_id = ?
-       AND es.recorded_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-       GROUP BY es.emotion_type`,
-      [teacherId]
-    );
+    // Mock data
+    const emotionalData = {
+      happy: 40,
+      confused: 30,
+      frustrated: 20,
+      neutral: 10
+    };
 
-    const total = emotionalData.reduce((sum, item) => sum + item.count, 0);
+    /*
+    // Example real implementation:
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    
+    const emotionData = await EmotionalState.aggregate([
+      {
+        $match: {
+          teacherId: mongoose.Types.ObjectId(teacherId),
+          recordedDate: { $gte: oneWeekAgo }
+        }
+      },
+      {
+        $group: {
+          _id: '$emotionType',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+    
+    const total = emotionData.reduce((sum, item) => sum + item.count, 0);
     
     const distribution = {
       happy: 0,
@@ -156,103 +219,235 @@ exports.getEmotionalState = async (req, res, next) => {
       frustrated: 0,
       neutral: 0
     };
-
-    emotionalData.forEach(item => {
+    
+    emotionData.forEach(item => {
       const percentage = Math.round((item.count / total) * 100);
-      distribution[item.emotion_type.toLowerCase()] = percentage;
+      distribution[item._id.toLowerCase()] = percentage;
     });
+    */
 
-    res.json(ApiResponse.success(distribution, 'Emotional state retrieved successfully'));
+    res.json({
+      success: true,
+      data: emotionalData,
+      message: 'Emotional state retrieved successfully'
+    });
   } catch (error) {
-    next(new ApiError(500, 'Failed to fetch emotional state', [error.message]));
+    console.error('❌ Error fetching emotional state:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch emotional state',
+      error: error.message
+    });
   }
 };
 
 /**
  * Get student overview list
  */
-exports.getStudentOverview = async (req, res, next) => {
+const getStudentOverview = async (req, res) => {
   try {
-    const teacherId = req.user.id;
+    const teacherId = req.userId || req.user._id;
     const limit = parseInt(req.query.limit) || 4;
+    
+    console.log('👨‍🎓 Fetching student overview for teacher:', teacherId);
 
-    const [students] = await db.query(
-      `SELECT 
-        s.id,
-        s.first_name,
-        s.last_name,
-        sp.progress_percentage,
-        se.engagement_level,
-        u.profile_image
-       FROM students s
-       INNER JOIN teacher_students ts ON s.id = ts.student_id
-       INNER JOIN users u ON s.user_id = u.id
-       LEFT JOIN student_progress sp ON s.id = sp.student_id
-       LEFT JOIN (
-         SELECT student_id, 
-           CASE 
-             WHEN AVG(engagement_score) >= 75 THEN 'High'
-             WHEN AVG(engagement_score) >= 50 THEN 'Medium'
-             ELSE 'Low'
-           END as engagement_level
-         FROM student_engagement
-         WHERE date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-         GROUP BY student_id
-       ) se ON s.id = se.student_id
-       WHERE ts.teacher_id = ?
-       ORDER BY sp.progress_percentage DESC
-       LIMIT ?`,
-      [teacherId, limit]
-    );
+    // Mock data
+    const students = [
+      {
+        id: '1',
+        name: 'Emma Thompson',
+        engagement: 'High',
+        progress: 92,
+        image: '👩'
+      },
+      {
+        id: '2',
+        name: 'Liam Johnson',
+        engagement: 'Medium',
+        progress: 88,
+        image: '👨'
+      },
+      {
+        id: '3',
+        name: 'Olivia Davis',
+        engagement: 'High',
+        progress: 95,
+        image: '👩'
+      },
+      {
+        id: '4',
+        name: 'Noah Williams',
+        engagement: 'Medium',
+        progress: 85,
+        image: '👨'
+      }
+    ];
 
-    const formattedStudents = students.map(student => ({
-      id: student.id,
-      name: `${student.first_name} ${student.last_name}`,
-      engagement: student.engagement_level || 'Medium',
-      progress: Math.round(student.progress_percentage || 0),
-      image: student.profile_image || '👤'
-    }));
+    /*
+    // Example real implementation:
+    const teacher = await Teacher.findById(teacherId)
+      .populate({
+        path: 'students',
+        select: 'name email userId',
+        options: { limit },
+        populate: {
+          path: 'userId',
+          select: 'profileImage'
+        }
+      });
+    
+    const studentIds = teacher.students.map(s => s._id);
+    
+    // Get progress data
+    const progressData = await StudentProgress.find({
+      studentId: { $in: studentIds }
+    }).lean();
+    
+    // Get engagement data
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    
+    const engagementData = await StudentEngagement.aggregate([
+      {
+        $match: {
+          studentId: { $in: studentIds },
+          date: { $gte: oneWeekAgo }
+        }
+      },
+      {
+        $group: {
+          _id: '$studentId',
+          avgEngagement: { $avg: '$engagementScore' }
+        }
+      }
+    ]);
+    
+    const formattedStudents = teacher.students.map(student => {
+      const progress = progressData.find(p => p.studentId.equals(student._id));
+      const engagement = engagementData.find(e => e._id.equals(student._id));
+      
+      return {
+        id: student._id,
+        name: student.name,
+        engagement: engagement?.avgEngagement >= 75 ? 'High' : 
+                   engagement?.avgEngagement >= 50 ? 'Medium' : 'Low',
+        progress: Math.round(progress?.progressPercentage || 0),
+        image: student.userId?.profileImage || '👤'
+      };
+    });
+    */
 
-    res.json(ApiResponse.success(formattedStudents, 'Student overview retrieved successfully'));
+    res.json({
+      success: true,
+      data: students.slice(0, limit),
+      message: 'Student overview retrieved successfully'
+    });
   } catch (error) {
-    next(new ApiError(500, 'Failed to fetch student overview', [error.message]));
+    console.error('❌ Error fetching student overview:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch student overview',
+      error: error.message
+    });
   }
 };
 
 /**
  * Get teacher's recent quizzes
  */
-exports.getRecentQuizzes = async (req, res, next) => {
+const getRecentQuizzes = async (req, res) => {
   try {
-    const teacherId = req.user.id;
+    const teacherId = req.userId || req.user._id;
+    
+    console.log('📝 Fetching recent quizzes for teacher:', teacherId);
 
-    const [quizzes] = await db.query(
-      `SELECT 
-        q.id,
-        q.title,
-        q.due_date,
-        COUNT(DISTINCT qs.student_id) as totalStudents,
-        COUNT(DISTINCT CASE WHEN qs.status = 'completed' THEN qs.student_id END) as completedCount
-       FROM quizzes q
-       LEFT JOIN quiz_submissions qs ON q.id = qs.quiz_id
-       WHERE q.teacher_id = ?
-       AND q.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-       GROUP BY q.id, q.title, q.due_date
-       ORDER BY q.created_at DESC
-       LIMIT 5`,
-      [teacherId]
-    );
+    // Mock data
+    const quizzes = [
+      {
+        id: '1',
+        title: 'Mathematics Final Exam',
+        dueDate: '2024-03-15',
+        totalStudents: 24,
+        completed: 18
+      },
+      {
+        id: '2',
+        title: 'Physics Quiz 3',
+        dueDate: '2024-03-10',
+        totalStudents: 28,
+        completed: 28
+      },
+      {
+        id: '3',
+        title: 'Chemistry Lab Test',
+        dueDate: '2024-03-08',
+        totalStudents: 22,
+        completed: 15
+      }
+    ];
 
-    const formattedQuizzes = quizzes.map(quiz => ({
-      id: quiz.id,
-      title: quiz.title,
-      dueDate: quiz.due_date,
-      totalStudents: quiz.totalStudents || 0,
-      completed: quiz.completedCount || 0
-    }));
+    /*
+    // Example real implementation:
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const quizzes = await Quiz.find({
+      teacherId,
+      createdAt: { $gte: thirtyDaysAgo }
+    })
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .lean();
+    
+    const quizIds = quizzes.map(q => q._id);
+    
+    // Get submission counts
+    const submissions = await QuizSubmission.aggregate([
+      { $match: { quizId: { $in: quizIds } } },
+      {
+        $group: {
+          _id: '$quizId',
+          totalStudents: { $addToSet: '$studentId' },
+          completedCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] }
+          }
+        }
+      }
+    ]);
+    
+    const formattedQuizzes = quizzes.map(quiz => {
+      const submission = submissions.find(s => s._id.equals(quiz._id));
+      
+      return {
+        id: quiz._id,
+        title: quiz.title,
+        dueDate: quiz.dueDate,
+        totalStudents: submission?.totalStudents.length || 0,
+        completed: submission?.completedCount || 0
+      };
+    });
+    */
 
-    res.json(ApiResponse.success(formattedQuizzes, 'Recent quizzes retrieved successfully'));
+    res.json({
+      success: true,
+      data: quizzes,
+      message: 'Recent quizzes retrieved successfully'
+    });
   } catch (error) {
-    next(new ApiError(500, 'Failed to fetch recent quizzes', [error.message]));
+    console.error('❌ Error fetching recent quizzes:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch recent quizzes',
+      error: error.message
+    });
   }
+};
+
+export default {
+  getDashboardStats,
+  getClassProgress,
+  getEngagementTrend,
+  getEmotionalState,
+  getStudentOverview,
+  getRecentQuizzes
 };

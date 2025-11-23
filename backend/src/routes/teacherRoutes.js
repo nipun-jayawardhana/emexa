@@ -1,7 +1,8 @@
-const express = require('express');
+import express from 'express';
+import teacherController from '../controllers/teacherController.js';
+import { protect, authorize } from '../middleware/auth.middleware.js';
+
 const router = express.Router();
-const teacherController = require('../controllers/teacherController');
-const { authenticateToken } = require('../middleware/auth.middleware');
 
 /**
  * Teacher Dashboard Routes
@@ -9,21 +10,51 @@ const { authenticateToken } = require('../middleware/auth.middleware');
  */
 
 // Dashboard statistics
-router.get('/dashboard/stats', authenticateToken, teacherController.getDashboardStats);
+router.get(
+  '/dashboard/stats', 
+  protect, 
+  authorize('teacher'), 
+  teacherController.getDashboardStats
+);
 
 // Class progress data for chart
-router.get('/dashboard/class-progress', authenticateToken, teacherController.getClassProgress);
+router.get(
+  '/dashboard/class-progress', 
+  protect, 
+  authorize('teacher'), 
+  teacherController.getClassProgress
+);
 
 // Engagement trend data for chart
-router.get('/dashboard/engagement-trend', authenticateToken, teacherController.getEngagementTrend);
+router.get(
+  '/dashboard/engagement-trend', 
+  protect, 
+  authorize('teacher'), 
+  teacherController.getEngagementTrend
+);
 
 // Emotional state distribution
-router.get('/dashboard/emotional-state', authenticateToken, teacherController.getEmotionalState);
+router.get(
+  '/dashboard/emotional-state', 
+  protect, 
+  authorize('teacher'), 
+  teacherController.getEmotionalState
+);
 
 // Student overview list
-router.get('/dashboard/students', authenticateToken, teacherController.getStudentOverview);
+router.get(
+  '/dashboard/students', 
+  protect, 
+  authorize('teacher'), 
+  teacherController.getStudentOverview
+);
 
 // Recent quizzes
-router.get('/dashboard/quizzes', authenticateToken, teacherController.getRecentQuizzes);
+router.get(
+  '/dashboard/quizzes', 
+  protect, 
+  authorize('teacher'), 
+  teacherController.getRecentQuizzes
+);
 
-module.exports = router;
+export default router;

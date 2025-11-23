@@ -1,4 +1,4 @@
-// main.jsx - Updated with Admin Routes
+// main.jsx - Updated with Teacher Routes
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -11,7 +11,6 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
-
 
 import StudentDashboard from "./pages/stdashboard";
 import QuizPage from "./pages/quizpage";
@@ -36,23 +35,33 @@ createRoot(document.getElementById("root")).render(
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/user-management" element={<UserManagement />} />
         
-        {/* Student Routes */}
+        {/* Permission Route */}
         <Route path="/permission" element={<Permission />} />
 
-        {/* Protected routes: use `StudentDashboard` for authenticated users */}
+        {/* Teacher Routes - Protected */}
+        <Route
+          path="/teacher-dashboard"
+          element={
+            <RequireAuth allowedRoles={["teacher"]}>
+              <TeacherDashboard />
+            </RequireAuth>
+          }
+        />
+
+        {/* Student Routes - Protected */}
         <Route
           path="/home"
           element={
-            <RequireAuth>
+            <RequireAuth allowedRoles={["student"]}>
               <StudentDashboard />
             </RequireAuth>
           }
         />
-        {/* Dashboard route - Protected */}
+        
         <Route
           path="/dashboard"
           element={
-            <RequireAuth>
+            <RequireAuth allowedRoles={["student"]}>
               <StudentDashboard />
             </RequireAuth>
           }
@@ -61,13 +70,13 @@ createRoot(document.getElementById("root")).render(
         <Route
           path="/quiz/:quizId"
           element={
-            <RequireAuth>
+            <RequireAuth allowedRoles={["student"]}>
               <QuizPage />
             </RequireAuth>
           }
         />
         
-        <Route path="/home" element={<Navigate to="/dashboard" replace />} />
+        {/* Redirects */}
         <Route path="/student-dashboard" element={<Navigate to="/dashboard" replace />} />
         <Route path="/stdashboard" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
