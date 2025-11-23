@@ -1,4 +1,3 @@
-// backend/src/controllers/wellnessController.js
 import Mood from "../models/mood.js";
 import WellnessActivity from "../models/wellnessActivity.js";
 
