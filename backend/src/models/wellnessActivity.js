@@ -1,4 +1,3 @@
-// backend/src/models/wellnessActivity.js
 import mongoose from 'mongoose';
 
 const wellnessActivitySchema = new mongoose.Schema({
