@@ -1,107 +1,62 @@
-import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/auth-pages-images/EMEXA Logo.png";
 
 export default function Logout() {
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Clear auth token from both localStorage and sessionStorage
-    try {
-      localStorage.removeItem("token");
-      localStorage.removeItem("rememberMe");
-      localStorage.removeItem("user");
-      localStorage.removeItem("userName");
-      localStorage.removeItem("userRole");
-      sessionStorage.removeItem("token");
-      sessionStorage.removeItem("user");
-      sessionStorage.removeItem("userName");
-      sessionStorage.removeItem("userRole");
-    } catch {
-      // ignore
-    }
-  }, []);
-
   const goToLogin = () => {
     navigate("/login");
   };
 
   return (
-    <div className="auth-container" style={{ padding: "2rem" }}>
-      <div
-        style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}
-      >
-        <img
-          src={logo}
-          alt="EMEXA logo"
-          style={{ height: 72, opacity: 0.95 }}
-        />
-      </div>
-
-      <div
-        style={{
-          maxWidth: 680,
-          margin: "0 auto",
-          background: "var(--card-bg, #ffffff)",
-          borderRadius: 12,
-          padding: "40px 48px",
-          boxShadow: "0 8px 30px rgba(20,20,20,0.08)",
-          textAlign: "center",
-        }}
-      >
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 90,
-            height: 90,
-            borderRadius: 9999,
-            background: "#eaf7ee",
-            margin: "0 auto 18px",
-          }}
-        >
-          <svg
-            width="44"
-            height="44"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <circle cx="12" cy="12" r="12" fill="#cff3dc" />
-            <path
-              d="M7.5 12.5L10.2 15.2L16.5 9"
-              stroke="#166A3A"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="flex justify-center mb-8">
+          <img
+            src={logo}
+            alt="EMEXA logo"
+            className="w -30 h-30"
+          />
         </div>
 
-        <h2 style={{ margin: "8px 0 12px", fontSize: 22, color: "#0f1720" }}>
-          Successfully Logged Out
-        </h2>
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-lg p-8">
+          {/* Success Icon */}
+          <div className="flex justify-center mb-6">
+            <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center">
+              <svg
+                className="w-10 h-10 text-green-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            </div>
+          </div>
 
-        <p style={{ margin: "0 0 18px", color: "#59636a", lineHeight: 1.6 }}>
-          You have been safely logged out of your account.
-          <br />
-          Thank you for using our platform!
-        </p>
+          {/* Title */}
+          <h2 className="text-2xl font-semibold text-gray-900 text-center mb-3">
+            Successfully Logged Out
+          </h2>
 
-        <div style={{ display: "flex", justifyContent: "center" }}>
+          {/* Message */}
+          <p className="text-gray-600 text-center mb-8 leading-relaxed">
+            You have been safely logged out of your account.
+            <br />
+            Thank you for using our platform!
+          </p>
+
+          {/* Login Button */}
           <button
-            className="btn"
             onClick={goToLogin}
-            style={{
-              backgroundColor: "#196b4f",
-              color: "white",
-              padding: "12px 36px",
-              borderRadius: 10,
-              fontSize: 16,
-              minWidth: 220,
-              border: "1px solid rgba(0,0,0,0.05)",
-            }}
+            className="w-full bg-green-700 hover:bg-green-800 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
           >
             Log Back In
           </button>
