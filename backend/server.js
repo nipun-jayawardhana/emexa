@@ -8,6 +8,7 @@ import authRoutes from './src/routes/authRoutes.js';
 import quizRoutes from './src/routes/quizroutes.js';
 import cameraRoutes from './src/routes/cameraRoutes.js';
 import teacherRoutes from './src/routes/teacherRoutes.js';
+import wellnessRoutes from './src/routes/wellnessRoutes.js'; // NEW: Wellness Routes
 
 dotenv.config();
 const app = express();
@@ -39,6 +40,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/quiz', quizRoutes);
 app.use('/api/camera', cameraRoutes);
 app.use('/api/teacher', teacherRoutes);
+app.use('/api/wellness', wellnessRoutes); // NEW: Wellness API Routes
 
 // Health check endpoints
 app.get('/', (req, res) => {
@@ -106,6 +108,9 @@ app.listen(PORT, HOST, () => {
   console.log('   - GET  /api/quiz                  Quiz management');
   console.log('   - POST /api/camera                Camera endpoints');
   console.log('   - GET  /api/teacher               Teacher dashboard');
+  console.log('   - POST /api/wellness/mood         Save mood tracking');
+  console.log('   - GET  /api/wellness/mood/history Get mood history');
+  console.log('   - GET  /api/wellness/tips         Get wellness tips');
   console.log('\n🌐 Network Interfaces:');
   const interfaces = os.networkInterfaces();
   Object.keys(interfaces).forEach(iface => {
