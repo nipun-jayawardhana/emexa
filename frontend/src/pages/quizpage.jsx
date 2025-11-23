@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, Home, FileText, Lightbulb, ChevronRight, ChevronLeft, Check, X } from 'lucide-react';
-import axios from 'axios';
+import { Clock, Home, Lightbulb, ChevronRight, ChevronLeft, Check, X } from 'lucide-react';
+import headerLogo from '../assets/headerlogo.png';
+import DownloadIcon from '../assets/download.png';
 
 const QuizPage = () => {
-  const { quizId } = useParams();
-  const navigate = useNavigate();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
   const [timeOnQuestion, setTimeOnQuestion] = useState(0);
@@ -16,10 +14,8 @@ const QuizPage = () => {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizStartTime] = useState(Date.now());
   const [totalTime, setTotalTime] = useState(0);
-  const [quizData, setQuizData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState('all'); // Start with NO filter selected
 
-  // Sample quiz data - Replace with API call
   const sampleQuestions = [
     {
       id: 1,
@@ -108,29 +104,9 @@ const QuizPage = () => {
     }
   ];
 
-  useEffect(() => {
-    fetchQuizData();
-  }, [quizId]);
-
-  const fetchQuizData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      // Uncomment when API is ready
-      // const response = await axios.get(`http://localhost:5000/api/quiz/${quizId}`, {
-      //   headers: { Authorization: `Bearer ${token}` }
-      // });
-      // setQuizData(response.data);
-      
-      // Using sample data for now
-      setQuizData({
-        title: "Introduction to Biology",
-        questions: sampleQuestions
-      });
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching quiz:', error);
-      setLoading(false);
-    }
+  const quizData = {
+    title: "Introduction to Biology",
+    questions: sampleQuestions
   };
 
   // Timer effect for current question
@@ -172,7 +148,7 @@ const QuizPage = () => {
   };
 
   const handleEmojiClick = (emoji) => {
-    if (emoji === 'frustrated') {
+    if (emoji === 'confused' || emoji === 'frustrated') {
       setShowHints(true);
     }
     setShowEmojiDialog(false);
@@ -194,21 +170,8 @@ const QuizPage = () => {
     }
   };
 
-  const handleSubmit = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      // Uncomment when API is ready
-      // await axios.post(`http://localhost:5000/api/quiz/${quizId}/submit`, {
-      //   answers,
-      //   timeTaken: totalTime
-      // }, {
-      //   headers: { Authorization: `Bearer ${token}` }
-      // });
-      
-      setQuizSubmitted(true);
-    } catch (error) {
-      console.error('Error submitting quiz:', error);
-    }
+  const handleSubmit = () => {
+    setQuizSubmitted(true);
   };
 
   const calculateScore = () => {
@@ -227,16 +190,230 @@ const QuizPage = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading quiz...</p>
+  // Check if question matches current filter
+  const matchesFilter = (index) => {
+    const answered = answers[index] !== undefined;
+    const isCurrent = index === currentQuestion;
+
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'current') return isCurrent;
+    if (activeFilter === 'answered') return answered;
+    if (activeFilter === 'unanswered') return !answered;
+    
+    return true;
+  };
+
+  const handleFilterClick = (filter) => {
+    // Always switch to the clicked filter (don't toggle off)
+    setActiveFilter(filter);
+  };
+
+  const handleDownloadPDF = () => {
+    // Create a printable version
+    const printWindow = window.open('', '_blank');
+    const score = calculateScore();
+    const percentage = Math.round((score / quizData.questions.length) * 100);
+    
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Quiz Results - ${quizData.title}</title>
+        <style>
+          body { 
+            font-family: Arial, sans-serif; 
+            padding: 40px; 
+            max-width: 800px; 
+            margin: 0 auto;
+          }
+          .header { 
+            background: #0f766e; 
+            color: white; 
+            padding: 20px; 
+            margin: -40px -40px 30px -40px;
+            border-radius: 8px 8px 0 0;
+          }
+          .header h1 { margin: 0; font-size: 24px; }
+          .success { text-align: center; margin-bottom: 30px; }
+          .success h2 { color: #047857; margin-bottom: 10px; }
+          .summary { 
+            background: #f0fdfa; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 30px;
+          }
+          .summary-title { 
+            font-size: 18px; 
+            font-weight: bold; 
+            margin-bottom: 15px;
+            color: #1f2937;
+          }
+          .summary-grid { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 20px; 
+            text-align: center;
+          }
+          .summary-item label { 
+            display: block; 
+            font-size: 12px; 
+            color: #6b7280; 
+            margin-bottom: 5px;
+          }
+          .summary-item value { 
+            display: block; 
+            font-weight: bold; 
+            color: #1f2937;
+          }
+          .score-box { 
+            background: #fef2f2; 
+            border-left: 4px solid #ef4444; 
+            padding: 20px; 
+            margin-bottom: 30px;
+          }
+          .score-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 15px;
+          }
+          .score-header h3 { margin: 0; font-size: 20px; }
+          .score-percentage { 
+            font-size: 36px; 
+            font-weight: bold; 
+            color: #ef4444;
+          }
+          .question-box { 
+            border: 1px solid #e5e7eb; 
+            border-radius: 8px; 
+            padding: 20px; 
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+          }
+          .question-header { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 15px;
+          }
+          .question-title { 
+            font-weight: bold; 
+            color: #1f2937; 
+            flex: 1;
+          }
+          .answer-box { 
+            padding: 12px; 
+            border-radius: 8px; 
+            margin-bottom: 10px;
+          }
+          .correct-answer { background: #f0fdf4; }
+          .wrong-answer { background: #fef2f2; }
+          .explanation { background: #eff6ff; }
+          .answer-label { 
+            font-size: 12px; 
+            color: #6b7280; 
+            margin-bottom: 5px;
+          }
+          .answer-text { 
+            font-weight: 500; 
+            margin: 0;
+          }
+          .correct-text { color: #166534; }
+          .wrong-text { color: #991b1b; }
+          .explanation-text { color: #1e40af; }
+          .status-icon { 
+            font-size: 20px; 
+            margin-left: 10px;
+          }
+          @media print {
+            body { padding: 20px; }
+            .header { margin: -20px -20px 20px -20px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Quiz Results: ${quizData.title}</h1>
         </div>
-      </div>
-    );
-  }
+        
+        <div class="success">
+          <h2>Quiz Successfully Submitted!</h2>
+          <p>Thank you for completing the quiz. Your responses have been recorded.</p>
+        </div>
+        
+        <div class="summary">
+          <div class="summary-title">⭐ Quiz Summary</div>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <label>Date Submitted:</label>
+              <value>${new Date().toLocaleDateString()}</value>
+            </div>
+            <div class="summary-item">
+              <label>Time Taken:</label>
+              <value>${Math.floor(totalTime / 60)} minutes</value>
+            </div>
+            <div class="summary-item">
+              <label>Questions Answered:</label>
+              <value>${Object.keys(answers).length} of ${quizData.questions.length}</value>
+            </div>
+          </div>
+        </div>
+        
+        <div class="score-box">
+          <div class="score-header">
+            <h3>Your Score</h3>
+            <div class="score-percentage">${percentage}%</div>
+          </div>
+          <p>You answered <strong>${score} out of ${quizData.questions.length}</strong> questions correctly</p>
+        </div>
+        
+        ${quizData.questions.map((question, index) => {
+          const userAnswer = answers[index];
+          const isCorrect = userAnswer === question.correctAnswer;
+          
+          return `
+            <div class="question-box">
+              <div class="question-header">
+                <div class="question-title">
+                  Question ${question.id}: ${question.text}
+                </div>
+                <span class="status-icon">${isCorrect ? '✓' : '✗'}</span>
+              </div>
+              
+              ${userAnswer !== undefined ? `
+                <div class="answer-box ${isCorrect ? 'correct-answer' : 'wrong-answer'}">
+                  <div class="answer-label">Your Answer:</div>
+                  <p class="answer-text ${isCorrect ? 'correct-text' : 'wrong-text'}">
+                    ${question.options[userAnswer]}
+                  </p>
+                </div>
+              ` : ''}
+              
+              ${!isCorrect ? `
+                <div class="answer-box correct-answer">
+                  <div class="answer-label">Correct Answer:</div>
+                  <p class="answer-text correct-text">${question.options[question.correctAnswer]}</p>
+                </div>
+              ` : ''}
+              
+              <div class="answer-box explanation">
+                <div class="answer-label">Explanation:</div>
+                <p class="answer-text explanation-text">${question.hints[3]}</p>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </body>
+      </html>
+    `;
+    
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Automatically trigger print dialog with PDF option
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+  };
 
   if (quizSubmitted) {
     const score = calculateScore();
@@ -333,7 +510,18 @@ const QuizPage = () => {
 
           <div className="flex justify-center gap-4 mt-8">
             <button 
-              onClick={() => navigate('/student-dashboard')}
+              onClick={handleDownloadPDF}
+              className="flex items-center gap-2 bg-teal-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-teal-800 transition-colors"
+            >
+              Download as PDF
+              <img 
+                src={DownloadIcon}
+                alt="download icon" 
+                className="w-5 h-5 object-contain"
+              />
+            </button>
+            <button 
+              onClick={() => window.location.href = '/dashboard'}
               className="flex items-center gap-2 bg-teal-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-teal-800 transition-colors"
             >
               <Home className="w-5 h-5" />
@@ -346,7 +534,6 @@ const QuizPage = () => {
   }
 
   const question = quizData.questions[currentQuestion];
-  const isAnswered = answers[currentQuestion] !== undefined;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-50 flex">
@@ -358,22 +545,27 @@ const QuizPage = () => {
           {quizData.questions.map((_, index) => {
             const answered = answers[index] !== undefined;
             const isCurrent = index === currentQuestion;
+            const highlightQuestion = matchesFilter(index);
             
             return (
               <button
                 key={index}
                 onClick={() => setCurrentQuestion(index)}
                 className={`
-                  w-12 h-12 rounded-lg font-semibold flex items-center justify-center transition-all
-                  ${isCurrent ? 'bg-teal-700 text-white ring-4 ring-teal-300' : 
+                  w-12 h-12 rounded-lg font-semibold flex items-center justify-center transition-all relative
+                  ${isCurrent && activeFilter === 'all' ? 'bg-teal-700 text-white ring-4 ring-teal-300' : 
+                    isCurrent && activeFilter !== 'all' ? 'bg-teal-700 text-white' :
                     answered ? 'bg-white text-teal-700 border-2 border-teal-700' : 
                     'bg-white text-gray-400 border-2 border-gray-200'}
-                  ${answered && !isCurrent ? 'relative' : ''}
+                  ${highlightQuestion && !isCurrent && activeFilter !== 'all' ? 'bg-teal-50' : ''}
+                  ${!highlightQuestion && activeFilter !== 'all' ? 'opacity-40' : ''}
                 `}
               >
                 {index + 1}
                 {answered && !isCurrent && (
-                  <Check className="w-4 h-4 absolute -top-1 -right-1 bg-teal-700 text-white rounded-full p-0.5" />
+                  <div className="absolute -top-1 -right-1 bg-teal-700 rounded-full w-4 h-4 flex items-center justify-center">
+                    <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                  </div>
                 )}
               </button>
             );
@@ -381,20 +573,39 @@ const QuizPage = () => {
         </div>
 
         <div className="space-y-3 mb-8">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-teal-700 rounded"></div>
+          <button
+            onClick={() => handleFilterClick('current')}
+            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
+              activeFilter === 'current' ? 'bg-green-200' : 'hover:bg-green-50'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded ${
+              activeFilter === 'current' ? 'bg-green-500' : 'bg-white border-2 border-teal-700'
+            }`}></div>
             <span className="text-sm text-gray-700">Current question</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-white border-2 border-teal-700 rounded flex items-center justify-center">
-              <Check className="w-3 h-3 text-teal-700" />
-            </div>
+          </button>
+          <button
+            onClick={() => handleFilterClick('answered')}
+            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
+              activeFilter === 'answered' ? 'bg-green-200' : 'hover:bg-green-50'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded ${
+              activeFilter === 'answered' ? 'bg-green-500' : 'bg-white border-2 border-teal-700'
+            }`}></div>
             <span className="text-sm text-gray-700">Answered</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-white border-2 border-gray-200 rounded"></div>
+          </button>
+          <button
+            onClick={() => handleFilterClick('unanswered')}
+            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
+              activeFilter === 'unanswered' ? 'bg-green-200' : 'hover:bg-green-50'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded ${
+              activeFilter === 'unanswered' ? 'bg-green-500' : 'bg-white border-2 border-teal-700'
+            }`}></div>
             <span className="text-sm text-gray-700">Unanswered</span>
-          </div>
+          </button>
         </div>
 
         <button
@@ -406,11 +617,12 @@ const QuizPage = () => {
 
         <div className="mt-auto">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <svg className="w-12 h-12 text-teal-700" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
+            <img 
+                src={headerLogo}
+                alt="EMEXA Logo" 
+                className="w-50 h-50 object-contain"
+            />
           </div>
-          <p className="text-center text-xs text-gray-600 font-semibold">EMEXA</p>
         </div>
       </div>
 

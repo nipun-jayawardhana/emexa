@@ -11,7 +11,9 @@ export const register = async (req, res) => {
     // Frontend sends fullName and accountType (student/teacher)
     const { fullName, name, email, password, accountType } = req.body;
     const userName = fullName || name;
-    if (!userName || !email || !password) return res.status(400).json({ message: 'Missing fields' });
+    if (!userName || !email || !password) {
+      return res.status(400).json({ message: 'Missing fields' });
+    }
 
     const role = accountType || 'student';
     const payload = { name: userName, email, password, role };
@@ -25,11 +27,22 @@ export const register = async (req, res) => {
     }
 
     // userService returns { user, token }
-    res.status(201).json(result);
+    // Make sure to return the role in the response for frontend routing
+    const response = {
+      ...result,
+      user: {
+        ...result.user,
+        role: role // Ensure role is explicitly included
+      }
+    };
+    
+    res.status(201).json(response);
   } catch (err) {
     console.error('Register error:', err);
     // If ApiError-like object, try to surface message
-    if (err && err.message) return res.status(400).json({ message: err.message });
+    if (err && err.message) {
+      return res.status(400).json({ message: err.message });
+    }
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -37,7 +50,9 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: 'Missing fields' });
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Missing fields' });
+    }
     
     const normalizedEmail = email.toLowerCase().trim();
     console.log('🔍 Login attempt for:', normalizedEmail);
@@ -66,7 +81,9 @@ export const login = async (req, res) => {
         // Check if admin is active
         if (adminUser.status && adminUser.status !== 'Active') {
           console.log('⚠️ Admin account is inactive');
-          return res.status(403).json({ message: 'Account is inactive. Please contact support.' });
+          return res.status(403).json({ 
+            message: 'Account is inactive. Please contact support.' 
+          });
         }
         
         // Generate JWT token for admin
@@ -88,7 +105,7 @@ export const login = async (req, res) => {
             id: adminUser._id,
             name: adminUser.name,
             email: adminUser.email,
-            role: adminUser.role
+            role: 'admin' // Explicitly return admin role
           }
         });
       }
@@ -99,7 +116,18 @@ export const login = async (req, res) => {
     const result = await userService.loginUser(normalizedEmail, password);
     
     // userService.loginUser returns { user, token }
-    return res.json(result);
+    // Ensure role is explicitly included in the response
+    const response = {
+      ...result,
+      message: 'Login successful',
+      user: {
+        ...result.user,
+        role: result.user.role || 'student' // Ensure role is always present
+      }
+    };
+    
+    console.log('✅ User login successful! Role:', response.user.role);
+    return res.json(response);
   } catch (err) {
     console.error('❌ Login error:', err);
     
@@ -114,7 +142,9 @@ export const login = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Missing email' });
+    if (!email) {
+      return res.status(400).json({ message: 'Missing email' });
+    }
 
     // Normalize email
     const normalizedEmail = email.toLowerCase().trim();
@@ -124,7 +154,9 @@ export const forgotPassword = async (req, res) => {
     const teacher = await teacherRepository.findByEmail(normalizedEmail);
     
     if (!student && !teacher) {
-      return res.status(200).json({ message: 'If the email exists we sent a link' });
+      return res.status(200).json({ 
+        message: 'If the email exists we sent a link' 
+      });
     }
 
     // TODO: generate reset token and send email
@@ -201,4 +233,11 @@ export const rejectStudent = async (req, res) => {
   }
 };
 
-export default { register, login, forgotPassword, getStudentApprovals, approveStudent, rejectStudent };
+export default { 
+  register, 
+  login, 
+  forgotPassword, 
+  getStudentApprovals, 
+  approveStudent, 
+  rejectStudent 
+};
