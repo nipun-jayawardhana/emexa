@@ -46,53 +46,95 @@ export default function Login() {
         console.log("✅ Login successful:", res);
         console.log("👤 User:", res.user);
         console.log("🔑 Token:", res.token);
+        console.log("🎭 Role:", res.user?.role);
 
         // Check if user is admin - redirect to admin panel
         if (res.user?.role === "admin" || res.user?.role === "Admin") {
-          // Store admin token separately
+          // Store admin token and user info
           localStorage.setItem("adminToken", res.token);
           localStorage.setItem("adminUser", JSON.stringify(res.user));
+          localStorage.setItem("token", res.token);
+          localStorage.setItem("user", JSON.stringify(res.user));
+          localStorage.setItem("userName", res.user.name || "Admin");
+          localStorage.setItem("userRole", "admin");
           
           setSuccess(`✅ Login successful! Welcome Admin!`);
           console.log("🚀 Navigating to admin panel");
-          navigate("/admin/user-management");
+          
+          setTimeout(() => {
+            navigate("/admin/user-management");
+          }, 1000);
           return;
         }
 
         // Regular user flow (students and teachers)
-        // Save token and user based on "Remember me" checkbox
+        const userRole = res.user?.role || "student";
+        const userName = res.user?.name || res.user?.full_name || "User";
+
+        // Save token based on "Remember me" checkbox
         if (res.token) {
           if (remember) {
             // Keep user logged in permanently
             localStorage.setItem("token", res.token);
             localStorage.setItem("rememberMe", "true");
+            console.log("💾 Token saved to localStorage (remember me)");
           } else {
             // Only keep logged in for this session
             sessionStorage.setItem("token", res.token);
+            localStorage.setItem("token", res.token); // Also save to localStorage for compatibility
             localStorage.removeItem("rememberMe");
+            console.log("💾 Token saved to sessionStorage (this session only)");
           }
         }
+
+        // Save user data
         if (res.user) {
           const storage = remember ? localStorage : sessionStorage;
+          
+          // Save to chosen storage
           storage.setItem("user", JSON.stringify(res.user));
-          storage.setItem(
-            "userName",
-            res.user.name || res.user.full_name || "User"
-          );
-          // Store user role for routing and UI
-          storage.setItem("userRole", res.user.role || "student");
+          storage.setItem("userName", userName);
+          storage.setItem("userRole", userRole);
+          storage.setItem("userEmail", res.user.email);
+          storage.setItem("userId", res.user.id || res.user._id);
+
+          // Also save to localStorage for RequireAuth compatibility
+          localStorage.setItem("user", JSON.stringify(res.user));
+          localStorage.setItem("userName", userName);
+          localStorage.setItem("userRole", userRole);
+          localStorage.setItem("userEmail", res.user.email);
+          localStorage.setItem("userId", res.user.id || res.user._id);
+
+          console.log("💾 User data saved:", {
+            userName,
+            userRole,
+            storage: remember ? "localStorage" : "sessionStorage"
+          });
         }
 
         // Show success message
-        const userName = res.user?.name || res.user?.full_name || "user";
         setSuccess(`✅ Login successful! Welcome back ${userName}!`);
 
         // Navigate based on user role
-        const userRole = res.user?.role || "student";
-        const dashboardPath =
-          userRole === "teacher" ? "/teacher-dashboard" : "/dashboard";
+        let dashboardPath;
+        if (userRole === "teacher") {
+          dashboardPath = "/teacher-dashboard";
+          console.log("🎓 Redirecting to teacher dashboard");
+        } else if (userRole === "student") {
+          dashboardPath = "/dashboard";
+          console.log("👨‍🎓 Redirecting to student dashboard");
+        } else {
+          // Fallback to student dashboard for unknown roles
+          dashboardPath = "/dashboard";
+          console.log("❓ Unknown role, redirecting to student dashboard");
+        }
+
         console.log(`🚀 Navigating to ${dashboardPath} (role: ${userRole})`);
-        navigate(dashboardPath);
+        
+        // Delay navigation slightly to show success message
+        setTimeout(() => {
+          navigate(dashboardPath);
+        }, 1000);
       })
       .catch((err) => {
         console.error("❌ Login failed:", err);
