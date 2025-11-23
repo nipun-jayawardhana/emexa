@@ -1,4 +1,3 @@
-// main.jsx - Updated with Teacher Routes
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -18,6 +17,7 @@ import AdminLogin from "./pages/AdminLogin";
 import UserManagement from "./pages/usermgt";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import Permission from "./pages/Permission";
+import WellnessCentre from "./pages/WellnessCentre";
 import RequireAuth from "./components/RequireAuth";
 
 createRoot(document.getElementById("root")).render(
@@ -63,6 +63,16 @@ createRoot(document.getElementById("root")).render(
           element={
             <RequireAuth allowedRoles={["student"]}>
               <StudentDashboard />
+            </RequireAuth>
+          }
+        />
+
+        {/* Wellness Centre Route - Protected */}
+        <Route
+          path="/wellness-centre"
+          element={
+            <RequireAuth allowedRoles={["student"]}>
+              <WellnessCentre />
             </RequireAuth>
           }
         />
