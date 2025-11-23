@@ -50,6 +50,39 @@ const UserManagement = () => {
   const [activeMenuItem, setActiveMenuItem] = useState("userManagement");
   const dropdownRef = React.useRef(null);
 
+  // Function to handle navigation to dashboards
+  const navigateToDashboard = (dashboardType) => {
+    console.log(`🚀 Admin navigating to ${dashboardType} dashboard`);
+    
+    // Store admin's original token separately so we can restore it later
+    const adminToken = localStorage.getItem("adminToken");
+    const adminUserData = localStorage.getItem("adminUser");
+    
+    // Keep admin credentials backed up
+    if (adminToken && adminUserData) {
+      sessionStorage.setItem("adminBackup", JSON.stringify({
+        token: adminToken,
+        user: JSON.parse(adminUserData)
+      }));
+    }
+    
+    // Set the appropriate role for the dashboard
+    const role = dashboardType === 'student' ? 'student' : 'teacher';
+    
+    // Update localStorage to allow access to the dashboard
+    localStorage.setItem("userRole", role);
+    localStorage.setItem("adminViewingAs", role);
+    
+    console.log(`✅ Set userRole to: ${role}, adminViewingAs: ${role}`);
+    
+    // Navigate to the dashboard
+    if (dashboardType === 'student') {
+      navigate("/dashboard");
+    } else if (dashboardType === 'teacher') {
+      navigate("/teacher-dashboard");
+    }
+  };
+
   // Define menu items for admin sidebar with onClick handlers
   const adminMenuItems = [
     {
@@ -61,7 +94,6 @@ const UserManagement = () => {
         </svg>
       ),
       onClick: () => {
-        
         console.log("Already on User Management");
       }
     },
@@ -71,13 +103,12 @@ const UserManagement = () => {
       icon: (
         <img 
           src={dashboardIcon}
-          alt="Profile icon" 
+          alt="Student Dashboard" 
           className="w-5 h-5 object-contain"
-          />
+        />
       ),
       onClick: () => {
-        console.log("Navigating to Student Dashboard");
-        navigate("/dashboard");
+        navigateToDashboard('student');
       }
     },
     {
@@ -86,13 +117,12 @@ const UserManagement = () => {
       icon: (
         <img 
           src={dashboardIcon}
-          alt="Profile icon" 
+          alt="Teacher Dashboard" 
           className="w-5 h-5 object-contain"
-         />
+        />
       ),
       onClick: () => {
-        console.log("Navigating to Teacher Dashboard");
-        navigate("/teacher-dashboard");
+        navigateToDashboard('teacher');
       }
     },
     {
@@ -103,7 +133,7 @@ const UserManagement = () => {
           src={quizIcon}
           alt="Quiz icon" 
           className="w-5 h-5 object-contain"
-         />
+        />
       ),
       onClick: () => {
         console.log("Navigating to Quizzes");
@@ -123,8 +153,12 @@ const UserManagement = () => {
   // Check admin authentication
   useEffect(() => {
     const adminToken = localStorage.getItem("adminToken");
-    if (!adminToken) {
-      navigate("/login");
+    const regularToken = localStorage.getItem("token");
+    const userRole = localStorage.getItem("userRole");
+    
+    if (!adminToken && (!regularToken || userRole !== 'admin')) {
+      console.log("❌ Not authenticated as admin, redirecting to login");
+      navigate("/admin/login");
     }
   }, [navigate]);
 
@@ -147,7 +181,6 @@ const UserManagement = () => {
       try {
         console.log('📊 Fetching data...');
         
-        // Fetch users
         let usersData = [];
         try {
           usersData = await getUsers();
@@ -156,7 +189,6 @@ const UserManagement = () => {
           console.error("❌ Error fetching users:", err);
         }
         
-        // Fetch teacher approvals
         let teacherApprovalsData = [];
         try {
           teacherApprovalsData = await getTeacherApprovals();
@@ -165,7 +197,6 @@ const UserManagement = () => {
           console.error("❌ Error fetching teacher approvals:", err);
         }
         
-        // Fetch student approvals
         let studentApprovalsData = [];
         try {
           const response = await fetch('http://localhost:5000/api/auth/student-approvals');
@@ -177,7 +208,6 @@ const UserManagement = () => {
           console.error("❌ Error fetching student approvals:", err);
         }
         
-        // Ensure all data are arrays
         setUsers(Array.isArray(usersData) ? usersData : []);
         setTeacherApprovals(Array.isArray(teacherApprovalsData) ? teacherApprovalsData : []);
         setStudentApprovals(Array.isArray(studentApprovalsData) ? studentApprovalsData : []);
@@ -200,7 +230,6 @@ const UserManagement = () => {
     fetchData();
   }, []);
 
-  // CRUD handlers
   const openModal = (type, user) => {
     setSelectedUser(user || null);
     setModalType(type);
@@ -294,7 +323,6 @@ const UserManagement = () => {
     setShowRoleDropdown(false);
   };
 
-  // Filtering - Single role selection
   const filteredUsers = Array.isArray(users) ? users.filter(u => {
     const matchesRole = selectedRole === "All Roles" || u.role === selectedRole;
     const matchesSearch = u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -315,20 +343,17 @@ const UserManagement = () => {
   
   return (
     <div className="min-h-screen bg-white">
-      {/* Header Component */}
       <Header 
         userName={adminUser?.name || "Admin"} 
         userRole="admin"
       />
 
-      {/* Sidebar Component */}
       <Sidebar 
         activeMenuItem={activeMenuItem}
         setActiveMenuItem={setActiveMenuItem}
         menuItems={adminMenuItems}
       />
 
-      {/* Main Content - Adjusted for sidebar */}
       <div className="ml-52 pt-14">
         <main className="p-8 bg-gray-50 min-h-[calc(100vh-56px)]">
           <div className="max-w-7xl mx-auto">
@@ -337,7 +362,6 @@ const UserManagement = () => {
               <p className="text-sm text-gray-600">Add, edit, and manage users in your quiz system</p>
             </div>
             
-            {/* Tabs */}
             <div className="mb-6 flex gap-6 border-b border-gray-200 bg-white px-6 pt-4 rounded-t-lg">
               <button 
                 className={`pb-3 font-medium text-sm ${
@@ -383,7 +407,6 @@ const UserManagement = () => {
           
             {tab === "users" && (
               <div className="bg-white rounded-b-lg shadow-sm">
-                {/* Toolbar */}
                 <div className="p-6 border-b border-gray-200 flex items-center gap-3">
                   <input 
                     type="text"
@@ -425,7 +448,6 @@ const UserManagement = () => {
                   </div>
                 </div>
               
-                {/* Users Table */}
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
@@ -505,7 +527,6 @@ const UserManagement = () => {
         </main>
       </div>
         
-      {/* Modals */}
       <Modal
         isOpen={modalOpen} 
         onRequestClose={closeModal}
@@ -531,7 +552,6 @@ const UserManagement = () => {
   );
 };
 
-// Approval Tab Component
 const ApprovalTab = ({ approvals, title, description, onApprove, onReject }) => (
   <div>
     <div className="mb-6">
@@ -599,7 +619,6 @@ const ApprovalTab = ({ approvals, title, description, onApprove, onReject }) => 
   </div>
 );
 
-// View User Modal Component
 const ViewUserModal = ({ user, onClose }) => (
   <div>
     <h2 className="text-lg font-semibold text-gray-900 mb-4">User Profile</h2>
@@ -648,7 +667,6 @@ const ViewUserModal = ({ user, onClose }) => (
   </div>
 );
 
-// Delete Modal
 const DeleteUserModal = ({user, onSubmit, onCancel}) => (
   <div>
     <h2 className="text-lg font-semibold text-gray-900 mb-4">Confirm Delete</h2>
