@@ -1,4 +1,3 @@
-// backend/src/routes/wellnessRoutes.js
 import express from 'express';
 import * as wellnessController from '../controllers/wellnessController.js';
 import { protect } from '../middleware/auth.js'; // Using 'protect' middleware
