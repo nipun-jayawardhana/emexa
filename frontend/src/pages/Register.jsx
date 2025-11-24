@@ -337,7 +337,13 @@ export default function Register() {
             </div>
 
             <div className="success-card">
-              <div className="success-icon">
+              {/* FIXED: Centered success icon */}
+              <div className="success-icon" style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                margin: '0 auto 20px'
+              }}>
                 <svg width="60" height="60" viewBox="0 0 60 60" fill="none">
                   <circle
                     cx="30"
@@ -357,9 +363,11 @@ export default function Register() {
                 </svg>
               </div>
 
-              <h2 className="success-title">Registration Successful!</h2>
+              <h2 className="success-title" style={{ textAlign: 'center' }}>
+                Registration Successful!
+              </h2>
 
-              <p className="success-subtitle">
+              <p className="success-subtitle" style={{ textAlign: 'center' }}>
                 Welcome {userName}! Your account has been created successfully.
                 {accountType === "teacher" 
                   ? " Redirecting to teacher dashboard..." 

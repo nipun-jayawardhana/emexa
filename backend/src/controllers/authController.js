@@ -1,7 +1,4 @@
 import userService from '../services/user.service.js';
-import userRepository from '../repositories/user.repository.js';
-import studentRepository from '../repositories/student.repository.js';
-import teacherRepository from '../repositories/teacher.repository.js';
 import User from '../models/user.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -26,20 +23,24 @@ export const register = async (req, res) => {
       result = await userService.registerStudent(payload);
     }
 
-    // userService returns { user, token }
-    // Make sure to return the role in the response for frontend routing
+    // Normalize user response - ensure name is always present
+    const userResponse = {
+      id: result.user._id || result.user.id,
+      name: result.user.name || result.user.fullName || result.user.full_name || userName,
+      email: result.user.email,
+      role: role
+    };
+
+    // Return normalized response
     const response = {
-      ...result,
-      user: {
-        ...result.user,
-        role: role // Ensure role is explicitly included
-      }
+      token: result.token,
+      user: userResponse
     };
     
+    console.log('✅ Registration response:', userResponse);
     res.status(201).json(response);
   } catch (err) {
     console.error('Register error:', err);
-    // If ApiError-like object, try to surface message
     if (err && err.message) {
       return res.status(400).json({ message: err.message });
     }
@@ -63,7 +64,6 @@ export const login = async (req, res) => {
     
     if (adminUser) {
       console.log('🎭 User role:', adminUser.role);
-      console.log('🔐 Password exists:', adminUser.password ? 'YES' : 'NO');
       
       // Check if this is an admin user
       if (adminUser.role === 'admin' || adminUser.role === 'Admin') {
@@ -97,16 +97,19 @@ export const login = async (req, res) => {
           { expiresIn: '24h' }
         );
         
-        console.log('✅ Admin login successful! Token generated.');
+        // Normalize admin user response
+        const adminResponse = {
+          id: adminUser._id,
+          name: adminUser.name || adminUser.fullName || adminUser.full_name || 'Admin',
+          email: adminUser.email,
+          role: 'admin'
+        };
+        
+        console.log('✅ Admin login successful! Response:', adminResponse);
         return res.json({
           message: 'Login successful',
           token,
-          user: {
-            id: adminUser._id,
-            name: adminUser.name,
-            email: adminUser.email,
-            role: 'admin' // Explicitly return admin role
-          }
+          user: adminResponse
         });
       }
     }
@@ -115,23 +118,26 @@ export const login = async (req, res) => {
     console.log('👨‍🎓 Not admin, trying student/teacher login...');
     const result = await userService.loginUser(normalizedEmail, password);
     
-    // userService.loginUser returns { user, token }
-    // Ensure role is explicitly included in the response
+    console.log('🔍 Raw user from service:', {
+      keys: Object.keys(result.user),
+      name: result.user.name,
+      email: result.user.email
+    });
+    
+    // User response is already normalized in userService.loginUser
+    // Just pass it through
     const response = {
-      ...result,
       message: 'Login successful',
-      user: {
-        ...result.user,
-        role: result.user.role || 'student' // Ensure role is always present
-      }
+      token: result.token,
+      user: result.user // Already has name field from service
     };
     
-    console.log('✅ User login successful! Role:', response.user.role);
+    console.log('✅ User login successful! Response:', response.user);
+    console.log('📤 Sending to frontend:', response);
     return res.json(response);
   } catch (err) {
     console.error('❌ Login error:', err);
     
-    // Return the specific error message from the service
     const statusCode = err.statusCode || 401;
     const message = err.message || 'Invalid email or password';
     
@@ -146,14 +152,11 @@ export const forgotPassword = async (req, res) => {
       return res.status(400).json({ message: 'Missing email' });
     }
 
-    // Normalize email
     const normalizedEmail = email.toLowerCase().trim();
     
-    // Check in both student and teacher collections
-    const student = await studentRepository.findByEmail(normalizedEmail);
-    const teacher = await teacherRepository.findByEmail(normalizedEmail);
+    const user = await userService.findByEmail(normalizedEmail);
     
-    if (!student && !teacher) {
+    if (!user) {
       return res.status(200).json({ 
         message: 'If the email exists we sent a link' 
       });
@@ -170,7 +173,6 @@ export const forgotPassword = async (req, res) => {
 // Get Student Approvals
 export const getStudentApprovals = async (req, res) => {
   try {
-    // Fetch students pending approval from User collection
     const students = await User.find({ 
       role: 'Student',
       approvalStatus: { $in: ['pending', 'approved', 'rejected'] }
