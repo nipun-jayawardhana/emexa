@@ -5,6 +5,7 @@ import teacherRepository from '../repositories/teacher.repository.js';
 import User from '../models/user.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 export const register = async (req, res) => {
   try {
@@ -120,17 +121,112 @@ export const forgotPassword = async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     
     // Check in both student and teacher collections
-    const student = await studentRepository.findByEmail(normalizedEmail);
-    const teacher = await teacherRepository.findByEmail(normalizedEmail);
+    let user = await studentRepository.findByEmail(normalizedEmail);
+    let repository = studentRepository;
+    let userType = 'student';
     
-    if (!student && !teacher) {
-      return res.status(200).json({ message: 'If the email exists we sent a link' });
+    if (!user) {
+      user = await teacherRepository.findByEmail(normalizedEmail);
+      repository = teacherRepository;
+      userType = 'teacher';
+    }
+    
+    // Always return success for security (don't reveal if email exists)
+    if (!user) {
+      return res.status(200).json({ message: 'If the email exists, we sent a reset link' });
     }
 
-    // TODO: generate reset token and send email
-    return res.json({ message: 'If the email exists we sent a link' });
+    // Generate reset token (6-digit code for simplicity)
+    const resetToken = crypto.randomInt(100000, 999999).toString();
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    
+    // Save hashed token and expiry (15 minutes)
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
+    await user.save();
+
+    // In production, send email here with resetToken
+    console.log('🔐 Password reset token for', email, ':', resetToken);
+    console.log('⏰ Token expires at:', new Date(user.resetPasswordExpires));
+    
+    // For development: return token in response (remove in production!)
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    
+    return res.json({ 
+      message: 'If the email exists, we sent a reset link',
+      ...(isDevelopment && { resetToken, email }) // Only in development
+    });
   } catch (err) {
     console.error('Forgot password error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Reset password with token
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, token, newPassword } = req.body;
+    
+    console.log('🔐 Reset password request:', { email, token: token?.substring(0, 3) + '***' });
+    
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+
+    // Normalize email
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Hash the provided token
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    console.log('🔑 Hashed token:', hashedToken.substring(0, 10) + '...');
+    
+    // Find user with matching token and not expired
+    let user = await studentRepository.findByEmail(normalizedEmail);
+    let repository = studentRepository;
+    let userType = 'student';
+    
+    if (!user) {
+      user = await teacherRepository.findByEmail(normalizedEmail);
+      repository = teacherRepository;
+      userType = 'teacher';
+    }
+    
+    if (!user) {
+      console.log('❌ User not found:', normalizedEmail);
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
+
+    console.log('👤 User found:', userType, normalizedEmail);
+    console.log('📝 Stored token:', user.resetPasswordToken?.substring(0, 10) + '...');
+    console.log('⏰ Token expires:', user.resetPasswordExpires);
+    console.log('🕐 Current time:', new Date(Date.now()));
+
+    // Verify token matches and not expired
+    if (!user.resetPasswordToken || user.resetPasswordToken !== hashedToken) {
+      console.log('❌ Token mismatch');
+      return res.status(400).json({ message: 'Invalid reset token' });
+    }
+    
+    if (!user.resetPasswordExpires || user.resetPasswordExpires < Date.now()) {
+      console.log('❌ Token expired');
+      return res.status(400).json({ message: 'Reset token has expired' });
+    }
+
+    // Update password (will be hashed by pre-save hook)
+    user.password = newPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    console.log('✅ Password reset successful for:', email);
+
+    return res.json({ message: 'Password reset successful. You can now login with your new password.' });
+  } catch (err) {
+    console.error('Reset password error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -201,4 +297,4 @@ export const rejectStudent = async (req, res) => {
   }
 };
 
-export default { register, login, forgotPassword, getStudentApprovals, approveStudent, rejectStudent };
+export default { register, login, forgotPassword, resetPassword, getStudentApprovals, approveStudent, rejectStudent };
