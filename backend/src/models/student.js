@@ -12,6 +12,9 @@ const studentSchema = new mongoose.Schema({
   studentId: { type: String, unique: true, sparse: true },
   grade: { type: String },
   enrolledCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
+  // Password reset fields
+  resetPasswordToken: { type: String, select: false },
+  resetPasswordExpires: { type: Date, select: false },
 }, { timestamps: true });
 
 // Hash password before saving

@@ -233,10 +233,10 @@ const StudentDashboard = () => {
                     },
                   ]
                 ).map((quiz, index) => (
-                    <div
-                      key={index}
-                      className="flex items-start justify-between p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition"
-                    >
+                  <div
+                    key={index}
+                    className="flex items-start justify-between p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition"
+                  >
                     <div className="flex-1 pr-4">
                       <h3 className="font-semibold text-gray-900 text-sm mb-0.5">
                         {quiz.title}
@@ -261,7 +261,9 @@ const StudentDashboard = () => {
                             camera.start({ capture: false }).catch(() => {});
                           }
                         } catch (e) {}
-                        navigate(`/permission?quizId=${encodeURIComponent(targetId)}`);
+                        navigate(
+                          `/permission?quizId=${encodeURIComponent(targetId)}`
+                        );
                       }}
                       className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-600 transition whitespace-nowrap"
                     >

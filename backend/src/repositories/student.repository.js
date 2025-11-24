@@ -10,10 +10,10 @@ class StudentRepository {
   }
 
   async findByEmail(email) {
-    // include password for authentication checks
+    // include password and reset token fields for authentication checks
     // Normalize email to lowercase for case-insensitive search
     const normalizedEmail = email.toLowerCase().trim();
-    return await Student.findOne({ email: normalizedEmail }).select('+password');
+    return await Student.findOne({ email: normalizedEmail }).select('+password +resetPasswordToken +resetPasswordExpires');
   }
 
   async findByStudentId(studentId) {
