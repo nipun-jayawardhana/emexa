@@ -1,35 +1,19 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+// App.jsx
+import { Routes, Route } from "react-router-dom";
+import Login from "./pages/Login";
+import LandingPage from "./pages/LandingPage";
+import StudentDashboard from "./pages/StudentDashboard";
+<div className="bg-red-500 text-white p-4">Test Tailwind</div>
 
-function App() {
-  const [count, setCount] = useState(0)
 
+// App.jsx
+// This file is now optional since we're handling all routing in main.jsx
+// You can either delete this file or keep it minimal
+
+export default function App() {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <div className="bg-red-500 text-white p-4">
+      This App.jsx is no longer needed - all routes are in main.jsx
+    </div>
+  );
 }
-
-export default App

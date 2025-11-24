@@ -1,10 +1,17 @@
-import * as userService from '../services/userService.js';
+import userService from '../services/user.service.js';
+import User from '../models/user.js';
+
 
 export const getUsers = async (req, res) => {
   try {
-    const users = await userService.findUsers();
-    res.json(users);
+    const { role, page, limit, sort } = req.query;
+    const filter = {};
+    if (role) filter.role = role;
+    const options = { page: parseInt(page) || 1, limit: parseInt(limit) || 10, sort: sort || '-createdAt' };
+    const result = await userService.getAllUsers(filter, options);
+    res.json(result);
   } catch (err) {
+    console.error('Get users error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -16,12 +23,50 @@ export const createUser = async (req, res) => {
       return res.status(400).json({ message: 'Missing fields' });
     }
 
-    const exists = await userService.findUserByEmail(email);
-    if (exists) return res.status(400).json({ message: 'User already exists' });
-
-    const user = await userService.createUser({ name, email, password });
-    res.status(201).json(user);
+    const result = await userService.registerUser({ name, email, password });
+    // registerUser returns { user, token }
+    res.status(201).json(result);
   } catch (err) {
+    console.error('Create user error:', err);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// New dashboard functions
+export const getDashboardData = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({
+      name: user.name,
+      email: user.email,
+      totalQuizzes: user.totalQuizzes,
+      averageScore: user.averageScore,
+      studyTime: user.studyTime,
+      upcomingQuizzes: user.upcomingQuizzes,
+      recentActivity: user.recentActivity,
+    });
+  } catch (error) {
+    console.error('Get dashboard data error:', error);
+    res.status(500).json({ message: 'Error fetching dashboard data', error: error.message });
+  }
+};
+
+export const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ message: 'Error fetching profile', error: error.message });
   }
 };

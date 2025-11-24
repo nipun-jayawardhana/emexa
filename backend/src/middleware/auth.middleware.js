@@ -1,9 +1,8 @@
-const jwt = require('jsonwebtoken');
-const { JWT_SECRET } = require('../config/environment');
-const ApiError = require('../utils/apiError');
-const User = require('../models/user.model');
+import jwt from 'jsonwebtoken';
+import User from '../models/user.js';
 
-const protect = async (req, res, next) => {
+// Your existing robust protect middleware
+export const protect = async (req, res, next) => {
   try {
     let token;
 
@@ -14,38 +13,68 @@ const protect = async (req, res, next) => {
 
     // Check if token exists
     if (!token) {
-      throw ApiError.unauthorized('Not authorized to access this route');
+      return res.status(401).json({ message: 'Not authorized to access this route' });
     }
 
     try {
       // Verify token
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const secret = process.env.JWT_SECRET || 'dev_secret';
+      const decoded = jwt.verify(token, secret);
 
       // Get user from token
       req.user = await User.findById(decoded.id).select('-password');
 
       if (!req.user) {
-        throw ApiError.unauthorized('User no longer exists');
+        return res.status(401).json({ message: 'User no longer exists' });
       }
+
+      // Set userId for compatibility with new dashboard routes
+      req.userId = decoded.id;
 
       next();
     } catch (error) {
-      throw ApiError.unauthorized('Not authorized to access this route');
+      return res.status(401).json({ message: 'Not authorized to access this route' });
     }
   } catch (error) {
     next(error);
   }
 };
 
-const authorize = (...roles) => {
+// Your existing authorize middleware
+export const authorize = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
-      return next(
-        ApiError.forbidden(`User role ${req.user.role} is not authorized to access this route`)
-      );
+      return res.status(403).json({ 
+        message: `User role ${req.user.role} is not authorized to access this route` 
+      });
     }
     next();
   };
 };
 
-module.exports = { protect, authorize };
+// Simple auth middleware for dashboard routes (alternative)
+export const authMiddleware = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const secret = process.env.JWT_SECRET || 'dev_secret';
+    const decoded = jwt.verify(token, secret);
+    
+    req.userId = decoded.id;
+    req.user = await User.findById(decoded.id).select('-password');
+    
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+    
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};
+
+export default protect;
