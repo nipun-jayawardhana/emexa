@@ -11,6 +11,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
 
+
 import StudentDashboard from "./pages/stdashboard";
 import QuizPage from "./pages/quizpage";
 import AdminLogin from "./pages/AdminLogin";
@@ -35,20 +36,28 @@ createRoot(document.getElementById("root")).render(
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/user-management" element={<UserManagement />} />
         
-        {/* Permission Route */}
+        {/* Student Routes */}
         <Route path="/permission" element={<Permission />} />
 
-        {/* Teacher Routes - Protected */}
+        {/* Protected routes: use `StudentDashboard` for authenticated users */}
         <Route
-          path="/teacher-dashboard"
+          path="/home"
           element={
-            <RequireAuth allowedRoles={["teacher"]}>
-              <TeacherDashboard />
+            <RequireAuth>
+              <StudentDashboard />
             </RequireAuth>
           }
         />
-
-        {/* Student Routes - Protected */}
+        {/* Dashboard route - Protected */}
+        <Route
+          path="/dashboard"
+          element={
+            <RequireAuth>
+              <StudentDashboard />
+            </RequireAuth>
+          }
+        />
+        
         <Route
           path="/home"
           element={
@@ -66,27 +75,8 @@ createRoot(document.getElementById("root")).render(
             </RequireAuth>
           }
         />
-
-        {/* Wellness Centre Route - Protected */}
-        <Route
-          path="/wellness-centre"
-          element={
-            <RequireAuth allowedRoles={["student"]}>
-              <WellnessCentre />
-            </RequireAuth>
-          }
-        />
         
-        <Route
-          path="/quiz/:quizId"
-          element={
-            <RequireAuth allowedRoles={["student"]}>
-              <QuizPage />
-            </RequireAuth>
-          }
-        />
-        
-        {/* Redirects */}
+        <Route path="/home" element={<Navigate to="/dashboard" replace />} />
         <Route path="/student-dashboard" element={<Navigate to="/dashboard" replace />} />
         <Route path="/stdashboard" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

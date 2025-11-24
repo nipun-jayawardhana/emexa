@@ -154,12 +154,12 @@ export const forgotPassword = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
     
-    const user = await userService.findByEmail(normalizedEmail);
+    // Check in both student and teacher collections
+    const student = await studentRepository.findByEmail(normalizedEmail);
+    const teacher = await teacherRepository.findByEmail(normalizedEmail);
     
-    if (!user) {
-      return res.status(200).json({ 
-        message: 'If the email exists we sent a link' 
-      });
+    if (!student && !teacher) {
+      return res.status(200).json({ message: 'If the email exists we sent a link' });
     }
 
     // TODO: generate reset token and send email
@@ -235,11 +235,4 @@ export const rejectStudent = async (req, res) => {
   }
 };
 
-export default { 
-  register, 
-  login, 
-  forgotPassword, 
-  getStudentApprovals, 
-  approveStudent, 
-  rejectStudent 
-};
+export default { register, login, forgotPassword, getStudentApprovals, approveStudent, rejectStudent };
