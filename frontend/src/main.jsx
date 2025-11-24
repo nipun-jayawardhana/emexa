@@ -8,6 +8,7 @@ import "./pages/Form.css";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
 
@@ -28,14 +29,18 @@ createRoot(document.getElementById("root")).render(
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/forgot" element={<Navigate to="/forgot-password" replace />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route
+          path="/forgot"
+          element={<Navigate to="/forgot-password" replace />}
+        />
         <Route path="/logout" element={<Logout />} />
-        
+
         {/* Admin Routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/user-management" element={<UserManagement />} />
-        
-        {/* Permission Route */}
+
+        {/* Student Routes */}
         <Route path="/permission" element={<Permission />} />
 
         {/* Teacher Routes - Protected */}
@@ -67,16 +72,16 @@ createRoot(document.getElementById("root")).render(
           }
         />
 
-        {/* Wellness Centre Route - Protected */}
+        {/* Teacher Dashboard route - Protected */}
         <Route
-          path="/wellness-centre"
+          path="/teacher-dashboard"
           element={
-            <RequireAuth allowedRoles={["student"]}>
-              <WellnessCentre />
+            <RequireAuth>
+              <TeacherDashboard />
             </RequireAuth>
           }
         />
-        
+
         <Route
           path="/quiz/:quizId"
           element={
@@ -85,10 +90,16 @@ createRoot(document.getElementById("root")).render(
             </RequireAuth>
           }
         />
-        
-        {/* Redirects */}
-        <Route path="/student-dashboard" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/stdashboard" element={<Navigate to="/dashboard" replace />} />
+
+        <Route path="/home" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="/student-dashboard"
+          element={<Navigate to="/dashboard" replace />}
+        />
+        <Route
+          path="/stdashboard"
+          element={<Navigate to="/dashboard" replace />}
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
