@@ -12,6 +12,9 @@ import {
 } from "../services/user.service";
 import Modal from "react-modal";
 import Header from "../components/headerorigin.jsx";
+import Sidebar from "../components/sidebarorigin.jsx";
+import dashboardIcon from '../assets/Dashboard.png';
+import quizIcon from '../assets/Quiz.png';
 
 // Helper tag components for status and roles
 const StatusTag = ({ status }) => (
@@ -60,7 +63,100 @@ const UserManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
+  const [activeMenuItem, setActiveMenuItem] = useState("userManagement");
   const dropdownRef = React.useRef(null);
+
+  // Function to handle navigation to dashboards
+  const navigateToDashboard = (dashboardType) => {
+    console.log(`🚀 Admin navigating to ${dashboardType} dashboard`);
+    
+    // Store admin's original token separately so we can restore it later
+    const adminToken = localStorage.getItem("adminToken");
+    const adminUserData = localStorage.getItem("adminUser");
+    
+    // Keep admin credentials backed up
+    if (adminToken && adminUserData) {
+      sessionStorage.setItem("adminBackup", JSON.stringify({
+        token: adminToken,
+        user: JSON.parse(adminUserData)
+      }));
+    }
+    
+    // Set the appropriate role for the dashboard
+    const role = dashboardType === 'student' ? 'student' : 'teacher';
+    
+    // Update localStorage to allow access to the dashboard
+    localStorage.setItem("userRole", role);
+    localStorage.setItem("adminViewingAs", role);
+    
+    console.log(`✅ Set userRole to: ${role}, adminViewingAs: ${role}`);
+    
+    // Navigate to the dashboard
+    if (dashboardType === 'student') {
+      navigate("/dashboard");
+    } else if (dashboardType === 'teacher') {
+      navigate("/teacher-dashboard");
+    }
+  };
+
+  // Define menu items for admin sidebar with onClick handlers
+  const adminMenuItems = [
+    {
+      id: "userManagement",
+      label: "User Management",
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ),
+      onClick: () => {
+        console.log("Already on User Management");
+      }
+    },
+    {
+      id: "studentDashboard",
+      label: "Student Dashboard",
+      icon: (
+        <img 
+          src={dashboardIcon}
+          alt="Student Dashboard" 
+          className="w-5 h-5 object-contain"
+        />
+      ),
+      onClick: () => {
+        navigateToDashboard('student');
+      }
+    },
+    {
+      id: "teacherDashboard",
+      label: "Teacher Dashboard",
+      icon: (
+        <img 
+          src={dashboardIcon}
+          alt="Teacher Dashboard" 
+          className="w-5 h-5 object-contain"
+        />
+      ),
+      onClick: () => {
+        navigateToDashboard('teacher');
+      }
+    },
+    {
+      id: "quizzes",
+      label: "Quizzes",
+      icon: (
+        <img 
+          src={quizIcon}
+          alt="Quiz icon" 
+          className="w-5 h-5 object-contain"
+        />
+      ),
+      onClick: () => {
+        console.log("Navigating to Quizzes");
+        navigate("/quizzes");
+      }
+    },
+  ];
 
   // Get admin user info
   useEffect(() => {
@@ -73,7 +169,11 @@ const UserManagement = () => {
   // Check admin authentication
   useEffect(() => {
     const adminToken = localStorage.getItem("adminToken");
-    if (!adminToken) {
+    const regularToken = localStorage.getItem("token");
+    const userRole = localStorage.getItem("userRole");
+    
+    if (!adminToken && (!regularToken || userRole !== 'admin')) {
+      console.log("❌ Not authenticated as admin, redirecting to login");
       navigate("/admin/login");
     }
   }, [navigate]);
@@ -95,9 +195,8 @@ const UserManagement = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        console.log("📊 Fetching data...");
-
-        // Fetch users
+        console.log('📊 Fetching data...');
+        
         let usersData = [];
         try {
           usersData = await getUsers();
@@ -105,8 +204,7 @@ const UserManagement = () => {
         } catch (err) {
           console.error("❌ Error fetching users:", err);
         }
-
-        // Fetch teacher approvals
+        
         let teacherApprovalsData = [];
         try {
           teacherApprovalsData = await getTeacherApprovals();
@@ -114,8 +212,7 @@ const UserManagement = () => {
         } catch (err) {
           console.error("❌ Error fetching teacher approvals:", err);
         }
-
-        // Fetch student approvals
+        
         let studentApprovalsData = [];
         try {
           const response = await fetch(
@@ -128,8 +225,7 @@ const UserManagement = () => {
         } catch (err) {
           console.error("❌ Error fetching student approvals:", err);
         }
-
-        // Ensure all data are arrays
+        
         setUsers(Array.isArray(usersData) ? usersData : []);
         setTeacherApprovals(
           Array.isArray(teacherApprovalsData) ? teacherApprovalsData : []
@@ -160,7 +256,6 @@ const UserManagement = () => {
     fetchData();
   }, []);
 
-  // CRUD handlers
   const openModal = (type, user) => {
     setSelectedUser(user || null);
     setModalType(type);
@@ -261,12 +356,6 @@ const UserManagement = () => {
         console.error("Error rejecting student:", err);
         alert("Failed to reject student. Please try again.");
       });
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("adminToken");
-    localStorage.removeItem("adminUser");
-    navigate("/login");
   };
 
   const handleRoleSelect = (role) => {
@@ -403,8 +492,8 @@ const UserManagement = () => {
           </nav>
         </aside>
 
-        {/* Main Content */}
-        <main className="flex-1 p-8 bg-gray-50">
+      <div className="ml-52 pt-14">
+        <main className="p-8 bg-gray-50 min-h-[calc(100vh-56px)]">
           <div className="max-w-7xl mx-auto">
             <div className="mb-6">
               <h1 className="text-2xl font-semibold text-gray-900 mb-1">
@@ -769,7 +858,6 @@ const ApprovalTab = ({
   </div>
 );
 
-// View User Modal Component
 const ViewUserModal = ({ user, onClose }) => (
   <div>
     <h2 className="text-lg font-semibold text-gray-900 mb-4">User Profile</h2>

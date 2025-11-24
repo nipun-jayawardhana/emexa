@@ -1,7 +1,4 @@
 import userService from '../services/user.service.js';
-import userRepository from '../repositories/user.repository.js';
-import studentRepository from '../repositories/student.repository.js';
-import teacherRepository from '../repositories/teacher.repository.js';
 import User from '../models/user.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -12,7 +9,9 @@ export const register = async (req, res) => {
     // Frontend sends fullName and accountType (student/teacher)
     const { fullName, name, email, password, accountType } = req.body;
     const userName = fullName || name;
-    if (!userName || !email || !password) return res.status(400).json({ message: 'Missing fields' });
+    if (!userName || !email || !password) {
+      return res.status(400).json({ message: 'Missing fields' });
+    }
 
     const role = accountType || 'student';
     const payload = { name: userName, email, password, role };
@@ -25,12 +24,27 @@ export const register = async (req, res) => {
       result = await userService.registerStudent(payload);
     }
 
-    // userService returns { user, token }
-    res.status(201).json(result);
+    // Normalize user response - ensure name is always present
+    const userResponse = {
+      id: result.user._id || result.user.id,
+      name: result.user.name || result.user.fullName || result.user.full_name || userName,
+      email: result.user.email,
+      role: role
+    };
+
+    // Return normalized response
+    const response = {
+      token: result.token,
+      user: userResponse
+    };
+    
+    console.log('✅ Registration response:', userResponse);
+    res.status(201).json(response);
   } catch (err) {
     console.error('Register error:', err);
-    // If ApiError-like object, try to surface message
-    if (err && err.message) return res.status(400).json({ message: err.message });
+    if (err && err.message) {
+      return res.status(400).json({ message: err.message });
+    }
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -38,7 +52,9 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: 'Missing fields' });
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Missing fields' });
+    }
     
     const normalizedEmail = email.toLowerCase().trim();
     console.log('🔍 Login attempt for:', normalizedEmail);
@@ -49,7 +65,6 @@ export const login = async (req, res) => {
     
     if (adminUser) {
       console.log('🎭 User role:', adminUser.role);
-      console.log('🔐 Password exists:', adminUser.password ? 'YES' : 'NO');
       
       // Check if this is an admin user
       if (adminUser.role === 'admin' || adminUser.role === 'Admin') {
@@ -67,7 +82,9 @@ export const login = async (req, res) => {
         // Check if admin is active
         if (adminUser.status && adminUser.status !== 'Active') {
           console.log('⚠️ Admin account is inactive');
-          return res.status(403).json({ message: 'Account is inactive. Please contact support.' });
+          return res.status(403).json({ 
+            message: 'Account is inactive. Please contact support.' 
+          });
         }
         
         // Generate JWT token for admin
@@ -81,16 +98,19 @@ export const login = async (req, res) => {
           { expiresIn: '24h' }
         );
         
-        console.log('✅ Admin login successful! Token generated.');
+        // Normalize admin user response
+        const adminResponse = {
+          id: adminUser._id,
+          name: adminUser.name || adminUser.fullName || adminUser.full_name || 'Admin',
+          email: adminUser.email,
+          role: 'admin'
+        };
+        
+        console.log('✅ Admin login successful! Response:', adminResponse);
         return res.json({
           message: 'Login successful',
           token,
-          user: {
-            id: adminUser._id,
-            name: adminUser.name,
-            email: adminUser.email,
-            role: adminUser.role
-          }
+          user: adminResponse
         });
       }
     }
@@ -99,12 +119,26 @@ export const login = async (req, res) => {
     console.log('👨‍🎓 Not admin, trying student/teacher login...');
     const result = await userService.loginUser(normalizedEmail, password);
     
-    // userService.loginUser returns { user, token }
-    return res.json(result);
+    console.log('🔍 Raw user from service:', {
+      keys: Object.keys(result.user),
+      name: result.user.name,
+      email: result.user.email
+    });
+    
+    // User response is already normalized in userService.loginUser
+    // Just pass it through
+    const response = {
+      message: 'Login successful',
+      token: result.token,
+      user: result.user // Already has name field from service
+    };
+    
+    console.log('✅ User login successful! Response:', response.user);
+    console.log('📤 Sending to frontend:', response);
+    return res.json(response);
   } catch (err) {
     console.error('❌ Login error:', err);
     
-    // Return the specific error message from the service
     const statusCode = err.statusCode || 401;
     const message = err.message || 'Invalid email or password';
     
@@ -115,9 +149,10 @@ export const login = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Missing email' });
+    if (!email) {
+      return res.status(400).json({ message: 'Missing email' });
+    }
 
-    // Normalize email
     const normalizedEmail = email.toLowerCase().trim();
     
     // Check in both student and teacher collections
@@ -234,7 +269,6 @@ export const resetPassword = async (req, res) => {
 // Get Student Approvals
 export const getStudentApprovals = async (req, res) => {
   try {
-    // Fetch students pending approval from User collection
     const students = await User.find({ 
       role: 'Student',
       approvalStatus: { $in: ['pending', 'approved', 'rejected'] }

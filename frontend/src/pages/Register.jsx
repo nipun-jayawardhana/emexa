@@ -60,25 +60,49 @@ export default function Register() {
         password: "***",
         accountType,
       });
-      // Note: API base is provided by Vite env VITE_API_URL, default is http://localhost:5000/api
-      console.log(
-        "📍 Backend URL (example):",
-        "http://localhost:5000/api/auth/register"
-      );
 
       api
         .post("/auth/register", { fullName, email, password, accountType })
         .then((res) => {
-          // Save token and user
-          if (res.token) localStorage.setItem("token", res.token);
-          if (res.user) localStorage.setItem("user", JSON.stringify(res.user));
+          console.log("✅ Registration successful:", res);
+
+          // Save token and user info to localStorage
+          if (res.token) {
+            localStorage.setItem("token", res.token);
+          }
+          
+          if (res.user) {
+            localStorage.setItem("user", JSON.stringify(res.user));
+            localStorage.setItem("userName", res.user.name || fullName);
+            localStorage.setItem("userEmail", res.user.email || email);
+            localStorage.setItem("userId", res.user.id || res.user._id);
+            
+            // IMPORTANT: Save the user role for routing
+            localStorage.setItem("userRole", res.user.role || accountType);
+            
+            console.log("💾 Saved to localStorage:", {
+              token: "✓",
+              userName: res.user.name,
+              userRole: res.user.role || accountType
+            });
+          }
 
           // Use returned user name field
-          setUserName(res.user?.name || "");
+          setUserName(res.user?.name || fullName);
           setRegistered(true);
 
-          // Navigate to home
-          navigate("/Login");
+          // Redirect based on account type/role after 2 seconds
+          setTimeout(() => {
+            const userRole = res.user?.role || accountType;
+            
+            if (userRole === "teacher") {
+              console.log("🎓 Redirecting to teacher dashboard...");
+              navigate("/teacher-dashboard");
+            } else {
+              console.log("👨‍🎓 Redirecting to student dashboard...");
+              navigate("/dashboard");
+            }
+          }, 2000);
         })
         .catch((err) => {
           console.error("❌ Registration error:", err);
@@ -313,7 +337,13 @@ export default function Register() {
             </div>
 
             <div className="success-card">
-              <div className="success-icon">
+              {/* FIXED: Centered success icon */}
+              <div className="success-icon" style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                margin: '0 auto 20px'
+              }}>
                 <svg width="60" height="60" viewBox="0 0 60 60" fill="none">
                   <circle
                     cx="30"
@@ -333,17 +363,24 @@ export default function Register() {
                 </svg>
               </div>
 
-              <h2 className="success-title">Registration Successful!</h2>
+              <h2 className="success-title" style={{ textAlign: 'center' }}>
+                Registration Successful!
+              </h2>
 
-              <p className="success-subtitle">
+              <p className="success-subtitle" style={{ textAlign: 'center' }}>
                 Welcome {userName}! Your account has been created successfully.
-                Redirecting to login page...
+                {accountType === "teacher" 
+                  ? " Redirecting to teacher dashboard..." 
+                  : " Redirecting to student dashboard..."}
               </p>
             </div>
 
             <div style={{ marginTop: "20px", textAlign: "center" }}>
-              <Link className="link" to="/login">
-                Go to login
+              <Link 
+                className="link" 
+                to={accountType === "teacher" ? "/teacher-dashboard" : "/dashboard"}
+              >
+                Go to {accountType === "teacher" ? "Teacher" : "Student"} Dashboard
               </Link>
             </div>
           </div>

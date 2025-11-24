@@ -1,23 +1,27 @@
-// auth.middleware.js (ESM, merged with admin verification)
 import jwt from 'jsonwebtoken';
-import ApiError from '../utils/apiError.js';
 import Student from '../models/student.js';
 import Teacher from '../models/teacher.js';
 import User from '../models/user.js';
 
-// Protect middleware — verifies JWT, finds user in Student | Teacher | User, sets req.user and req.userId
+/**
+ * Protect middleware - Verifies JWT and finds user
+ * Sets req.user and req.userId for downstream use
+ */
 export const protect = async (req, res, next) => {
   try {
     let token;
 
-    // Check for token in headers
+    // Check for token in Authorization header
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
     }
 
     // Check if token exists
     if (!token) {
-      return res.status(401).json({ message: 'Not authorized to access this route' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Not authorized to access this route. No token provided.' 
+      });
     }
 
     try {
@@ -25,58 +29,105 @@ export const protect = async (req, res, next) => {
       const secret = process.env.JWT_SECRET || 'dev_secret';
       const decoded = jwt.verify(token, secret);
 
-      // Get user from token - check student, teacher, or user collections
+      console.log('🔐 Token decoded:', { id: decoded.id, email: decoded.email, role: decoded.role });
+
+      // Try to find user in Student, Teacher, or User collections
       let user = await Student.findById(decoded.id).select('-password');
+      
       if (!user) {
         user = await Teacher.findById(decoded.id).select('-password');
       }
+      
       if (!user) {
         user = await User.findById(decoded.id).select('-password');
       }
 
       if (!user) {
-        // Keep the ApiError semantics from auth-fix
-        // If you prefer plain JSON responses instead, replace with res.status(...)
-        throw ApiError.unauthorized('User no longer exists');
+        console.log('❌ User not found for token ID:', decoded.id);
+        return res.status(401).json({ 
+          success: false,
+          message: 'User no longer exists' 
+        });
       }
 
-      // Set both req.user and req.userId for compatibility with older and new routes
+      console.log('✅ User authenticated:', { id: user._id, role: user.role });
+
+      // Set both req.user and req.userId for compatibility
       req.user = user;
       req.userId = decoded.id;
 
       next();
     } catch (error) {
-      // For token verification errors or ApiError.unauthorized above
-      return res.status(401).json({ message: 'Not authorized to access this route' });
+      console.error('❌ Token verification failed:', error.message);
+      
+      if (error.name === 'JsonWebTokenError') {
+        return res.status(401).json({ 
+          success: false,
+          message: 'Invalid token' 
+        });
+      }
+      
+      if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({ 
+          success: false,
+          message: 'Token expired. Please login again.' 
+        });
+      }
+      
+      return res.status(401).json({ 
+        success: false,
+        message: 'Not authorized to access this route' 
+      });
     }
   } catch (error) {
+    console.error('❌ Protect middleware error:', error);
     next(error);
   }
 };
 
-// Authorize middleware — ensures role is allowed
+/**
+ * Authorize middleware - Ensures user has required role(s)
+ * Use after protect middleware
+ * @param {...string} roles - Allowed roles
+ */
 export const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ message: 'Not authenticated' });
-    }
-
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        message: `User role ${req.user.role} is not authorized to access this route`
+      return res.status(401).json({ 
+        success: false,
+        message: 'Not authenticated' 
       });
     }
+
+    const userRole = req.user.role?.toLowerCase();
+    const allowedRoles = roles.map(r => r.toLowerCase());
+
+    if (!allowedRoles.includes(userRole)) {
+      console.log(`❌ Authorization failed. User role: ${req.user.role}, Required: ${roles.join(', ')}`);
+      return res.status(403).json({
+        success: false,
+        message: `User role '${req.user.role}' is not authorized to access this route`
+      });
+    }
+
+    console.log(`✅ Authorization passed for role: ${req.user.role}`);
     next();
   };
 };
 
-// Simple auth middleware for some dashboard routes (alternative)
+/**
+ * Simple auth middleware for dashboard routes
+ * Alternative to protect middleware
+ */
 export const authMiddleware = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
 
     if (!token) {
-      return res.status(401).json({ message: 'Authentication required' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required' 
+      });
     }
 
     const secret = process.env.JWT_SECRET || 'dev_secret';
@@ -86,23 +137,35 @@ export const authMiddleware = async (req, res, next) => {
     req.user = await User.findById(decoded.id).select('-password');
 
     if (!req.user) {
-      return res.status(401).json({ message: 'User not found' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
 
     next();
   } catch (error) {
-    return res.status(401).json({ message: 'Invalid or expired token' });
+    console.error('❌ Auth middleware error:', error);
+    return res.status(401).json({ 
+      success: false,
+      message: 'Invalid or expired token' 
+    });
   }
 };
 
-// NEW: Verify Admin middleware - for protecting admin-only routes
+/**
+ * Verify Admin middleware - For protecting admin-only routes
+ */
 export const verifyAdmin = async (req, res, next) => {
   try {
     // Get token from header
     const token = req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
-      return res.status(401).json({ message: 'Access denied. No token provided.' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Access denied. No token provided.' 
+      });
     }
 
     // Verify token
@@ -113,13 +176,23 @@ export const verifyAdmin = async (req, res, next) => {
     const user = await User.findById(decoded.id).select('-password');
 
     if (!user) {
-      return res.status(401).json({ message: 'User not found' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
 
-    // Check if user is admin
-    if (user.role !== 'Admin' && user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied. Admin only.' });
+    // Check if user is admin (case-insensitive)
+    const userRole = user.role?.toLowerCase();
+    if (userRole !== 'admin') {
+      console.log(`❌ Admin verification failed. User role: ${user.role}`);
+      return res.status(403).json({ 
+        success: false,
+        message: 'Access denied. Admin privileges required.' 
+      });
     }
+
+    console.log('✅ Admin verified:', user.email);
 
     // Attach user info to request
     req.user = user;
@@ -127,14 +200,35 @@ export const verifyAdmin = async (req, res, next) => {
     next();
 
   } catch (error) {
+    console.error('❌ Admin verification error:', error);
+    
     if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: 'Invalid token' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid token' 
+      });
     }
+    
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ message: 'Token expired' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Token expired. Please login again.' 
+      });
     }
-    res.status(500).json({ message: 'Server error verifying token' });
+    
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error verifying token' 
+    });
   }
 };
 
+/**
+ * Convenience middleware for specific roles
+ */
+export const requireTeacher = authorize('teacher');
+export const requireStudent = authorize('student');
+export const requireAdmin = authorize('admin');
+
+// Default export for backward compatibility
 export default protect;
