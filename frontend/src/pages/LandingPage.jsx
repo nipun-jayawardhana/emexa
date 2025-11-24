@@ -12,8 +12,6 @@ import howImage from "../assets/1.jpg";
    Navbar Component
    ------------------------- */
 function Navbar({ onGetStarted }) {
-  const navigate = useNavigate();
-
   const scrollToSection = (sectionId) => {
     const element = document.getElementById(sectionId);
     if (element) {
@@ -137,8 +135,18 @@ function Footer() {
               aria-label="Email"
               className="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition-colors"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
               </svg>
             </a>
           </div>
@@ -148,38 +156,72 @@ function Footer() {
           <div>
             <h3 className="text-white font-semibold mb-4">Product</h3>
             <ul className="space-y-3">
-              <li><a href="#" className="hover:text-white transition-colors">Features</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Help Center</a></li>
+              <li>
+                <a href="#" className="hover:text-white transition-colors">
+                  Features
+                </a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-white transition-colors">
+                  Help Center
+                </a>
+              </li>
             </ul>
           </div>
 
           <div>
             <h3 className="text-white font-semibold mb-4">Support</h3>
             <ul className="space-y-3">
-              <li><a href="#" className="hover:text-white transition-colors">Guides</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
+              <li>
+                <a href="#" className="hover:text-white transition-colors">
+                  Guides
+                </a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-white transition-colors">
+                  Contact Us
+                </a>
+              </li>
             </ul>
           </div>
 
           <div>
             <h3 className="text-white font-semibold mb-4">Company</h3>
             <ul className="space-y-3">
-              <li><a href="#" className="hover:text-white transition-colors">About</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
+              <li>
+                <a href="#" className="hover:text-white transition-colors">
+                  About
+                </a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-white transition-colors">
+                  Blog
+                </a>
+              </li>
             </ul>
           </div>
 
           <div>
             <h3 className="text-white font-semibold mb-4">Legal</h3>
             <ul className="space-y-3">
-              <li><a href="#" className="hover:text-white transition-colors">Privacy</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Terms</a></li>
+              <li>
+                <a href="#" className="hover:text-white transition-colors">
+                  Privacy
+                </a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-white transition-colors">
+                  Terms
+                </a>
+              </li>
             </ul>
           </div>
         </div>
 
         <div className="pt-8 border-t border-slate-800">
-          <p className="text-gray-400 text-sm">© 2025 EMEXA. All rights reserved.</p>
+          <p className="text-gray-400 text-sm">
+            © 2025 EMEXA. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>
@@ -193,10 +235,10 @@ export default function LandingPage() {
   const navigate = useNavigate();
 
   // Set 'seenLanding' and navigate to the supplied target
-  const handleContinue = () => { 
+  const handleContinue = () => {
     try {
       localStorage.setItem("seenLanding", "true");
-    // eslint-disable-next-line no-unused-vars
+      // eslint-disable-next-line no-unused-vars
     } catch (e) {
       console.error("Failed to set seenLanding:", e);
     }
@@ -231,7 +273,8 @@ export default function LandingPage() {
     {
       icon: Shield,
       title: "Privacy First",
-      description: "Your learners' data and information is safe with us. We're transparent on what we do.",
+      description:
+        "Your learners' data and information is safe with us. We're transparent on what we do.",
     },
     {
       icon: BarChart3,
@@ -263,7 +306,8 @@ export default function LandingPage() {
     {
       number: "04",
       title: "AI Support",
-      description: "Learners get insights and recommendations to improve their learning.",
+      description:
+        "Learners get insights and recommendations to improve their learning.",
     },
   ];
 
@@ -272,22 +316,19 @@ export default function LandingPage() {
       initial: "S",
       name: "Sarah Johnson",
       role: "High School Teacher",
-      text:
-        "I've been amazed at what EMEXA does — it understands how my students are feeling and helps me support them.",
+      text: "I've been amazed at what EMEXA does — it understands how my students are feeling and helps me support them.",
     },
     {
       initial: "D",
       name: "David Patterson",
       role: "University Lecturer",
-      text:
-        "This system gives real-time feedback so I can react quickly to students who are struggling.",
+      text: "This system gives real-time feedback so I can react quickly to students who are struggling.",
     },
     {
       initial: "E",
       name: "Emily Rodriguez",
       role: "Corporate L&D Manager",
-      text:
-        "A game-changer: real emotional insights during training let me adapt and improve outcomes.",
+      text: "A game-changer: real emotional insights during training let me adapt and improve outcomes.",
     },
   ];
 
@@ -309,7 +350,9 @@ export default function LandingPage() {
               </h1>
 
               <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-                EMEXA is the first quiz platform that adapts to your emotional state in real-time, creating a more effective and personalized learning experience.
+                EMEXA is the first quiz platform that adapts to your emotional
+                state in real-time, creating a more effective and personalized
+                learning experience.
               </p>
 
               <div className="flex flex-wrap gap-4">
@@ -337,22 +380,44 @@ export default function LandingPage() {
             <div className="mt-10 w-full max-w-[1140px] bg-violet-50 py-10 px-7 shadow-lg rounded-2xl">
               <div className="mt-10 flex justify-center">
                 <div className="rounded-3xl flex items-center justify-center overflow-hidden">
-                  <img src={heroImage} alt="Team collaboration" className="w-full max-w-[600px] h-auto object-cover rounded-2xl shadow-md" />
+                  <img
+                    src={heroImage}
+                    alt="Team collaboration"
+                    className="w-full max-w-[600px] h-auto object-cover rounded-2xl shadow-md"
+                  />
                 </div>
               </div>
 
               <div className="mt-16 grid md:grid-cols-1 gap-6">
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center text-teal-600 font-semibold">1</div>
-                  <div><p className="text-gray-700 font-medium">Make quizzes go further</p></div>
+                  <div className="flex-shrink-0 w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center text-teal-600 font-semibold">
+                    1
+                  </div>
+                  <div>
+                    <p className="text-gray-700 font-medium">
+                      Make quizzes go further
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center text-teal-600 font-semibold">2</div>
-                  <div><p className="text-gray-700 font-medium">Test moods - Get instant emotional insights</p></div>
+                  <div className="flex-shrink-0 w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center text-teal-600 font-semibold">
+                    2
+                  </div>
+                  <div>
+                    <p className="text-gray-700 font-medium">
+                      Test moods - Get instant emotional insights
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center text-teal-600 font-semibold">3</div>
-                  <div><p className="text-gray-700 font-medium">Student's ability to understand your teaching</p></div>
+                  <div className="flex-shrink-0 w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center text-teal-600 font-semibold">
+                    3
+                  </div>
+                  <div>
+                    <p className="text-gray-700 font-medium">
+                      Student's ability to understand your teaching
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -363,18 +428,30 @@ export default function LandingPage() {
         <section id="features" className="py-20 bg-gray-50">
           <div className="max-w-6xl mx-auto px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-4xl font-bold text-gray-900 mb-4">Features that understand you</h2>
-              <p className="text-lg text-gray-600 max-w-3xl mx-auto">Our advanced tools analyze your students' emotional state as they take quizzes.</p>
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                Features that understand you
+              </h2>
+              <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+                Our advanced tools analyze your students' emotional state as
+                they take quizzes.
+              </p>
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
               {features.map((feature, index) => (
-                <div key={index} className="bg-white p-8 rounded-2xl border border-gray-100 hover:border-teal-200 hover:shadow-lg transition-all">
+                <div
+                  key={index}
+                  className="bg-white p-8 rounded-2xl border border-gray-100 hover:border-teal-200 hover:shadow-lg transition-all"
+                >
                   <div className="w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center mb-4">
                     <feature.icon className="w-6 h-6 text-white" />
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-3">{feature.title}</h3>
-                  <p className="text-gray-600 leading-relaxed text-sm">{feature.description}</p>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                    {feature.title}
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed text-sm">
+                    {feature.description}
+                  </p>
                 </div>
               ))}
             </div>
@@ -385,23 +462,37 @@ export default function LandingPage() {
         <section id="how-it-works" className="py-20 bg-white">
           <div className="max-w-6xl mx-auto px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-4xl font-bold text-gray-900 mb-4">How Emexa Works</h2>
-              <p className="text-lg text-gray-600 max-w-3xl mx-auto">Our AI can detect emotions in images and videos during quizzes.</p>
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                How Emexa Works
+              </h2>
+              <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+                Our AI can detect emotions in images and videos during quizzes.
+              </p>
             </div>
 
             <div className="mb-16 rounded-2xl overflow-hidden shadow-2xl">
-              <img src={howImage} alt="Students collaborating on laptops" className="w-full object-cover" />
+              <img
+                src={howImage}
+                alt="Students collaborating on laptops"
+                className="w-full object-cover"
+              />
             </div>
 
             <div className="space-y-8">
               {howItWorks.map((step, index) => (
                 <div key={index} className="flex items-start gap-6">
                   <div className="flex-shrink-0 w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center">
-                    <span className="text-white font-bold text-lg">{step.number}</span>
+                    <span className="text-white font-bold text-lg">
+                      {step.number}
+                    </span>
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">{step.title}</h3>
-                    <p className="text-gray-600 leading-relaxed">{step.description}</p>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                      {step.title}
+                    </h3>
+                    <p className="text-gray-600 leading-relaxed">
+                      {step.description}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -413,23 +504,38 @@ export default function LandingPage() {
         <section id="testimonials" className="py-20 bg-gray-50">
           <div className="max-w-6xl mx-auto px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-4xl font-bold text-gray-900 mb-4">What our users are saying</h2>
-              <p className="text-lg text-gray-600 max-w-3xl mx-auto">Hear how teachers are changing the way they understand students.</p>
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                What our users are saying
+              </h2>
+              <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+                Hear how teachers are changing the way they understand students.
+              </p>
             </div>
 
             <div className="space-y-8">
               {testimonials.map((testimonial, index) => (
-                <div key={index} className="bg-white p-8 rounded-2xl border border-gray-100">
+                <div
+                  key={index}
+                  className="bg-white p-8 rounded-2xl border border-gray-100"
+                >
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-teal-400 to-emerald-500 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-white font-semibold text-lg">{testimonial.initial}</span>
+                      <span className="text-white font-semibold text-lg">
+                        {testimonial.initial}
+                      </span>
                     </div>
                     <div>
-                      <h4 className="font-semibold text-gray-900">{testimonial.name}</h4>
-                      <p className="text-gray-500 text-sm">{testimonial.role}</p>
+                      <h4 className="font-semibold text-gray-900">
+                        {testimonial.name}
+                      </h4>
+                      <p className="text-gray-500 text-sm">
+                        {testimonial.role}
+                      </p>
                     </div>
                   </div>
-                  <p className="text-gray-700 leading-relaxed">"{testimonial.text}"</p>
+                  <p className="text-gray-700 leading-relaxed">
+                    "{testimonial.text}"
+                  </p>
                 </div>
               ))}
             </div>
@@ -439,8 +545,12 @@ export default function LandingPage() {
         {/* CTA */}
         <section className="py-20 bg-gradient-to-r from-teal-600 to-emerald-600">
           <div className="max-w-4xl mx-auto px-6 lg:px-8 text-center">
-            <h2 className="text-4xl font-bold text-white mb-4">Ready to transform your learning?</h2>
-            <p className="text-xl text-teal-50 mb-8">Start using Emexa today.</p>
+            <h2 className="text-4xl font-bold text-white mb-4">
+              Ready to transform your learning?
+            </h2>
+            <p className="text-xl text-teal-50 mb-8">
+              Start using Emexa today.
+            </p>
             <div className="flex flex-wrap gap-4 justify-center">
               <button
                 onClick={handleContinue}
@@ -451,7 +561,10 @@ export default function LandingPage() {
               <button
                 onClick={() =>
                   document.getElementById("features") &&
-                  window.scrollTo({ top: document.getElementById("features").offsetTop - 80, behavior: "smooth" })
+                  window.scrollTo({
+                    top: document.getElementById("features").offsetTop - 80,
+                    behavior: "smooth",
+                  })
                 }
                 className="bg-transparent hover:bg-white/10 text-white px-8 py-3 rounded-lg font-semibold transition-colors border-2 border-white"
               >

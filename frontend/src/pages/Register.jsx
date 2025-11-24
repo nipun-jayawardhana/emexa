@@ -66,42 +66,27 @@ export default function Register() {
         .then((res) => {
           console.log("✅ Registration successful:", res);
 
-          // Save token and user info to localStorage
-          if (res.token) {
-            localStorage.setItem("token", res.token);
-          }
-          
-          if (res.user) {
-            localStorage.setItem("user", JSON.stringify(res.user));
-            localStorage.setItem("userName", res.user.name || fullName);
-            localStorage.setItem("userEmail", res.user.email || email);
-            localStorage.setItem("userId", res.user.id || res.user._id);
-            
-            // IMPORTANT: Save the user role for routing
-            localStorage.setItem("userRole", res.user.role || accountType);
-            
-            console.log("💾 Saved to localStorage:", {
-              token: "✓",
-              userName: res.user.name,
-              userRole: res.user.role || accountType
-            });
-          }
-
-          // Use returned user name field
+          // Use returned user name field for success message
           setUserName(res.user?.name || fullName);
           setRegistered(true);
 
-          // Redirect based on account type/role after 2 seconds
+          // Clear any existing auth data and redirect to login
+          // User must login with their new credentials
           setTimeout(() => {
-            const userRole = res.user?.role || accountType;
-            
-            if (userRole === "teacher") {
-              console.log("🎓 Redirecting to teacher dashboard...");
-              navigate("/teacher-dashboard");
-            } else {
-              console.log("👨‍🎓 Redirecting to student dashboard...");
-              navigate("/dashboard");
-            }
+            console.log(
+              "✅ Registration complete. Clearing auth and redirecting to login..."
+            );
+
+            // Clear all auth-related data
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            localStorage.removeItem("userName");
+            localStorage.removeItem("userEmail");
+            localStorage.removeItem("userId");
+            localStorage.removeItem("userRole");
+            sessionStorage.clear();
+
+            navigate("/login", { replace: true });
           }, 2000);
         })
         .catch((err) => {
@@ -338,12 +323,15 @@ export default function Register() {
 
             <div className="success-card">
               {/* FIXED: Centered success icon */}
-              <div className="success-icon" style={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                alignItems: 'center',
-                margin: '0 auto 20px'
-              }}>
+              <div
+                className="success-icon"
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  margin: "0 auto 20px",
+                }}
+              >
                 <svg width="60" height="60" viewBox="0 0 60 60" fill="none">
                   <circle
                     cx="30"
@@ -363,24 +351,29 @@ export default function Register() {
                 </svg>
               </div>
 
-              <h2 className="success-title" style={{ textAlign: 'center' }}>
+              <h2 className="success-title" style={{ textAlign: "center" }}>
                 Registration Successful!
               </h2>
 
-              <p className="success-subtitle" style={{ textAlign: 'center' }}>
+              <p className="success-subtitle" style={{ textAlign: "center" }}>
                 Welcome {userName}! Your account has been created successfully.
-                {accountType === "teacher" 
-                  ? " Redirecting to teacher dashboard..." 
+                {accountType === "teacher"
+                  ? " Redirecting to teacher dashboard..."
                   : " Redirecting to student dashboard..."}
               </p>
             </div>
 
             <div style={{ marginTop: "20px", textAlign: "center" }}>
-              <Link 
-                className="link" 
-                to={accountType === "teacher" ? "/teacher-dashboard" : "/dashboard"}
+              <Link
+                className="link"
+                to={
+                  accountType === "teacher"
+                    ? "/teacher-dashboard"
+                    : "/dashboard"
+                }
               >
-                Go to {accountType === "teacher" ? "Teacher" : "Student"} Dashboard
+                Go to {accountType === "teacher" ? "Teacher" : "Student"}{" "}
+                Dashboard
               </Link>
             </div>
           </div>

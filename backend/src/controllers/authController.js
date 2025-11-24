@@ -152,18 +152,13 @@ export const forgotPassword = async (req, res) => {
       return res.status(400).json({ message: 'Missing email' });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    // For security, always return success message whether email exists or not
+    // TODO: In future, implement actual password reset token generation and email sending
+    console.log('📧 Password reset requested for:', email);
     
-    // Check in both student and teacher collections
-    const student = await studentRepository.findByEmail(normalizedEmail);
-    const teacher = await teacherRepository.findByEmail(normalizedEmail);
-    
-    if (!student && !teacher) {
-      return res.status(200).json({ message: 'If the email exists we sent a link' });
-    }
-
-    // TODO: generate reset token and send email
-    return res.json({ message: 'If the email exists we sent a link' });
+    return res.status(200).json({ 
+      message: 'If the email exists, we will send a password reset link' 
+    });
   } catch (err) {
     console.error('Forgot password error:', err);
     res.status(500).json({ message: 'Server error' });

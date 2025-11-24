@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import logo from "../assets/auth-pages-images/EMEXA Logo.png";
 import api from "../lib/api";
 import "./Form.css";
-import { Link } from "react-router-dom";
 
 export default function ForgotPassword() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
@@ -40,7 +41,7 @@ export default function ForgotPassword() {
         setTimeout(() => {
           setSent(false);
           setSuccess("");
-          window.location.hash = "#/login";
+          navigate("/login");
         }, 4000);
       })
       .catch((err) => {
