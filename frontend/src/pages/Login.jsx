@@ -43,22 +43,23 @@ export default function Login() {
     api
       .post("/auth/login", { email, password })
       .then((res) => {
-        console.log("✅ Login successful:", res);
-        console.log("👤 User:", res.user);
-        console.log("🔑 Token:", res.token);
-        console.log("🎭 Role:", res.user?.role);
+        console.log("✅ Login successful - FULL RESPONSE:", res);
+        console.log("👤 User object:", res.user);
+        console.log("🔍 User object keys:", res.user ? Object.keys(res.user) : "no user");
 
         // Check if user is admin - redirect to admin panel
         if (res.user?.role === "admin" || res.user?.role === "Admin") {
+          const adminName = res.user?.name || res.user?.fullName || res.user?.full_name || "Admin";
+          
           // Store admin token and user info
           localStorage.setItem("adminToken", res.token);
           localStorage.setItem("adminUser", JSON.stringify(res.user));
           localStorage.setItem("token", res.token);
           localStorage.setItem("user", JSON.stringify(res.user));
-          localStorage.setItem("userName", res.user.name || "Admin");
+          localStorage.setItem("userName", adminName);
           localStorage.setItem("userRole", "admin");
           
-          setSuccess(`✅ Login successful! Welcome Admin!`);
+          setSuccess(`✅ Login successful! Welcome ${adminName}!`);
           console.log("🚀 Navigating to admin panel");
           
           setTimeout(() => {
@@ -69,47 +70,74 @@ export default function Login() {
 
         // Regular user flow (students and teachers)
         const userRole = res.user?.role || "student";
-        const userName = res.user?.name || res.user?.full_name || "User";
+        
+        // COMPREHENSIVE userName extraction - try ALL possible field names
+        let userName = "User"; // Default fallback
+        
+        if (res.user) {
+          userName = res.user.name || 
+                    res.user.fullName || 
+                    res.user.full_name || 
+                    res.user.userName || 
+                    res.user.username || 
+                    res.user.displayName ||
+                    res.user.display_name ||
+                    (res.user.email ? res.user.email.split('@')[0] : null) ||
+                    "User";
+        }
+
+        console.log("🔍 Extracted userName:", userName);
+        console.log("🔍 From field:", 
+          res.user?.name ? "name" :
+          res.user?.fullName ? "fullName" :
+          res.user?.full_name ? "full_name" :
+          "email fallback"
+        );
 
         // Save token based on "Remember me" checkbox
         if (res.token) {
           if (remember) {
-            // Keep user logged in permanently
             localStorage.setItem("token", res.token);
             localStorage.setItem("rememberMe", "true");
             console.log("💾 Token saved to localStorage (remember me)");
           } else {
-            // Only keep logged in for this session
             sessionStorage.setItem("token", res.token);
-            localStorage.setItem("token", res.token); // Also save to localStorage for compatibility
+            localStorage.setItem("token", res.token);
             localStorage.removeItem("rememberMe");
             console.log("💾 Token saved to sessionStorage (this session only)");
           }
         }
 
-        // Save user data
+        // Save user data to BOTH localStorage and sessionStorage for compatibility
         if (res.user) {
-          const storage = remember ? localStorage : sessionStorage;
-          
-          // Save to chosen storage
-          storage.setItem("user", JSON.stringify(res.user));
-          storage.setItem("userName", userName);
-          storage.setItem("userRole", userRole);
-          storage.setItem("userEmail", res.user.email);
-          storage.setItem("userId", res.user.id || res.user._id);
+          const userData = {
+            user: JSON.stringify(res.user),
+            userName: userName,
+            userRole: userRole,
+            userEmail: res.user.email,
+            userId: res.user.id || res.user._id
+          };
 
-          // Also save to localStorage for RequireAuth compatibility
-          localStorage.setItem("user", JSON.stringify(res.user));
-          localStorage.setItem("userName", userName);
-          localStorage.setItem("userRole", userRole);
-          localStorage.setItem("userEmail", res.user.email);
-          localStorage.setItem("userId", res.user.id || res.user._id);
-
-          console.log("💾 User data saved:", {
-            userName,
-            userRole,
-            storage: remember ? "localStorage" : "sessionStorage"
+          // Always save to localStorage for compatibility
+          Object.keys(userData).forEach(key => {
+            localStorage.setItem(key, userData[key]);
+            console.log(`💾 localStorage.${key} =`, userData[key]);
           });
+
+          // Also save to sessionStorage if not "remember me"
+          if (!remember) {
+            Object.keys(userData).forEach(key => {
+              sessionStorage.setItem(key, userData[key]);
+            });
+          }
+
+          console.log("✅ User data saved successfully");
+          
+          // VERIFICATION: Read back what we just saved
+          console.log("📦 VERIFICATION - What's in localStorage:");
+          console.log("  - userName:", localStorage.getItem("userName"));
+          console.log("  - userRole:", localStorage.getItem("userRole"));
+          console.log("  - user object:", JSON.parse(localStorage.getItem("user") || "{}"));
         }
 
         // Show success message
@@ -124,7 +152,6 @@ export default function Login() {
           dashboardPath = "/dashboard";
           console.log("👨‍🎓 Redirecting to student dashboard");
         } else {
-          // Fallback to student dashboard for unknown roles
           dashboardPath = "/dashboard";
           console.log("❓ Unknown role, redirecting to student dashboard");
         }
