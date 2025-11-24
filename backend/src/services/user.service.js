@@ -89,13 +89,13 @@ class UserService {
     const normalizedEmail = email.toLowerCase().trim();
     
     // Check in student collection first
-    let user = await studentRepository.findByEmail(normalizedEmail);
-    let repository = studentRepository;
+    let user = await Student.findOne({ email: normalizedEmail }).select('+password');
+    let userRole = 'student';
     
     // If not found in students, check teachers
     if (!user) {
-      user = await teacherRepository.findByEmail(normalizedEmail);
-      repository = teacherRepository;
+      user = await Teacher.findOne({ email: normalizedEmail }).select('+password');
+      userRole = 'teacher';
     }
     
     if (!user) {
