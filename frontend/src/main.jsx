@@ -16,6 +16,7 @@ import QuizPage from "./pages/quizpage";
 import AdminLogin from "./pages/AdminLogin";
 import UserManagement from "./pages/usermgt";
 import TeacherDashboard from "./pages/TeacherDashboard";
+import TeacherProfile from "./pages/TeacherProfile";
 import Permission from "./pages/Permission";
 import WellnessCentre from "./pages/WellnessCentre";
 import RequireAuth from "./components/RequireAuth";
@@ -44,6 +45,14 @@ createRoot(document.getElementById("root")).render(
           element={
             <RequireAuth allowedRoles={["teacher"]}>
               <TeacherDashboard />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/teacher/profile"
+          element={
+            <RequireAuth allowedRoles={["teacher"]}>
+              <TeacherDashboard initialMenu={"profile"} />
             </RequireAuth>
           }
         />

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import Header from "../components/headerorigin";
 import Sidebar from "../components/sidebarorigin";
+import TeacherProfile from "./TeacherProfile";
 
-const TeacherDashboard = () => {
-  const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
+const TeacherDashboard = ({ initialMenu = "dashboard" }) => {
+  const [activeMenuItem, setActiveMenuItem] = useState(initialMenu);
   const [userName, setUserName] = useState("");
 
   useEffect(() => {
@@ -102,7 +103,7 @@ const TeacherDashboard = () => {
       case "wellness":
         return <WellnessContent />;
       case "profile":
-        return <ProfileContent />;
+        return <TeacherProfile embedded={true} />;
       default:
         return <DashboardContent />;
     }
