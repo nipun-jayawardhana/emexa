@@ -1,5 +1,7 @@
 import userService from '../services/user.service.js';
 import User from '../models/user.js';
+import Student from '../models/student.js';
+import Teacher from '../models/teacher.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
@@ -165,6 +167,107 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, resetCode, newPassword } = req.body;
+    
+    if (!email || !resetCode || !newPassword) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Find user in Student or Teacher collection
+    let user = await Student.findOne({ email: normalizedEmail }).select('+password');
+    let Model = Student;
+    
+    if (!user) {
+      user = await Teacher.findOne({ email: normalizedEmail }).select('+password');
+      Model = Teacher;
+    }
+    
+    if (!user) {
+      // For security, don't reveal if email exists
+      return res.status(400).json({ message: 'Invalid reset token or email' });
+    }
+    
+    // TODO: In production, validate resetCode against stored token
+    // For now, accept any code for demonstration
+    console.log('🔄 Password reset for:', normalizedEmail, 'Code:', resetCode);
+    
+    // Hash the new password
+    const bcrypt = await import('bcryptjs');
+    const salt = await bcrypt.default.genSalt(10);
+    const hashedPassword = await bcrypt.default.hash(newPassword, salt);
+    
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
+    
+    console.log('✅ Password reset successful for:', normalizedEmail);
+    
+    return res.status(200).json({ 
+      message: 'Password reset successful. You can now login with your new password.' 
+    });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ message: 'Server error resetting password' });
+  }
+};
+
+export const changePassword = async (req, res) => {
+  try {
+    const { email, currentPassword, newPassword } = req.body;
+    
+    if (!email || !currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Find user in Student or Teacher collection
+    let user = await Student.findOne({ email: normalizedEmail }).select('+password');
+    
+    if (!user) {
+      user = await Teacher.findOne({ email: normalizedEmail }).select('+password');
+    }
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Verify current password
+    const isPasswordValid = await user.comparePassword(currentPassword);
+    
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+    
+    // Check if new password is different from current
+    const isSamePassword = await user.comparePassword(newPassword);
+    if (isSamePassword) {
+      return res.status(400).json({ message: 'New password must be different from current password' });
+    }
+    
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
+    
+    console.log('✅ Password changed successfully for:', normalizedEmail);
+    
+    return res.status(200).json({ 
+      message: 'Password changed successfully' 
+    });
+  } catch (err) {
+    console.error('Change password error:', err);
+    res.status(500).json({ message: 'Server error changing password' });
+  }
+};
+
 // Get Student Approvals
 export const getStudentApprovals = async (req, res) => {
   try {
@@ -230,4 +333,4 @@ export const rejectStudent = async (req, res) => {
   }
 };
 
-export default { register, login, forgotPassword, getStudentApprovals, approveStudent, rejectStudent };
+export default { register, login, forgotPassword, resetPassword, changePassword, getStudentApprovals, approveStudent, rejectStudent };

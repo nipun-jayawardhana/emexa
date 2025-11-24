@@ -12,6 +12,8 @@ import howImage from "../assets/1.jpg";
    Navbar Component
    ------------------------- */
 function Navbar({ onGetStarted }) {
+  const navigate = useNavigate();
+
   const scrollToSection = (sectionId) => {
     const element = document.getElementById(sectionId);
     if (element) {
