@@ -43,56 +43,125 @@ export default function Login() {
     api
       .post("/auth/login", { email, password })
       .then((res) => {
-        console.log("✅ Login successful:", res);
-        console.log("👤 User:", res.user);
-        console.log("🔑 Token:", res.token);
+        console.log("✅ Login successful - FULL RESPONSE:", res);
+        console.log("👤 User object:", res.user);
+        console.log("🔍 User object keys:", res.user ? Object.keys(res.user) : "no user");
 
         // Check if user is admin - redirect to admin panel
         if (res.user?.role === "admin" || res.user?.role === "Admin") {
-          // Store admin token separately
+          const adminName = res.user?.name || res.user?.fullName || res.user?.full_name || "Admin";
+          
+          // Store admin token and user info
           localStorage.setItem("adminToken", res.token);
           localStorage.setItem("adminUser", JSON.stringify(res.user));
+          localStorage.setItem("token", res.token);
+          localStorage.setItem("user", JSON.stringify(res.user));
+          localStorage.setItem("userName", adminName);
+          localStorage.setItem("userRole", "admin");
           
-          setSuccess(`✅ Login successful! Welcome Admin!`);
+          setSuccess(`✅ Login successful! Welcome ${adminName}!`);
           console.log("🚀 Navigating to admin panel");
-          navigate("/admin/user-management");
+          
+          setTimeout(() => {
+            navigate("/admin/user-management");
+          }, 1000);
           return;
         }
 
         // Regular user flow (students and teachers)
-        // Save token and user based on "Remember me" checkbox
+        const userRole = res.user?.role || "student";
+        
+        // COMPREHENSIVE userName extraction - try ALL possible field names
+        let userName = "User"; // Default fallback
+        
+        if (res.user) {
+          userName = res.user.name || 
+                    res.user.fullName || 
+                    res.user.full_name || 
+                    res.user.userName || 
+                    res.user.username || 
+                    res.user.displayName ||
+                    res.user.display_name ||
+                    (res.user.email ? res.user.email.split('@')[0] : null) ||
+                    "User";
+        }
+
+        console.log("🔍 Extracted userName:", userName);
+        console.log("🔍 From field:", 
+          res.user?.name ? "name" :
+          res.user?.fullName ? "fullName" :
+          res.user?.full_name ? "full_name" :
+          "email fallback"
+        );
+
+        // Save token based on "Remember me" checkbox
         if (res.token) {
           if (remember) {
-            // Keep user logged in permanently
             localStorage.setItem("token", res.token);
             localStorage.setItem("rememberMe", "true");
+            console.log("💾 Token saved to localStorage (remember me)");
           } else {
-            // Only keep logged in for this session
             sessionStorage.setItem("token", res.token);
+            localStorage.setItem("token", res.token);
             localStorage.removeItem("rememberMe");
+            console.log("💾 Token saved to sessionStorage (this session only)");
           }
         }
+
+        // Save user data to BOTH localStorage and sessionStorage for compatibility
         if (res.user) {
-          const storage = remember ? localStorage : sessionStorage;
-          storage.setItem("user", JSON.stringify(res.user));
-          storage.setItem(
-            "userName",
-            res.user.name || res.user.full_name || "User"
-          );
-          // Store user role for routing and UI
-          storage.setItem("userRole", res.user.role || "student");
+          const userData = {
+            user: JSON.stringify(res.user),
+            userName: userName,
+            userRole: userRole,
+            userEmail: res.user.email,
+            userId: res.user.id || res.user._id
+          };
+
+          // Always save to localStorage for compatibility
+          Object.keys(userData).forEach(key => {
+            localStorage.setItem(key, userData[key]);
+            console.log(`💾 localStorage.${key} =`, userData[key]);
+          });
+
+          // Also save to sessionStorage if not "remember me"
+          if (!remember) {
+            Object.keys(userData).forEach(key => {
+              sessionStorage.setItem(key, userData[key]);
+            });
+          }
+
+          console.log("✅ User data saved successfully");
+          
+          // VERIFICATION: Read back what we just saved
+          console.log("📦 VERIFICATION - What's in localStorage:");
+          console.log("  - userName:", localStorage.getItem("userName"));
+          console.log("  - userRole:", localStorage.getItem("userRole"));
+          console.log("  - user object:", JSON.parse(localStorage.getItem("user") || "{}"));
         }
 
         // Show success message
-        const userName = res.user?.name || res.user?.full_name || "user";
         setSuccess(`✅ Login successful! Welcome back ${userName}!`);
 
         // Navigate based on user role
-        const userRole = res.user?.role || "student";
-        const dashboardPath =
-          userRole === "teacher" ? "/teacher-dashboard" : "/dashboard";
+        let dashboardPath;
+        if (userRole === "teacher") {
+          dashboardPath = "/teacher-dashboard";
+          console.log("🎓 Redirecting to teacher dashboard");
+        } else if (userRole === "student") {
+          dashboardPath = "/dashboard";
+          console.log("👨‍🎓 Redirecting to student dashboard");
+        } else {
+          dashboardPath = "/dashboard";
+          console.log("❓ Unknown role, redirecting to student dashboard");
+        }
+
         console.log(`🚀 Navigating to ${dashboardPath} (role: ${userRole})`);
-        navigate(dashboardPath);
+        
+        // Delay navigation slightly to show success message
+        setTimeout(() => {
+          navigate(dashboardPath);
+        }, 1000);
       })
       .catch((err) => {
         console.error("❌ Login failed:", err);

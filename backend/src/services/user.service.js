@@ -1,6 +1,6 @@
-import userRepository from '../repositories/user.repository.js';
-import studentRepository from '../repositories/student.repository.js';
-import teacherRepository from '../repositories/teacher.repository.js';
+import Student from '../models/student.js';
+import Teacher from '../models/teacher.js';
+import User from '../models/user.js';
 import ApiError from '../utils/apiError.js';
 
 class UserService {
@@ -9,18 +9,29 @@ class UserService {
     const email = userData.email.toLowerCase().trim();
     
     // Check if email exists in student or teacher collection
-    const existingStudent = await studentRepository.findByEmail(email);
-    const existingTeacher = await teacherRepository.findByEmail(email);
+    const existingStudent = await Student.findOne({ email });
+    const existingTeacher = await Teacher.findOne({ email });
     
     if (existingStudent || existingTeacher) {
       throw ApiError.conflict('Email already registered');
     }
 
     // Create student with normalized email
-    const student = await studentRepository.create({ ...userData, email });
+    const student = await Student.create({ ...userData, email });
     const token = student.generateAuthToken();
 
-    return { user: student, token };
+    // Return clean user object with name
+    const userResponse = {
+      _id: student._id,
+      id: student._id,
+      name: student.name,
+      email: student.email,
+      role: 'student',
+      isActive: student.isActive,
+      studentId: student.studentId
+    };
+
+    return { user: userResponse, token };
   }
 
   async registerTeacher(userData) {
@@ -28,18 +39,29 @@ class UserService {
     const email = userData.email.toLowerCase().trim();
     
     // Check if email exists in student or teacher collection
-    const existingStudent = await studentRepository.findByEmail(email);
-    const existingTeacher = await teacherRepository.findByEmail(email);
+    const existingStudent = await Student.findOne({ email });
+    const existingTeacher = await Teacher.findOne({ email });
     
     if (existingStudent || existingTeacher) {
       throw ApiError.conflict('Email already registered');
     }
 
     // Create teacher with normalized email
-    const teacher = await teacherRepository.create({ ...userData, email });
+    const teacher = await Teacher.create({ ...userData, email });
     const token = teacher.generateAuthToken();
 
-    return { user: teacher, token };
+    // Return clean user object with name
+    const userResponse = {
+      _id: teacher._id,
+      id: teacher._id,
+      name: teacher.name,
+      email: teacher.email,
+      role: 'teacher',
+      isActive: teacher.isActive,
+      teacherId: teacher.teacherId
+    };
+
+    return { user: userResponse, token };
   }
 
   async registerUser(userData) {
@@ -53,10 +75,10 @@ class UserService {
 
   async findByEmail(email) {
     // Search in both student and teacher collections
-    const student = await studentRepository.findByEmail(email);
+    const student = await Student.findOne({ email });
     if (student) return student;
     
-    const teacher = await teacherRepository.findByEmail(email);
+    const teacher = await Teacher.findOne({ email });
     if (teacher) return teacher;
     
     return null;
@@ -104,14 +126,26 @@ class UserService {
       throw ApiError.unauthorized('Incorrect password. Please try again.');
     }
 
-    // Update last login
-    await repository.updateLastLogin(user._id);
+    // Update last login timestamp
+    user.lastLogin = new Date();
+    await user.save();
 
     // Generate token
     const token = user.generateAuthToken();
 
-    // Remove password from response
-    user.password = undefined;
+    // CRITICAL: Create clean response object with name explicitly included
+    const userResponse = {
+      _id: user._id,
+      id: user._id,
+      name: user.name, // THIS IS THE KEY - explicitly include name
+      email: user.email,
+      role: user.role || userType,
+      isActive: user.isActive,
+      ...(user.studentId && { studentId: user.studentId }),
+      ...(user.teacherId && { teacherId: user.teacherId })
+    };
+
+    console.log('📤 UserService: Returning user response:', userResponse);
 
     console.log('✅ Login successful, returning user and token');
     return { user, token };
@@ -119,15 +153,15 @@ class UserService {
 
   async getUserById(id) {
     // Try to find in student collection first
-    let user = await studentRepository.findById(id);
+    let user = await Student.findById(id);
     if (user) return user;
     
     // Try teacher collection
-    user = await teacherRepository.findById(id);
+    user = await Teacher.findById(id);
     if (user) return user;
     
-    // Fallback to user repository
-    user = await userRepository.findById(id);
+    // Try admin/user collection
+    user = await User.findById(id);
     if (!user) {
       throw ApiError.notFound('User not found');
     }
@@ -136,40 +170,67 @@ class UserService {
 
   async getAllUsers(filter, options) {
     // Get both students and teachers
-    const students = await studentRepository.findAll(filter, options);
-    const teachers = await teacherRepository.findAll(filter, options);
+    const students = await Student.find(filter).limit(options?.limit || 100);
+    const teachers = await Teacher.find(filter).limit(options?.limit || 100);
     
     return {
-      students: students.students || [],
-      teachers: teachers.teachers || [],
-      total: (students.pagination?.total || 0) + (teachers.pagination?.total || 0)
+      students: students || [],
+      teachers: teachers || [],
+      total: students.length + teachers.length
     };
   }
 
   async updateUser(id, updateData) {
-    const user = await userRepository.findById(id);
+    // Try to find in student collection first
+    let user = await Student.findById(id);
+    let Model = Student;
+    
+    if (!user) {
+      user = await Teacher.findById(id);
+      Model = Teacher;
+    }
+    
+    if (!user) {
+      user = await User.findById(id);
+      Model = User;
+    }
+    
     if (!user) {
       throw ApiError.notFound('User not found');
     }
 
     // Check if email is being changed and if it's already taken
     if (updateData.email && updateData.email !== user.email) {
-      const existingUser = await userRepository.findByEmail(updateData.email);
-      if (existingUser) {
+      const existingStudent = await Student.findOne({ email: updateData.email });
+      const existingTeacher = await Teacher.findOne({ email: updateData.email });
+      if (existingStudent || existingTeacher) {
         throw ApiError.conflict('Email already in use');
       }
     }
 
-    return await userRepository.update(id, updateData);
+    return await Model.findByIdAndUpdate(id, updateData, { new: true });
   }
 
   async deleteUser(id) {
-    const user = await userRepository.findById(id);
+    // Try to find in student collection first
+    let user = await Student.findById(id);
+    let Model = Student;
+    
+    if (!user) {
+      user = await Teacher.findById(id);
+      Model = Teacher;
+    }
+    
+    if (!user) {
+      user = await User.findById(id);
+      Model = User;
+    }
+    
     if (!user) {
       throw ApiError.notFound('User not found');
     }
 
-    return await userRepository.delete(id);
+    return await Model.findByIdAndDelete(id);
   }
 }
 
