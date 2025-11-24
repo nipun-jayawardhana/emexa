@@ -13,9 +13,6 @@ const teacherSchema = new mongoose.Schema({
   department: { type: String },
   specialization: { type: String },
   courses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
-  // Password reset fields
-  resetPasswordToken: { type: String, select: false },
-  resetPasswordExpires: { type: Date, select: false },
 }, { timestamps: true });
 
 // Hash password before saving

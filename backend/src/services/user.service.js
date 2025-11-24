@@ -88,41 +88,44 @@ class UserService {
     // Normalize email to lowercase
     const normalizedEmail = email.toLowerCase().trim();
     
-    console.log('🔍 LoginUser service called for:', normalizedEmail);
+    console.log('🔍 UserService: Looking up user for email:', normalizedEmail);
     
-    // Check in student collection first
-    let user = await studentRepository.findByEmail(normalizedEmail);
-    let repository = studentRepository;
+    // CRITICAL FIX: Query with select to include password AND all other fields
+    let user = await Student.findOne({ email: normalizedEmail })
+      .select('+password'); // This includes password but also keeps all other fields
+    
+    let userType = 'student';
     
     // If not found in students, check teachers
     if (!user) {
-      console.log('👨‍🎓 Not in students, checking teachers...');
-      user = await teacherRepository.findByEmail(normalizedEmail);
-      repository = teacherRepository;
+      user = await Teacher.findOne({ email: normalizedEmail })
+        .select('+password');
+      userType = 'teacher';
     }
     
     if (!user) {
-      console.log('❌ User not found in either collection');
+      console.log('❌ UserService: User not found');
       throw ApiError.unauthorized('Invalid email or password');
     }
 
-    console.log('✅ User found:', user.role, user.email);
-    console.log('🔐 Password field present:', !!user.password);
-    console.log('👤 User active status:', user.isActive);
+    console.log('✅ UserService: User found:', {
+      type: userType,
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      hasPassword: !!user.password
+    });
 
     // Check if user is active
-    if (!user.isActive) {
-      console.log('⚠️ User account is deactivated');
+    if (user.isActive === false) {
       throw ApiError.forbidden('Account is deactivated. Please contact support.');
     }
 
-    // Verify password - THIS IS THE KEY CHECK
-    console.log('🔑 Attempting password comparison...');
+    // Verify password
     const isPasswordValid = await user.comparePassword(password);
-    console.log('🔑 Password valid:', isPasswordValid);
+    console.log('🔑 UserService: Password valid:', isPasswordValid);
     
     if (!isPasswordValid) {
-      console.log('❌ Password comparison failed');
       throw ApiError.unauthorized('Incorrect password. Please try again.');
     }
 
@@ -147,8 +150,7 @@ class UserService {
 
     console.log('📤 UserService: Returning user response:', userResponse);
 
-    console.log('✅ Login successful, returning user and token');
-    return { user, token };
+    return { user: userResponse, token };
   }
 
   async getUserById(id) {
