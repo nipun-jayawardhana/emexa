@@ -50,30 +50,19 @@ const UserManagement = () => {
   const [activeMenuItem, setActiveMenuItem] = useState("userManagement");
   const dropdownRef = React.useRef(null);
 
-  // Function to handle navigation to dashboards
+  // FIXED: Function to handle navigation to dashboards
   const navigateToDashboard = (dashboardType) => {
     console.log(`🚀 Admin navigating to ${dashboardType} dashboard`);
     
-    // Store admin's original token separately so we can restore it later
-    const adminToken = localStorage.getItem("adminToken");
-    const adminUserData = localStorage.getItem("adminUser");
-    
-    // Keep admin credentials backed up
-    if (adminToken && adminUserData) {
-      sessionStorage.setItem("adminBackup", JSON.stringify({
-        token: adminToken,
-        user: JSON.parse(adminUserData)
-      }));
-    }
-    
-    // Set the appropriate role for the dashboard
+    // CRITICAL FIX: Only set adminViewingAs, DO NOT set userRole
+    // This prevents interference with regular student/teacher authentication
     const role = dashboardType === 'student' ? 'student' : 'teacher';
     
-    // Update localStorage to allow access to the dashboard
-    localStorage.setItem("userRole", role);
-    localStorage.setItem("adminViewingAs", role);
+    // Set admin viewing flag (this is what triggers admin preview mode)
+    localStorage.setItem('adminViewingAs', role);
     
-    console.log(`✅ Set userRole to: ${role}, adminViewingAs: ${role}`);
+    console.log(`✅ Set adminViewingAs to: ${role}`);
+    console.log(`✅ adminToken exists: ${!!localStorage.getItem('adminToken')}`);
     
     // Navigate to the dashboard
     if (dashboardType === 'student') {
@@ -94,7 +83,9 @@ const UserManagement = () => {
         </svg>
       ),
       onClick: () => {
-        console.log("Already on User Management");
+        // Clear admin viewing mode when returning to user management
+        localStorage.removeItem('adminViewingAs');
+        console.log("✅ Cleared adminViewingAs - back to User Management");
       }
     },
     {
