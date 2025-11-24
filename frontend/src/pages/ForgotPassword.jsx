@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
 import logo from "../assets/auth-pages-images/EMEXA Logo.png";
 import api from "../lib/api";
 import "./Form.css";
+import { Link } from "react-router-dom";
 
 export default function ForgotPassword() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
@@ -33,25 +33,15 @@ export default function ForgotPassword() {
       .post("/auth/forgot-password", { email })
       .then((res) => {
         console.log("✅ Password reset response:", res);
+        setSent(true);
+        setSuccess("✅ Password reset link sent! Check your email.");
 
-        // Show token in development mode
-        if (res.resetToken) {
-          console.log("🔐 Reset Token:", res.resetToken);
-          console.log("📧 Email:", res.email);
-
-          // Redirect immediately to reset password page with email and token
-          navigate(
-            `/reset-password?email=${encodeURIComponent(email)}&token=${
-              res.resetToken
-            }`
-          );
-        } else {
-          setSuccess("✅ Password reset link sent! Check your email.");
-          setTimeout(() => {
-            setSuccess("");
-            navigate("/login");
-          }, 4000);
-        }
+        // Clear success message and redirect after 4 seconds
+        setTimeout(() => {
+          setSent(false);
+          setSuccess("");
+          window.location.hash = "#/login";
+        }, 4000);
       })
       .catch((err) => {
         console.error("❌ Password reset failed:", err);
@@ -124,6 +114,12 @@ export default function ForgotPassword() {
             </div>
           </form>
         </div>
+
+        {sent && (
+          <div className="success-overlay">
+            Your reset link has been sent successfully!
+          </div>
+        )}
       </div>
     </div>
   );
