@@ -236,4 +236,3 @@ export const rejectStudent = async (req, res) => {
 };
 
 export default { register, login, forgotPassword, getStudentApprovals, approveStudent, rejectStudent };
-export default { register, login, forgotPassword, getStudentApprovals, approveStudent, rejectStudent };
