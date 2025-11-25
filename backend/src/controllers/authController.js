@@ -188,20 +188,19 @@ export const resetPassword = async (req, res) => {
     
     if (!user) {
       // For security, don't reveal if email exists
-      return res.status(400).json({ message: 'Invalid reset token or email' });
+      return res.status(400).json({ message: 'Invalid email address' });
     }
     
-    // TODO: In production, validate resetCode against stored token
-    // For now, accept any code for demonstration
+    // For demo: Accept any non-empty reset code
+    // TODO: In production, validate resetCode against stored token in database
+    if (!resetCode || resetCode.trim().length === 0) {
+      return res.status(400).json({ message: 'Invalid reset code' });
+    }
+    
     console.log('🔄 Password reset for:', normalizedEmail, 'Code:', resetCode);
     
-    // Hash the new password
-    const bcrypt = await import('bcryptjs');
-    const salt = await bcrypt.default.genSalt(10);
-    const hashedPassword = await bcrypt.default.hash(newPassword, salt);
-    
-    // Update password
-    user.password = hashedPassword;
+    // Update password - the model's pre-save hook will hash it automatically
+    user.password = newPassword;
     await user.save();
     
     console.log('✅ Password reset successful for:', normalizedEmail);
