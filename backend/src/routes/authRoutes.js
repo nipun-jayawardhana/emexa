@@ -2,7 +2,9 @@ import express from 'express';
 import { 
   register, 
   login, 
-  forgotPassword, 
+  forgotPassword,
+  resetPassword,
+  changePassword, 
   getStudentApprovals, 
   approveStudent, 
   rejectStudent 
@@ -14,6 +16,8 @@ const router = express.Router();
 router.post('/register', register);
 router.post('/login', login);
 router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
+router.post('/change-password', changePassword);
 
 // New admin/student approval routes
 router.get('/student-approvals', getStudentApprovals);
