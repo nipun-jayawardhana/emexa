@@ -12,7 +12,6 @@ import ResetPassword from "./pages/ResetPassword";
 import ChangePassword from "./pages/ChangePassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
-
 import StudentDashboard from "./pages/stdashboard";
 import QuizPage from "./pages/quizpage";
 import AdminLogin from "./pages/AdminLogin";
@@ -21,11 +20,13 @@ import TeacherDashboard from "./pages/TeacherDashboard";
 import Permission from "./pages/Permission";
 import WellnessCentre from "./pages/WellnessCentre";
 import RequireAuth from "./components/RequireAuth";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
+        {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -47,58 +48,77 @@ createRoot(document.getElementById("root")).render(
 
         {/* Admin Routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route 
+          path="/admin/user-management" 
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <UserManagement />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin/users" 
+          element={<Navigate to="/admin/user-management" replace />} 
+        />
+        
         <Route path="/admin/user-management" element={<UserManagement />} />
 
         {/* Permission Route */}
         <Route path="/permission" element={<Permission />} />
 
-        {/* Teacher Routes - Protected */}
+        {/* Teacher Routes - Accessible by teacher AND admin */}
         <Route
           path="/teacher-dashboard"
           element={
-            <RequireAuth allowedRoles={["teacher"]}>
+            <ProtectedRoute allowedRoles={["teacher", "admin"]}>
               <TeacherDashboard />
-            </RequireAuth>
+            </ProtectedRoute>
           }
         />
 
-        {/* Student Routes - Protected */}
+        {/* Student Routes - Accessible by student AND admin */}
         <Route
           path="/home"
           element={
-            <RequireAuth allowedRoles={["student"]}>
+            <ProtectedRoute allowedRoles={["student", "admin"]}>
               <StudentDashboard />
-            </RequireAuth>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/dashboard"
           element={
-            <RequireAuth allowedRoles={["student"]}>
+            <ProtectedRoute allowedRoles={["student", "admin"]}>
               <StudentDashboard />
-            </RequireAuth>
+            </ProtectedRoute>
           }
         />
 
-        {/* Wellness Centre Route - Protected */}
+        {/* Wellness Centre - ONLY for student, BLOCKED for admin */}
         <Route
           path="/wellness-centre"
           element={
-            <RequireAuth allowedRoles={["student"]}>
+            <ProtectedRoute allowedRoles={["student"]} blockWellness={true}>
               <WellnessCentre />
-            </RequireAuth>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/quiz/:quizId"
           element={
-            <RequireAuth allowedRoles={["student"]}>
+            <ProtectedRoute allowedRoles={["student", "admin"]}>
               <QuizPage />
-            </RequireAuth>
+            </ProtectedRoute>
           }
         />
+        
+        {/* Legacy Redirects */}
+        <Route path="/student-dashboard" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/stdashboard" element={<Navigate to="/dashboard" replace />} />
+        
+        {/* 404 Catch-all */}
 
         {/* Redirects */}
         <Route
