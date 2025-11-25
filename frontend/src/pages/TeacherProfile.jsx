@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Camera } from "lucide-react";
+import { Camera, Eye, EyeOff } from "lucide-react";
 import tProfile from "../assets/t-profile.png";
 
 const TeacherProfile = ({ embedded = false, frame = null }) => {
@@ -12,10 +12,16 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     role: "Teacher"
   });
 
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [changePwdData, setChangePwdData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [showPwd, setShowPwd] = useState({ current: false, new: false, confirm: false });
+
   const userName = "Sarah";
   const userRole = "teacher";
 
   const tabs = ["Account Info", "Settings", "Activity", "Privacy & Data"];
+
+  
 
   const menuItems = [
     {
@@ -70,7 +76,33 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
   };
 
   const handleChangePassword = () => {
-    alert("Password change functionality will be implemented");
+    console.log('open change password modal');
+    setShowChangePassword(true);
+  };
+
+  const handleChangePwdInput = (e) => {
+    const { name, value } = e.target;
+    setChangePwdData((p) => ({ ...p, [name]: value }));
+  };
+
+  const handleCloseChangePassword = () => {
+    setShowChangePassword(false);
+    setChangePwdData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  };
+
+  const handleSubmitChangePassword = () => {
+    const { currentPassword, newPassword, confirmPassword } = changePwdData;
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      alert('Please fill all fields.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      alert('New password and confirmation do not match.');
+      return;
+    }
+    // Frontend-only: simulate success
+    alert('Password changed successfully (frontend only)');
+    handleCloseChangePassword();
   };
 
   const handleLogoutClick = () => {
@@ -149,7 +181,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
       {/* Sidebar */}
       {!isEmbedded && (
-        <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-gradient-to-b from-green-50 via-green-50 to-white border-r border-gray-200 overflow-y-auto">
+        <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-[#bdf2d1] border-r border-gray-200 overflow-y-auto">
         {/* Menu Items */}
         <nav className="pt-4 px-3 space-y-2">
           {menuItems.map((item) => (
@@ -184,7 +216,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       {/* Logout Confirmation Modal (only when not embedded) */}
       {!isEmbedded && showLogoutModal && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-9999 p-4"
           onClick={handleCancelLogout}
         >
           <div 
@@ -225,32 +257,138 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         </div>
       )}
 
+      {/* Change Password Modal (frontend-only) */}
+      {showChangePassword && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-10000 p-6"
+          onClick={handleCloseChangePassword}
+        >
+          <div className="w-full max-w-3xl mt-16" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-[#bdf2d1] border border-gray-200 rounded-md shadow-2xl overflow-hidden">
+              <div className="relative px-8 pt-5 pb-4 text-center">
+                <h3 className="text-lg font-semibold text-gray-900">Change Password</h3>
+                <button
+                  onClick={handleCloseChangePassword}
+                  className="absolute right-4 top-3 text-gray-700 hover:text-gray-900 p-1 rounded"
+                  aria-label="close-modal"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              <div className="px-10 pb-8">
+                <div className="bg-transparent">
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPwd.current ? "text" : "password"}
+                        name="currentPassword"
+                        value={changePwdData.currentPassword}
+                        onChange={handleChangePwdInput}
+                        className="w-full pr-10 px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPwd((p) => ({ ...p, current: !p.current }))}
+                        className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                        aria-label="toggle-current-password"
+                      >
+                        {showPwd.current ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+                      <div className="relative">
+                        <input
+                          type={showPwd.new ? "text" : "password"}
+                          name="newPassword"
+                          value={changePwdData.newPassword}
+                          onChange={handleChangePwdInput}
+                          className="w-full pr-10 px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPwd((p) => ({ ...p, new: !p.new }))}
+                          className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                          aria-label="toggle-new-password"
+                        >
+                          {showPwd.new ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
+                      <div className="relative">
+                        <input
+                          type={showPwd.confirm ? "text" : "password"}
+                          name="confirmPassword"
+                          value={changePwdData.confirmPassword}
+                          onChange={handleChangePwdInput}
+                          className="w-full pr-10 px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPwd((p) => ({ ...p, confirm: !p.confirm }))}
+                          className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                          aria-label="toggle-confirm-password"
+                        >
+                          {showPwd.confirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                      {changePwdData.confirmPassword !== '' && changePwdData.newPassword !== changePwdData.confirmPassword && (
+                        <p className="text-xs text-red-600 mt-2">Passwords do not match</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center">
+                    <button
+                      onClick={handleSubmitChangePassword}
+                      className="flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      <span className="text-sm">Save Changes</span>
+                    </button>
+
+                    <div className="flex-1" />
+
+                    <button onClick={handleCloseChangePassword} className="px-4 py-2 rounded-md bg-white border border-gray-200 hover:bg-gray-50 text-sm">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       {!isEmbedded ? (
         <div className="ml-52 mt-14 p-6">
           <div className="max-w-4xl mx-auto">
           {/* Profile Header Card */}
-          <div className="bg-gradient-to-r from-emerald-400 to-teal-500 rounded-t-2xl p-8 relative" style={{ minHeight: 150 }}>
-            {/* avatar positioned absolutely so its center sits on the header bottom divider */}
-            <div style={{ position: 'absolute', left: 16, bottom: -48, width: 96, height: 96, borderRadius: '9999px', background: '#ffffff', padding: 4, boxShadow: '0 2px 6px rgba(0,0,0,0.08)' }}>
-              <img
-                src={tProfile}
-                alt="Profile"
-                width={88}
-                height={88}
-                style={{ width: 88, height: 88, borderRadius: '9999px', objectFit: 'cover', display: 'block' }}
-              />
-              <button className="bg-gray-800 rounded-full p-1.5 border-2 border-white hover:bg-gray-700 transition" style={{ position: 'absolute', right: -6, bottom: -6 }}>
-                <Camera className="w-3.5 h-3.5 text-white" />
-              </button>
-            </div>
+          <div className="rounded-t-2xl p-8 relative" style={{ minHeight: 150, background: 'linear-gradient(90deg, #7FEBCB 0%, #19765A 100%)' }}>
+            {/* Combined centered block: avatar + text, split 50% across header divider */}
+            <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 16, padding: '8px 12px' }}>
+              <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                <img
+                  src={tProfile}
+                  alt="Profile"
+                  style={{ width: 88, height: 88, borderRadius: '9999px', objectFit: 'cover', display: 'block', border: 'none' }}
+                />
+                <button aria-label="change-avatar" style={{ position: 'absolute', right: -6, bottom: -6, width: 36, height: 36, borderRadius: '9999px', background: '#1F2937BF', border: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:opacity-90 transition">
+                  <Camera className="w-4 h-4 text-white" />
+                </button>
+              </div>
 
-            <div style={{ paddingLeft: 128, display: 'flex', alignItems: 'center', height: '100%' }} className="">
-              <div>
-                <h1 className="text-2xl font-bold mb-1 text-gray-900">Sarah Johnson</h1>
+              <div style={{ marginLeft: 12 }}>
+                <h1 className="text-2xl font-bold mb-1 text-black">Sarah Johnson</h1>
                 <div className="w-20 h-1 bg-emerald-200 rounded mt-2"></div>
-                <p className="text-gray-600 text-sm mb-0.5">Teacher • Mathematics Department</p>
-                <p className="text-gray-600 text-sm">sarah.johnson@school.edu</p>
+                <p className="text-sm mb-0.5" style={{ color: 'rgba(0,0,0,0.6)' }}>Teacher • Mathematics Department</p>
+                <p className="text-sm" style={{ color: 'rgba(0,0,0,0.6)' }}>sarah.johnson@school.edu</p>
               </div>
             </div>
           </div>
@@ -258,60 +396,55 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
           {/* White spacer matching green header height (separates gradient and tabs) */}
           <div className="bg-white" style={{ height: 150 }} />
 
-          {/* Tabs */}
-          <div className="bg-white border-b border-gray-200">
-            <div className="px-6" style={{ height: 140, display: 'flex', alignItems: 'flex-end' }}>
-              <div className="flex">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-6 py-3 text-sm font-medium transition relative ${
-                      activeTab === tab
-                        ? "text-gray-900 border-b-2 border-gray-900"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
           {/* Form Content */}
           <div className="bg-white rounded-b-2xl p-8 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">Account Information</h2>
 
             <div className="p-6">
               <div className="max-w-4xl mx-auto">
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible" style={{ width: 612.44, height: 200 }}>
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible" style={{ width: 612.44, height: 200, position: 'relative' }}>
                   {/* main container: fixed 803x216 */}
-                  <div className="bg-gradient-to-r from-emerald-400 to-teal-500 px-6 py-3 relative" style={{ height: 128 }}>
-                    <div style={{ position: 'absolute', left: 16, bottom: -48, width: 96, height: 96, borderRadius: '9999px', background: '#ffffff', padding: 4, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
-                      <img
-                        src={tProfile}
-                        alt="Profile"
-                        width={88}
-                        height={88}
-                        style={{ width: 88, height: 88, borderRadius: '9999px', objectFit: 'cover', display: 'block' }}
-                      />
-                      <button aria-label="change-avatar" className="bg-gray-800 rounded-full p-2 border-2 border-white hover:bg-gray-700 transition" style={{ position: 'absolute', right: -6, bottom: -6 }}>
-                        <Camera className="w-4 h-4 text-white" />
-                      </button>
-                    </div>
+                  <div className="bg-linear-to-r from-emerald-400 to-teal-500 px-6 py-3 relative" style={{ height: 128 }}>
+                    {/* Combined centered block inside inner account container */}
+                    <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px' }}>
+                      <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
+                        <img
+                          src={tProfile}
+                          alt="Profile"
+                          style={{ width: 88, height: 88, borderRadius: '9999px', objectFit: 'cover', display: 'block', border: 'none' }}
+                        />
+                        <button aria-label="change-avatar" style={{ position: 'absolute', right: -6, bottom: -6, width: 36, height: 36, borderRadius: '9999px', background: '#1F2937BF', border: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:opacity-90 transition">
+                          <Camera className="w-4 h-4 text-white" />
+                        </button>
+                      </div>
 
-                    <div style={{ paddingLeft: 128, display: 'flex', alignItems: 'center', height: '100%' }} className="ml-4">
-                      <div>
-                        <h1 className="text-lg font-bold mb-1 text-gray-900">Sarah Johnson</h1>
-                        <p className="text-gray-600 text-xs mb-0.5">Teacher • Mathematics Department</p>
-                        <p className="text-gray-600 text-xs">sarah.johnson@school.edu</p>
+                      <div style={{ marginLeft: 12 }}>
+                        <h1 className="text-lg font-bold mb-1 text-black">Sarah Johnson</h1>
+                        <p className="text-xs mb-0.5" style={{ color: 'rgba(0,0,0,0.6)' }}>Teacher • Mathematics Department</p>
+                        <p className="text-xs" style={{ color: 'rgba(0,0,0,0.6)' }}>sarah.johnson@school.edu</p>
                       </div>
                     </div>
                   </div>
 
                   {/* White spacer under inner gradient to match its height */}
                   <div style={{ height: 128 }} className="bg-white" />
+
+                  {/* Tabs inside the inner account container, anchored to its bottom */}
+                  <div style={{ position: 'absolute', left: 16, right: 16, bottom: 12, display: 'flex', justifyContent: 'flex-start' }}>
+                    {tabs.map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`px-4 py-2 text-sm font-medium transition relative ${
+                          activeTab === tab
+                            ? "text-gray-900 border-b-2 border-gray-900"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -335,6 +468,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                   Change Password
                 </label>
                 <button 
+                  type="button"
                   onClick={handleChangePassword}
                   className="w-full max-w-xs px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-sm font-medium rounded-lg transition"
                 >
@@ -363,31 +497,29 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
           <div className="max-w-4xl mx-auto" style={frame ? { height: '100%', overflow: 'auto' } : undefined}>
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               {/* large gradient header area */}
-              <div className="relative bg-gradient-to-r from-emerald-400 to-teal-500 rounded-t-2xl" style={{ height: 140 }}>
-                    <div className="absolute left-6 top-6 flex items-start gap-4">
-                          <div style={{ position: 'relative', width: 96, height: 96, left: 0 }}>
+              <div className="relative bg-linear-to-r from-emerald-400 to-teal-500 rounded-t-2xl" style={{ height: 140 }}>
+                    {/* Combined centered block for embedded/frame header (text stays white here) */}
+                    <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px' }}>
+                          <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent' }}>
                             <img
                               src={tProfile}
                               alt="Profile"
-                              width={88}
-                              height={88}
-                              style={{ width: 88, height: 88, borderRadius: '9999px', objectFit: 'cover', border: '6px solid rgba(255,255,255,0.95)', boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}
+                              style={{ width: 88, height: 88, borderRadius: '9999px', objectFit: 'cover', boxShadow: '0 2px 6px rgba(0,0,0,0.04)', border: 'none' }}
                             />
-                            <button aria-label="change-avatar" className="bg-gray-800 rounded-full p-2 border-2 border-white hover:bg-gray-700 transition" style={{ position: 'absolute', right: -6, bottom: -6 }}>
+                            <button aria-label="change-avatar" style={{ position: 'absolute', right: -6, bottom: -6, width: 36, height: 36, borderRadius: '9999px', background: '#1F2937BF', border: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:opacity-90 transition">
                               <Camera className="w-4 h-4 text-white" />
                             </button>
                           </div>
-                  <div className="text-white mt-2">
-                    <h1 className="text-2xl font-semibold">Sarah Johnson</h1>
-                    <div className="w-24 h-1 bg-emerald-600 rounded mt-2"></div>
-                    <p className="text-emerald-50 text-sm mt-2">Teacher • Mathematics Department</p>
-                    <p className="text-emerald-50 text-sm">sarah.johnson@school.edu</p>
+                  <div className="text-white mt-2" style={{ marginLeft: 20 }}>
+                    <h1 className="text-2xl font-semibold text-black">Sarah Johnson</h1>
+                    <p className="text-sm mt-2" style={{ color: 'rgba(0,0,0,0.6)' }}>Teacher • Mathematics Department</p>
+                    <p className="text-sm" style={{ color: 'rgba(0,0,0,0.6)' }}>sarah.johnson@school.edu</p>
                   </div>
                 </div>
               </div>
 
               {/* Tabs below header */}
-              <div className="px-6 pt-4" style={{ height: 140 }}>
+              <div className="px-6 pt-25" style={{ height: 140 }}>
                 <div className="flex items-center space-x-6 border-b border-gray-100">
                   {tabs.map((tab) => (
                     <button
@@ -455,6 +587,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                       Change Password
                     </label>
                     <button 
+                      type="button"
                       onClick={handleChangePassword}
                       className="w-full max-w-xs px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-sm font-medium rounded-lg transition"
                     >
