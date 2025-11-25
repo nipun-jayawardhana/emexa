@@ -88,43 +88,27 @@ class UserService {
     // Normalize email to lowercase
     const normalizedEmail = email.toLowerCase().trim();
     
-    console.log('🔍 UserService: Looking up user for email:', normalizedEmail);
-    
-    // CRITICAL FIX: Query with select to include password AND all other fields
-    let user = await Student.findOne({ email: normalizedEmail })
-      .select('+password'); // This includes password but also keeps all other fields
-    
-    let userType = 'student';
+    // Check in student collection first
+    let user = await Student.findOne({ email: normalizedEmail }).select('+password');
+    let userRole = 'student';
     
     // If not found in students, check teachers
     if (!user) {
-      user = await Teacher.findOne({ email: normalizedEmail })
-        .select('+password');
-      userType = 'teacher';
+      user = await Teacher.findOne({ email: normalizedEmail }).select('+password');
+      userRole = 'teacher';
     }
     
     if (!user) {
-      console.log('❌ UserService: User not found');
       throw ApiError.unauthorized('Invalid email or password');
     }
 
-    console.log('✅ UserService: User found:', {
-      type: userType,
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      hasPassword: !!user.password
-    });
-
     // Check if user is active
-    if (user.isActive === false) {
+    if (!user.isActive) {
       throw ApiError.forbidden('Account is deactivated. Please contact support.');
     }
 
-    // Verify password
+    // Verify password - THIS IS THE KEY CHECK
     const isPasswordValid = await user.comparePassword(password);
-    console.log('🔑 UserService: Password valid:', isPasswordValid);
-    
     if (!isPasswordValid) {
       throw ApiError.unauthorized('Incorrect password. Please try again.');
     }
@@ -148,9 +132,7 @@ class UserService {
       ...(user.teacherId && { teacherId: user.teacherId })
     };
 
-    console.log('📤 UserService: Returning user response:', userResponse);
-
-    return { user: userResponse, token };
+    return { user, token };
   }
 
   async getUserById(id) {

@@ -8,6 +8,8 @@ import "./pages/Form.css";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import ChangePassword from "./pages/ChangePassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
 import StudentDashboard from "./pages/stdashboard";
@@ -29,9 +31,21 @@ createRoot(document.getElementById("root")).render(
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/forgot" element={<Navigate to="/forgot-password" replace />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route
+          path="/change-password"
+          element={
+            <RequireAuth allowedRoles={["student", "teacher"]}>
+              <ChangePassword />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/forgot"
+          element={<Navigate to="/forgot-password" replace />}
+        />
         <Route path="/logout" element={<Logout />} />
-        
+
         {/* Admin Routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route 
@@ -47,6 +61,8 @@ createRoot(document.getElementById("root")).render(
           element={<Navigate to="/admin/user-management" replace />} 
         />
         
+        <Route path="/admin/user-management" element={<UserManagement />} />
+
         {/* Permission Route */}
         <Route path="/permission" element={<Permission />} />
 
@@ -69,7 +85,7 @@ createRoot(document.getElementById("root")).render(
             </ProtectedRoute>
           }
         />
-        
+
         <Route
           path="/dashboard"
           element={
@@ -88,7 +104,7 @@ createRoot(document.getElementById("root")).render(
             </ProtectedRoute>
           }
         />
-        
+
         <Route
           path="/quiz/:quizId"
           element={
@@ -103,6 +119,16 @@ createRoot(document.getElementById("root")).render(
         <Route path="/stdashboard" element={<Navigate to="/dashboard" replace />} />
         
         {/* 404 Catch-all */}
+
+        {/* Redirects */}
+        <Route
+          path="/student-dashboard"
+          element={<Navigate to="/dashboard" replace />}
+        />
+        <Route
+          path="/stdashboard"
+          element={<Navigate to="/dashboard" replace />}
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
