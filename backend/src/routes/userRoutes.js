@@ -17,22 +17,21 @@ import Teacher from '../models/teacher.js';
 
 const router = express.Router();
 
-// Existing routes
-router.get('/', protect, getUsers);
-router.post('/', createUser);
-
-// Dashboard and Profile routes
-router.get('/dashboard', protect, getDashboardData);
+// === PROFILE ROUTES - MUST BE BEFORE GENERAL ROUTES ===
+// These specific routes must come first to avoid conflicts
 router.get('/profile', protect, getProfile);
-
-// NEW PROFILE MANAGEMENT ROUTES - Add these
 router.put('/update-profile', protect, updateProfile);
 router.put('/change-password', protect, changePassword);
 router.put('/notification-settings', protect, updateNotificationSettings);
 router.put('/privacy-settings', protect, updatePrivacySettings);
 router.get('/export-data', protect, exportUserData);
+router.get('/dashboard', protect, getDashboardData);
 
-// === EXISTING USER MANAGEMENT ROUTES ===
+// === GENERAL USER ROUTES ===
+router.get('/', protect, getUsers);
+router.post('/', createUser);
+
+// === USER MANAGEMENT ROUTES ===
 
 // Get all users from all collections (User, Student, Teacher)
 router.get('/all-users', async (req, res) => {
