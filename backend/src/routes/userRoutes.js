@@ -1,5 +1,15 @@
 import express from 'express';
-import { getUsers, createUser, getDashboardData, getProfile } from '../controllers/userController.js';
+import { 
+  getUsers, 
+  createUser, 
+  getDashboardData, 
+  getProfile,
+  updateProfile,
+  changePassword,
+  updateNotificationSettings,
+  updatePrivacySettings,
+  exportUserData
+} from '../controllers/userController.js';
 import { protect } from '../middleware/auth.js';
 import User from '../models/user.js';
 import Student from '../models/student.js';
@@ -11,11 +21,18 @@ const router = express.Router();
 router.get('/', protect, getUsers);
 router.post('/', createUser);
 
-// New dashboard routes
+// Dashboard and Profile routes
 router.get('/dashboard', protect, getDashboardData);
 router.get('/profile', protect, getProfile);
 
-// === NEW ROUTES FOR USER MANAGEMENT ===
+// NEW PROFILE MANAGEMENT ROUTES - Add these
+router.put('/update-profile', protect, updateProfile);
+router.put('/change-password', protect, changePassword);
+router.put('/notification-settings', protect, updateNotificationSettings);
+router.put('/privacy-settings', protect, updatePrivacySettings);
+router.get('/export-data', protect, exportUserData);
+
+// === EXISTING USER MANAGEMENT ROUTES ===
 
 // Get all users from all collections (User, Student, Teacher)
 router.get('/all-users', async (req, res) => {
