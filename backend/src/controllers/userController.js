@@ -43,11 +43,11 @@ export const getDashboardData = async (req, res) => {
     res.status(200).json({
       name: user.name,
       email: user.email,
-      totalQuizzes: user.totalQuizzes,
-      averageScore: user.averageScore,
-      studyTime: user.studyTime,
-      upcomingQuizzes: user.upcomingQuizzes,
-      recentActivity: user.recentActivity,
+      totalQuizzes: user.totalQuizzes || 0,
+      averageScore: user.averageScore || 0,
+      studyTime: user.studyTime || 0,
+      upcomingQuizzes: user.upcomingQuizzes || [],
+      recentActivity: user.recentActivity || [],
     });
   } catch (error) {
     console.error('Get dashboard data error:', error);
@@ -55,7 +55,7 @@ export const getDashboardData = async (req, res) => {
   }
 };
 
-// Profile functions
+// Profile functions - FIXED to ensure all data is returned
 export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-password');
@@ -64,22 +64,30 @@ export const getProfile = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.status(200).json({
+    // Return complete profile data with all fields
+    const profileData = {
       _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      profileImage: user.profileImage,
-      notificationSettings: user.notificationSettings || {
-        emailNotifications: true,
-        smsNotifications: false,
-        inAppNotifications: true
+      name: user.name || '',
+      email: user.email || '',
+      role: user.role || 'student',
+      profileImage: user.profileImage || null,
+      notificationSettings: {
+        emailNotifications: user.notificationSettings?.emailNotifications ?? true,
+        smsNotifications: user.notificationSettings?.smsNotifications ?? false,
+        inAppNotifications: user.notificationSettings?.inAppNotifications ?? true
       },
-      privacySettings: user.privacySettings || {
-        emotionDataConsent: true
+      privacySettings: {
+        emotionDataConsent: user.privacySettings?.emotionDataConsent ?? true
       },
-      recentActivity: user.recentActivity || []
-    });
+      recentActivity: user.recentActivity || [],
+      totalQuizzes: user.totalQuizzes || 0,
+      averageScore: user.averageScore || 0,
+      studyTime: user.studyTime || 0,
+      upcomingQuizzes: user.upcomingQuizzes || []
+    };
+
+    console.log('Sending profile data:', profileData); // Debug log
+    res.status(200).json(profileData);
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ message: 'Error fetching profile', error: error.message });
@@ -99,14 +107,15 @@ export const updateProfile = async (req, res) => {
 
     // Check if email is already taken by another user
     if (email && email !== user.email) {
-      const emailExists = await User.findOne({ email });
+      const emailExists = await User.findOne({ email, _id: { $ne: req.userId } });
       if (emailExists) {
         return res.status(400).json({ message: 'Email already in use' });
       }
     }
 
-    user.name = name || user.name;
-    user.email = email || user.email;
+    // Update fields
+    if (name) user.name = name;
+    if (email) user.email = email;
     
     await user.save();
 
@@ -132,6 +141,10 @@ export const changePassword = async (req, res) => {
     
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ message: 'Please provide all required fields' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
     }
 
     // Get user with password field
@@ -232,16 +245,16 @@ export const exportUserData = async (req, res) => {
         createdAt: user.createdAt
       },
       settings: {
-        notifications: user.notificationSettings,
-        privacy: user.privacySettings
+        notifications: user.notificationSettings || {},
+        privacy: user.privacySettings || {}
       },
       statistics: {
-        totalQuizzes: user.totalQuizzes,
-        averageScore: user.averageScore,
-        studyTime: user.studyTime
+        totalQuizzes: user.totalQuizzes || 0,
+        averageScore: user.averageScore || 0,
+        studyTime: user.studyTime || 0
       },
-      upcomingQuizzes: user.upcomingQuizzes,
-      recentActivity: user.recentActivity
+      upcomingQuizzes: user.upcomingQuizzes || [],
+      recentActivity: user.recentActivity || []
     };
 
     res.json(exportData);
