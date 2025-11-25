@@ -13,6 +13,7 @@ import ChangePassword from "./pages/ChangePassword";
 import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
 import StudentDashboard from "./pages/stdashboard";
+import Profile from "./pages/StudentProfile"; 
 import QuizPage from "./pages/quizpage";
 import AdminLogin from "./pages/AdminLogin";
 import UserManagement from "./pages/usermgt";
@@ -95,6 +96,16 @@ createRoot(document.getElementById("root")).render(
           }
         />
 
+        {/* NEW PROFILE ROUTE - Add this */}
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute allowedRoles={["student", "admin"]}>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Wellness Centre - ONLY for student, BLOCKED for admin */}
         <Route
           path="/wellness-centre"
@@ -119,16 +130,6 @@ createRoot(document.getElementById("root")).render(
         <Route path="/stdashboard" element={<Navigate to="/dashboard" replace />} />
         
         {/* 404 Catch-all */}
-
-        {/* Redirects */}
-        <Route
-          path="/student-dashboard"
-          element={<Navigate to="/dashboard" replace />}
-        />
-        <Route
-          path="/stdashboard"
-          element={<Navigate to="/dashboard" replace />}
-        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
