@@ -49,31 +49,70 @@ const Profile = () => {
   const fetchUserData = async () => {
     try {
       const token = localStorage.getItem('token');
+      const storedUserName = localStorage.getItem('userName');
+      const storedUserEmail = localStorage.getItem('userEmail');
+      
       if (!token && !adminToken) {
         navigate('/login');
         return;
       }
 
       if (!isAdminViewing) {
-        const response = await axios.get('http://localhost:5000/api/user/profile', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        const user = response.data;
-        setUserData(user);
-        setFormData({
-          name: user.name || '',
-          email: user.email || '',
-          role: user.role || 'student'
-        });
-        setNotificationSettings(user.notificationSettings || {
-          emailNotifications: true,
-          smsNotifications: false,
-          inAppNotifications: true
-        });
-        setPrivacySettings(user.privacySettings || {
-          emotionDataConsent: true
-        });
+        try {
+          const response = await axios.get('http://localhost:5000/api/user/profile', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          const user = response.data;
+          console.log('✅ Fetched user data:', user);
+          setUserData(user);
+          
+          // Set form data from API response
+          setFormData({
+            name: user.name || storedUserName || '',
+            email: user.email || storedUserEmail || '',
+            role: user.role || 'student'
+          });
+          
+          setNotificationSettings(user.notificationSettings || {
+            emailNotifications: true,
+            smsNotifications: false,
+            inAppNotifications: true
+          });
+          
+          setPrivacySettings(user.privacySettings || {
+            emotionDataConsent: true
+          });
+        } catch (apiError) {
+          console.error('❌ API Error:', apiError);
+          
+          // Fallback to localStorage data if API fails
+          console.log('⚠️ Using fallback data from localStorage');
+          const fallbackData = {
+            name: storedUserName || 'Student',
+            email: storedUserEmail || 'student@school.edu',
+            role: 'student',
+            profileImage: null,
+            recentActivity: [],
+            notificationSettings: {
+              emailNotifications: true,
+              smsNotifications: false,
+              inAppNotifications: true
+            },
+            privacySettings: {
+              emotionDataConsent: true
+            }
+          };
+          
+          setUserData(fallbackData);
+          setFormData({
+            name: fallbackData.name,
+            email: fallbackData.email,
+            role: fallbackData.role
+          });
+          setNotificationSettings(fallbackData.notificationSettings);
+          setPrivacySettings(fallbackData.privacySettings);
+        }
       } else {
         // Mock data for admin viewing
         const mockData = {
@@ -81,7 +120,15 @@ const Profile = () => {
           email: 'anna.faris@school.edu',
           role: 'student',
           profileImage: null,
-          recentActivity: []
+          recentActivity: [],
+          notificationSettings: {
+            emailNotifications: true,
+            smsNotifications: false,
+            inAppNotifications: true
+          },
+          privacySettings: {
+            emotionDataConsent: true
+          }
         };
         setUserData(mockData);
         setFormData({
@@ -89,14 +136,19 @@ const Profile = () => {
           email: mockData.email,
           role: mockData.role
         });
+        setNotificationSettings(mockData.notificationSettings);
+        setPrivacySettings(mockData.privacySettings);
       }
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      if (error.response?.status === 401 && !isAdminViewing) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userName');
-        navigate('/login');
-      }
+      console.error('💥 Critical error:', error);
+      // Set minimal fallback data
+      const minimalData = {
+        name: localStorage.getItem('userName') || 'Student',
+        email: 'student@school.edu',
+        role: 'student'
+      };
+      setFormData(minimalData);
+      setUserData(minimalData);
     } finally {
       setLoading(false);
     }
