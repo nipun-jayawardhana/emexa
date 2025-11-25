@@ -47,6 +47,12 @@ export default function Login() {
         console.log("👤 User object:", res.user);
         console.log("🔍 User object keys:", res.user ? Object.keys(res.user) : "no user");
 
+        // CRITICAL FIX: Clear admin viewing flags for ALL logins
+        console.log("🧹 Clearing admin preview flags...");
+        localStorage.removeItem("adminViewingAs");
+        sessionStorage.removeItem("adminViewingAs");
+        console.log("✅ Admin preview flags cleared");
+
         // Check if user is admin - redirect to admin panel
         if (res.user?.role === "admin" || res.user?.role === "Admin") {
           const adminName = res.user?.name || res.user?.fullName || res.user?.full_name || "Admin";
@@ -94,6 +100,11 @@ export default function Login() {
           "email fallback"
         );
 
+        // CRITICAL FIX: Clear adminToken for regular users
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminUser");
+        console.log("🧹 Cleared admin-specific storage for regular user");
+
         // Save token based on "Remember me" checkbox
         if (res.token) {
           if (remember) {
@@ -137,6 +148,8 @@ export default function Login() {
           console.log("📦 VERIFICATION - What's in localStorage:");
           console.log("  - userName:", localStorage.getItem("userName"));
           console.log("  - userRole:", localStorage.getItem("userRole"));
+          console.log("  - adminToken:", localStorage.getItem("adminToken"));
+          console.log("  - adminViewingAs:", localStorage.getItem("adminViewingAs"));
           console.log("  - user object:", JSON.parse(localStorage.getItem("user") || "{}"));
         }
 

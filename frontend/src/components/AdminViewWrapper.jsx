@@ -5,8 +5,13 @@ import Sidebar from './sidebarorigin.jsx';
 
 const AdminViewWrapper = ({ children, dashboardType }) => {
   const navigate = useNavigate();
-  const isAdminViewing = localStorage.getItem('adminViewingAs');
+  
+  // CRITICAL: Get all auth tokens
   const adminToken = localStorage.getItem('adminToken');
+  const isAdminViewing = localStorage.getItem('adminViewingAs');
+  const regularToken = localStorage.getItem('token');
+  const userRole = localStorage.getItem('userRole');
+  
   const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
   const [activeMenuItem, setActiveMenuItem] = React.useState('');
 
@@ -19,6 +24,14 @@ const AdminViewWrapper = ({ children, dashboardType }) => {
       setActiveMenuItem('userManagement');
     }
   }, [dashboardType]);
+
+  // CRITICAL FIX: If there's NO adminToken but there IS adminViewingAs, clear it!
+  React.useEffect(() => {
+    if (!adminToken && isAdminViewing) {
+      console.log('🔧 Clearing orphaned adminViewingAs flag');
+      localStorage.removeItem('adminViewingAs');
+    }
+  }, [adminToken, isAdminViewing]);
 
   const adminMenuItems = [
     {
@@ -74,8 +87,18 @@ const AdminViewWrapper = ({ children, dashboardType }) => {
     },
   ];
 
-  // Only show admin wrapper if there's an admin token AND adminViewingAs is set
-  if (isAdminViewing && adminToken) {
+  // CRITICAL CHECK: Only show admin wrapper if BOTH adminToken exists AND adminViewingAs is set
+  // AND the user is NOT a regular teacher/student (check userRole)
+  const shouldShowAdminView = adminToken && isAdminViewing && userRole === 'admin';
+
+  console.log('🔍 AdminViewWrapper Check:', {
+    adminToken: !!adminToken,
+    isAdminViewing,
+    userRole,
+    shouldShowAdminView
+  });
+
+  if (shouldShowAdminView) {
     return (
       <div className="min-h-screen bg-white">
         <Header 
