@@ -40,15 +40,6 @@ const TeacherDashboard = () => {
       ),
     },
     {
-      id: "wellness",
-      label: "Wellness Centre",
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-    },
-    {
       id: "profile",
       label: "Profile",
       icon: (
@@ -65,8 +56,6 @@ const TeacherDashboard = () => {
         return <DashboardContent />;
       case "quizzes":
         return <QuizzesContent />;
-      case "wellness":
-        return <WellnessContent />;
       case "profile":
         return <ProfileContent />;
       default:
@@ -449,19 +438,6 @@ const QuizzesContent = () => {
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-};
-
-// Wellness Content Component
-const WellnessContent = () => {
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Wellness Centre</h1>
-      <p className="text-gray-600 mb-6">Monitor student wellbeing and engagement</p>
-      <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-        <p className="text-gray-600">Wellness monitoring tools and resources coming soon...</p>
       </div>
     </div>
   );
