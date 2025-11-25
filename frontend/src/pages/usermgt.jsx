@@ -61,6 +61,89 @@ const UserManagement = () => {
   const [adminUser, setAdminUser] = useState(null);
   const dropdownRef = React.useRef(null);
 
+  // FIXED: Function to handle navigation to dashboards
+  const navigateToDashboard = (dashboardType) => {
+    console.log(`🚀 Admin navigating to ${dashboardType} dashboard`);
+    
+    // CRITICAL FIX: Only set adminViewingAs, DO NOT set userRole
+    // This prevents interference with regular student/teacher authentication
+    const role = dashboardType === 'student' ? 'student' : 'teacher';
+    
+    // Set admin viewing flag (this is what triggers admin preview mode)
+    localStorage.setItem('adminViewingAs', role);
+    
+    console.log(`✅ Set adminViewingAs to: ${role}`);
+    console.log(`✅ adminToken exists: ${!!localStorage.getItem('adminToken')}`);
+    
+    // Navigate to the dashboard
+    if (dashboardType === 'student') {
+      navigate("/dashboard");
+    } else if (dashboardType === 'teacher') {
+      navigate("/teacher-dashboard");
+    }
+  };
+
+  // Define menu items for admin sidebar with onClick handlers
+  const adminMenuItems = [
+    {
+      id: "userManagement",
+      label: "User Management",
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ),
+      onClick: () => {
+        // Clear admin viewing mode when returning to user management
+        localStorage.removeItem('adminViewingAs');
+        console.log("✅ Cleared adminViewingAs - back to User Management");
+      }
+    },
+    {
+      id: "studentDashboard",
+      label: "Student Dashboard",
+      icon: (
+        <img 
+          src={dashboardIcon}
+          alt="Student Dashboard" 
+          className="w-5 h-5 object-contain"
+        />
+      ),
+      onClick: () => {
+        navigateToDashboard('student');
+      }
+    },
+    {
+      id: "teacherDashboard",
+      label: "Teacher Dashboard",
+      icon: (
+        <img 
+          src={dashboardIcon}
+          alt="Teacher Dashboard" 
+          className="w-5 h-5 object-contain"
+        />
+      ),
+      onClick: () => {
+        navigateToDashboard('teacher');
+      }
+    },
+    {
+      id: "quizzes",
+      label: "Quizzes",
+      icon: (
+        <img 
+          src={quizIcon}
+          alt="Quiz icon" 
+          className="w-5 h-5 object-contain"
+        />
+      ),
+      onClick: () => {
+        console.log("Navigating to Quizzes");
+        navigate("/quizzes");
+      }
+    },
+  ];
+
   // Get admin user info
   useEffect(() => {
     const adminUserData = localStorage.getItem("adminUser");
