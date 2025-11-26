@@ -7,10 +7,12 @@ import Header from "../components/headerorigin";
 import Sidebar from "../components/sidebarorigin";
 import TeacherQuizzes from "./TeacherQuizzes";
 import TeacherCreateQuiz from "./TeacherCreateQuiz";
+import TeacherQuizDraft from "./TeacherQuizDraft";
 
 const TeacherDashboard = () => {
   const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
   const [userName, setUserName] = useState("");
+  const [editingDraftId, setEditingDraftId] = useState(null);
 
   const adminToken = localStorage.getItem("adminToken");
   const isAdminViewing = localStorage.getItem("adminViewingAs");
@@ -89,7 +91,19 @@ const TeacherDashboard = () => {
       case "quizzes":
         return <TeacherQuizzes setActiveMenuItem={setActiveMenuItem} />;
       case "create-quiz":
-        return <TeacherCreateQuiz setActiveMenuItem={setActiveMenuItem} />;
+        return (
+          <TeacherCreateQuiz
+            setActiveMenuItem={setActiveMenuItem}
+            editingDraftId={editingDraftId}
+          />
+        );
+      case "quiz-drafts":
+        return (
+          <TeacherQuizDraft
+            setActiveMenuItem={setActiveMenuItem}
+            setEditingDraftId={setEditingDraftId}
+          />
+        );
       case "profile":
         return <ProfileContent />;
       default:

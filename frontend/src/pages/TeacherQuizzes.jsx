@@ -1,6 +1,35 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 
 const TeacherQuizzes = ({ setActiveMenuItem }) => {
+  const [quizStats, setQuizStats] = useState({
+    active: 0,
+    drafts: 0,
+    scheduled: 0,
+  });
+
+  useEffect(() => {
+    // Load quiz data from localStorage
+    const savedDrafts = localStorage.getItem("quizDrafts");
+    if (savedDrafts) {
+      const drafts = JSON.parse(savedDrafts);
+
+      // Calculate stats
+      const draftCount = drafts.filter(
+        (q) => !q.isScheduled && q.progress < 100
+      ).length;
+      const scheduledCount = drafts.filter((q) => q.isScheduled).length;
+      const activeCount = drafts.filter(
+        (q) => q.progress === 100 && !q.isScheduled
+      ).length;
+
+      setQuizStats({
+        active: activeCount,
+        drafts: draftCount,
+        scheduled: scheduledCount,
+      });
+    }
+  }, []);
+
   return (
     <div className="p-6">
       {/* Page Header */}
@@ -33,7 +62,9 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
               <p className="text-gray-500 text-xs font-medium mb-1">
                 Active Quizzes
               </p>
-              <p className="text-3xl font-bold text-gray-900">8</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {quizStats.active}
+              </p>
             </div>
           </div>
         </div>
@@ -58,7 +89,9 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
             </div>
             <div>
               <p className="text-gray-500 text-xs font-medium mb-1">Drafts</p>
-              <p className="text-3xl font-bold text-gray-900">4</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {quizStats.drafts}
+              </p>
             </div>
           </div>
         </div>
@@ -85,7 +118,9 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
               <p className="text-gray-500 text-xs font-medium mb-1">
                 Scheduled
               </p>
-              <p className="text-3xl font-bold text-gray-900">3</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {quizStats.scheduled}
+              </p>
             </div>
           </div>
         </div>
@@ -124,7 +159,10 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
         </div>
 
         {/* View Drafts Card */}
-        <div className="bg-white rounded-xl p-12 py-16 border-2 border-dashed border-gray-300 hover:border-orange-500 shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:shadow-[0_8px_16px_rgba(0,0,0,0.2)] transition cursor-pointer group">
+        <div
+          onClick={() => setActiveMenuItem("quiz-drafts")}
+          className="bg-white rounded-xl p-12 py-16 border-2 border-dashed border-gray-300 hover:border-orange-500 shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:shadow-[0_8px_16px_rgba(0,0,0,0.2)] transition cursor-pointer group"
+        >
           <div className="flex flex-col items-center text-center">
             <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-orange-200 transition">
               <svg
