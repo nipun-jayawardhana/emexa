@@ -48,19 +48,19 @@ createRoot(document.getElementById("root")).render(
 
         {/* Admin Routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route 
-          path="/admin/user-management" 
+        <Route
+          path="/admin/user-management"
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
               <UserManagement />
             </ProtectedRoute>
-          } 
+          }
         />
-        <Route 
-          path="/admin/users" 
-          element={<Navigate to="/admin/user-management" replace />} 
+        <Route
+          path="/admin/users"
+          element={<Navigate to="/admin/user-management" replace />}
         />
-        
+
         <Route path="/admin/user-management" element={<UserManagement />} />
 
         {/* Permission Route */}
@@ -113,11 +113,17 @@ createRoot(document.getElementById("root")).render(
             </ProtectedRoute>
           }
         />
-        
+
         {/* Legacy Redirects */}
-        <Route path="/student-dashboard" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/stdashboard" element={<Navigate to="/dashboard" replace />} />
-        
+        <Route
+          path="/student-dashboard"
+          element={<Navigate to="/dashboard" replace />}
+        />
+        <Route
+          path="/stdashboard"
+          element={<Navigate to="/dashboard" replace />}
+        />
+
         {/* 404 Catch-all */}
 
         {/* Redirects */}

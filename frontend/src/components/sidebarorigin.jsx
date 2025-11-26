@@ -99,7 +99,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
   const items = menuItems || defaultMenuItems;
 
   return (
-    <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-gradient-to-b from-green-50 via-green-50 to-white border-r border-gray-200 overflow-y-auto">
+    <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-[#C8E6C9] border-r border-gray-200 overflow-y-auto">
       {/* Menu Items */}
       <nav className="pt-4 px-3 space-y-2">
         {items.map((item) => (
@@ -108,8 +108,8 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
             onClick={() => handleMenuClick(item)}
             className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-lg transition text-sm whitespace-nowrap ${
               activeMenuItem === item.id
-                ? "bg-white text-green-600 shadow-sm font-medium"
-                : "text-gray-700 hover:bg-white/70"
+                ? "bg-white text-gray-700 shadow-sm font-medium"
+                : "text-gray-700 hover:bg-[#B8D6BA]"
             }`}
           >
             {item.icon}
