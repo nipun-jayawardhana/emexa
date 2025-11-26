@@ -19,6 +19,8 @@ const router = express.Router();
 
 // === PROFILE ROUTES - MUST BE BEFORE GENERAL ROUTES ===
 // These specific routes must come first to avoid conflicts
+
+// Profile management routes
 router.get('/profile', protect, getProfile);
 router.put('/update-profile', protect, updateProfile);
 router.put('/change-password', protect, changePassword);
