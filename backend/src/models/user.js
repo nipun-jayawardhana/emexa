@@ -34,6 +34,36 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['student', 'teacher', 'admin'], default: 'student' },
   isActive: { type: Boolean, default: true },
   
+  // Profile settings
+  profileImage: {
+    type: String,
+    default: null
+  },
+  
+  // Notification settings
+  notificationSettings: {
+    emailNotifications: {
+      type: Boolean,
+      default: true
+    },
+    smsNotifications: {
+      type: Boolean,
+      default: false
+    },
+    inAppNotifications: {
+      type: Boolean,
+      default: true
+    }
+  },
+  
+  // Privacy settings
+  privacySettings: {
+    emotionDataConsent: {
+      type: Boolean,
+      default: true
+    }
+  },
+  
   // Dashboard statistics
   totalQuizzes: { type: Number, default: 24 },
   averageScore: { type: Number, default: 82 },
@@ -108,6 +138,10 @@ userSchema.methods.generateAuthToken = function() {
   const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
   return jwt.sign({ id: this._id }, secret, { expiresIn });
 };
+
+// Index for faster queries
+userSchema.index({ email: 1 });
+userSchema.index({ role: 1 });
 
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 export default User;
