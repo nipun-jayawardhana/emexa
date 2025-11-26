@@ -486,7 +486,6 @@ const Profile = () => {
             
             <div className="flex-1 mt-16">
               <h1 className="text-2xl font-bold text-gray-900">{userData?.name || 'Student'}</h1>
-              <p className="text-gray-600 capitalize">{userData?.role || 'Student'} - 2nd Year</p>
               <p className="text-gray-600">{userData?.email || ''}</p>
             </div>
           </div>
