@@ -42,3 +42,12 @@ export async function postJSON(path, body) {
     normalizeAxiosError(err);
   }
 }
+
+export async function putJSON(path, body) {
+  try {
+    const res = await client.put(path, body);
+    return res.data;
+  } catch (err) {
+    normalizeAxiosError(err);
+  }
+}

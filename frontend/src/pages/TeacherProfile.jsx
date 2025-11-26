@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Camera, Eye, EyeOff } from "lucide-react";
+import { putJSON } from "../services/api.js";
 import tProfile from "../assets/t-profile.png";
 
 const TeacherProfile = ({ embedded = false, frame = null }) => {
@@ -7,17 +8,71 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
   const [activeTab, setActiveTab] = useState("Account Info");
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [formData, setFormData] = useState({
-    fullName: "Sarah Johnson",
-    email: "sarah.johnson@school.edu",
-    role: "Teacher"
+    fullName: "",
+    email: "",
+    role: ""
   });
+
+  // Load any saved user data from localStorage when component mounts
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        setFormData((prev) => ({
+          ...prev,
+          fullName: parsed.fullName || parsed.name || prev.fullName,
+          email: parsed.email || prev.email,
+          role: parsed.role ? (parsed.role.charAt(0).toUpperCase() + parsed.role.slice(1)) : (parsed.userRole ? (parsed.userRole.charAt(0).toUpperCase() + parsed.userRole.slice(1)) : prev.role),
+        }));
+        return;
+      }
+
+          // Fallback to individual keys if present
+          const storedName = localStorage.getItem("userName") || localStorage.getItem("name");
+          const storedEmail = localStorage.getItem("email");
+          const storedRole = localStorage.getItem("userRole") || localStorage.getItem("role");
+          const capRole = storedRole ? (storedRole.charAt(0).toUpperCase() + storedRole.slice(1)) : storedRole;
+          setFormData((prev) => ({
+            ...prev,
+            fullName: storedName || prev.fullName,
+            email: storedEmail || prev.email,
+            role: capRole || prev.role,
+          }));
+    } catch (e) {
+      // ignore parse errors
+      console.warn("Failed to load stored user data:", e);
+    }
+  }, []);
 
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [changePwdData, setChangePwdData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [showPwd, setShowPwd] = useState({ current: false, new: false, confirm: false });
 
-  const userName = "Sarah";
-  const userRole = "teacher";
+  // Settings toggles (Notification preferences)
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [smsNotifications, setSmsNotifications] = useState(false);
+  const [inAppNotifications, setInAppNotifications] = useState(true);
+  // Privacy toggles
+  const [emotionConsent, setEmotionConsent] = useState(true);
+
+  // Load settings from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("profileSettings");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setEmailNotifications(!!parsed.emailNotifications);
+        setSmsNotifications(!!parsed.smsNotifications);
+        setInAppNotifications(!!parsed.inAppNotifications);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const userName = formData.fullName ? formData.fullName.split(" ")[0] : "";
+  const userRole = (formData.role || "").toLowerCase();
 
   const tabs = ["Account Info", "Settings", "Activity", "Privacy & Data"];
 
@@ -43,15 +98,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       ),
     },
     {
-      id: "wellness",
-      label: "Wellness Centre",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-        </svg>
-      ),
-    },
-    {
       id: "profile",
       label: "Profile",
       icon: (
@@ -64,15 +110,44 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    let newValue = value;
+    // Ensure role's first letter is capitalized
+    if (name === "role") {
+      newValue = value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+    }
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: newValue
     }));
   };
 
   const handleSaveChanges = () => {
     console.log("Saving changes:", formData);
     alert("Changes saved successfully!");
+  };
+
+  const handleSaveSettings = async () => {
+    const payload = { emailNotifications, smsNotifications, inAppNotifications };
+    // If running on localhost, persist locally only and return success
+    try {
+      const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
+      const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
+      if (isLocal) {
+        localStorage.setItem('profileSettings', JSON.stringify(payload));
+        alert('Saved locally');
+        return;
+      }
+
+      const data = await putJSON('/users/profile/settings', payload);
+      // persist locally for quick UI load
+      localStorage.setItem('profileSettings', JSON.stringify(payload));
+      alert('Settings saved');
+    } catch (err) {
+      // fallback to localStorage if API fails
+      localStorage.setItem('profileSettings', JSON.stringify(payload));
+      const msg = err?.message || (err?.body && err.body.message) || 'Server error';
+      alert('Saved locally. Server error: ' + msg);
+    }
   };
 
   const handleChangePassword = () => {
@@ -170,9 +245,9 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
               {/* User Profile */}
               <div className="flex items-center space-x-2 hover:bg-gray-100 px-2 py-1.5 rounded-lg transition ml-1">
                 <div className={`w-7 h-7 ${userRole === "teacher" ? "bg-purple-600" : "bg-blue-600"} rounded-full flex items-center justify-center text-white font-semibold text-xs`}>
-                  {userName?.charAt(0).toUpperCase() || "A"}
+                  {userName ? userName.charAt(0).toUpperCase() : ""}
                 </div>
-                <span className="font-medium text-gray-900 text-sm">{userName || "User"}</span>
+                <span className="font-medium text-gray-900 text-sm">{userName || ""}</span>
               </div>
             </div>
           </div>
@@ -385,10 +460,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
               </div>
 
               <div style={{ marginLeft: 12 }}>
-                <h1 className="text-2xl font-bold mb-1 text-black">Sarah Johnson</h1>
+                <h1 className="text-2xl font-bold mb-1 text-black">{formData.fullName}</h1>
                 <div className="w-20 h-1 bg-emerald-200 rounded mt-2"></div>
-                <p className="text-sm mb-0.5" style={{ color: 'rgba(0,0,0,0.6)' }}>Teacher • Mathematics Department</p>
-                <p className="text-sm" style={{ color: 'rgba(0,0,0,0.6)' }}>sarah.johnson@school.edu</p>
+                <p className="text-sm mb-0.5" style={{ color: 'rgba(0,0,0,0.6)' }}>{formData.role || ''}</p>
+                <p className="text-sm" style={{ color: 'rgba(0,0,0,0.6)' }}>{formData.email}</p>
               </div>
             </div>
           </div>
@@ -401,93 +476,316 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
             <h2 className="text-lg font-semibold text-gray-900 mb-6">Account Information</h2>
 
             <div className="p-6">
-              <div className="max-w-4xl mx-auto">
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible" style={{ width: 612.44, height: 200, position: 'relative' }}>
-                  {/* main container: fixed 803x216 */}
-                  <div className="bg-linear-to-r from-emerald-400 to-teal-500 px-6 py-3 relative" style={{ height: 128 }}>
-                    {/* Combined centered block inside inner account container */}
-                    <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px' }}>
-                      <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
-                        <img
-                          src={tProfile}
-                          alt="Profile"
-                          style={{ width: 88, height: 88, borderRadius: '9999px', objectFit: 'cover', display: 'block', border: 'none' }}
-                        />
-                        <button aria-label="change-avatar" style={{ position: 'absolute', right: -6, bottom: -6, width: 36, height: 36, borderRadius: '9999px', background: '#1F2937BF', border: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:opacity-90 transition">
-                          <Camera className="w-4 h-4 text-white" />
-                        </button>
+              {activeTab === "Account Info" ? (
+                <>
+                  <div className="max-w-4xl mx-auto">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible" style={{ width: 612.44, height: 200, position: 'relative' }}>
+                      {/* main container: fixed 803x216 */}
+                      <div className="bg-linear-to-r from-emerald-400 to-teal-500 px-6 py-3 relative" style={{ height: 128 }}>
+                        {/* Combined centered block inside inner account container */}
+                        <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px' }}>
+                          <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
+                            <img
+                              src={tProfile}
+                              alt="Profile"
+                              style={{ width: 88, height: 88, borderRadius: '9999px', objectFit: 'cover', display: 'block', border: 'none' }}
+                            />
+                            <button aria-label="change-avatar" style={{ position: 'absolute', right: -6, bottom: -6, width: 36, height: 36, borderRadius: '9999px', background: '#1F2937BF', border: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:opacity-90 transition">
+                              <Camera className="w-4 h-4 text-white" />
+                            </button>
+                          </div>
+
+                          <div style={{ marginLeft: 12 }}>
+                            <h1 className="text-lg font-bold mb-1 text-black">{formData.fullName}</h1>
+                            <p className="text-xs mb-0.5" style={{ color: 'rgba(0,0,0,0.6)' }}>{formData.role || ''}</p>
+                            <p className="text-xs" style={{ color: 'rgba(0,0,0,0.6)' }}>{formData.email}</p>
+                          </div>
+                        </div>
                       </div>
 
-                      <div style={{ marginLeft: 12 }}>
-                        <h1 className="text-lg font-bold mb-1 text-black">Sarah Johnson</h1>
-                        <p className="text-xs mb-0.5" style={{ color: 'rgba(0,0,0,0.6)' }}>Teacher • Mathematics Department</p>
-                        <p className="text-xs" style={{ color: 'rgba(0,0,0,0.6)' }}>sarah.johnson@school.edu</p>
+                      {/* White spacer under inner gradient to match its height */}
+                      <div style={{ height: 128 }} className="bg-white" />
+
+                      {/* Tabs inside the inner account container, anchored to its bottom */}
+                      <div style={{ position: 'absolute', left: 16, right: 16, bottom: 12 }} className="flex justify-start gap-16">
+                        {tabs.map((tab) => (
+                          <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            className={`px-4 py-2 text-sm font-medium transition relative ${
+                              activeTab === tab
+                                ? "text-gray-900 border-b-2 border-gray-900"
+                                : "text-gray-500 hover:text-gray-700"
+                            }`}
+                          >
+                            {tab}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
 
-                  {/* White spacer under inner gradient to match its height */}
-                  <div style={{ height: 128 }} className="bg-white" />
+                  {/* Role */}
+                  <div className="max-w-[calc(50%-12px)]">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Role
+                    </label>
+                    <input
+                      type="text"
+                      name="role"
+                      value={formData.role}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition text-sm"
+                    />
+                  </div>
 
-                  {/* Tabs inside the inner account container, anchored to its bottom */}
-                  <div style={{ position: 'absolute', left: 16, right: 16, bottom: 12, display: 'flex', justifyContent: 'flex-start' }}>
-                    {tabs.map((tab) => (
+                  {/* Change Password Section */}
+                  <div className="pt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Change Password
+                    </label>
+                    <button 
+                      type="button"
+                      onClick={handleChangePassword}
+                      className="w-full max-w-xs px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-sm font-medium rounded-lg transition"
+                    >
+                      Do you want change the password
+                    </button>
+                  </div>
+
+                  {/* Save Button */}
+                  <div className="pt-6">
+                    <button
+                      onClick={handleSaveChanges}
+                      className="px-6 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-sm font-medium rounded-lg transition flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                      </svg>
+                      Save Changes
+                    </button>
+                  </div>
+                </>
+              ) : activeTab === "Settings" ? (
+                <div className="max-w-4xl mx-auto bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col" style={{ width: 612.44, height: 600 }}>
+                  <h3 className="text-lg font-semibold mb-4">Notification Preferences</h3>
+
+                  <div className="flex-1 flex flex-col justify-between gap-6">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium">Email Notifications</p>
+                        <p className="text-sm text-gray-500">Receive notifications via email</p>
+                      </div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setEmailNotifications((s) => !s)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${emailNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
+                          aria-pressed={emailNotifications}
+                        >
+                          <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${emailNotifications ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium">SMS Notifications</p>
+                        <p className="text-sm text-gray-500">Receive notifications via text message</p>
+                      </div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setSmsNotifications((s) => !s)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${smsNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
+                          aria-pressed={smsNotifications}
+                        >
+                          <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${smsNotifications ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium">In-App Notifications</p>
+                        <p className="text-sm text-gray-500">Receive notifications in the application</p>
+                      </div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setInAppNotifications((s) => !s)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${inAppNotifications ? 'bg-green-600' : 'bg-gray-500'}`}
+                          aria-pressed={inAppNotifications}
+                        >
+                          <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${inAppNotifications ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
                       <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`px-4 py-2 text-sm font-medium transition relative ${
-                          activeTab === tab
-                            ? "text-gray-900 border-b-2 border-gray-900"
-                            : "text-gray-500 hover:text-gray-700"
-                        }`}
+                        type="button"
+                        onClick={handleSaveSettings}
+                        className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
                       >
-                        {tab}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        <span className="text-sm">Save Changes</span>
                       </button>
-                    ))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : activeTab === "Activity" ? (
+                <div>
+                  <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
 
-              {/* Role */}
-              <div className="max-w-[calc(50%-12px)]">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Role
-                </label>
-                <input
-                  type="text"
-                  name="role"
-                  value={formData.role}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition text-sm"
-                />
-              </div>
+                    <div className="space-y-3">
+                      {[{
+                        title: 'Algebra Fundamentals', date: 'May 15, 2023', duration: '01 Hour', status: 'Average', statusColor: 'bg-blue-100 text-blue-700'
+                      },{
+                        title: 'Geometry Basics', date: 'May 12, 2023', duration: '01 Hour', status: 'Good', statusColor: 'bg-green-100 text-green-700'
+                      },{
+                        title: 'Calculus Introduction', date: 'May 10, 2023', duration: '02 Hours', status: 'Weak', statusColor: 'bg-yellow-100 text-yellow-700'
+                      },{
+                        title: 'Statistics Fundamentals', date: 'May 5, 2023', duration: '01 Hour', status: 'Average', statusColor: 'bg-blue-100 text-blue-700'
+                      },{
+                        title: 'Probability Theory', date: 'May 3, 2023', duration: '02 Hours', status: 'Good', statusColor: 'bg-green-100 text-green-700'
+                      }].map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-4 rounded-lg border border-gray-50 hover:shadow-sm">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-emerald-50 rounded flex items-center justify-center text-emerald-600">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6" /></svg>
+                            </div>
+                            <div>
+                              <a href="#" className="font-medium text-gray-800 hover:underline">{item.title}</a>
+                              <div className="text-xs text-gray-500">{item.date} • {item.duration}</div>
+                            </div>
+                          </div>
+                          <div>
+                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${item.statusColor}`}>{item.status}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* Change Password Section */}
-              <div className="pt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Change Password
-                </label>
-                <button 
-                  type="button"
-                  onClick={handleChangePassword}
-                  className="w-full max-w-xs px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-sm font-medium rounded-lg transition"
-                >
-                  Do you want change the password
-                </button>
-              </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-6 items-start">
+                      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col" style={{ minHeight: 550 }}>
+                        <div className="flex items-start justify-between mb-3">
+                          <h4 className="text-base font-semibold text-gray-800">Class Average</h4>
+                          <div className="text-sm bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">87.2%</div>
+                        </div>
 
-              {/* Save Button */}
-              <div className="pt-6">
-                <button
-                  onClick={handleSaveChanges}
-                  className="px-6 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-sm font-medium rounded-lg transition flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                  </svg>
-                  Save Changes
-                </button>
-              </div>
+                        <div className="flex-1 flex flex-col justify-between">
+                          {[{label:'Algebra Fundamentals', pct:85,color:'bg-blue-500'},{label:'Geometry Basics', pct:92,color:'bg-green-500'},{label:'Calculus Introduction', pct:78,color:'bg-yellow-400'},{label:'Statistics Fundamentals', pct:88,color:'bg-blue-500'},{label:'Probability Theory', pct:95,color:'bg-emerald-500'}].map((c,i)=> (
+                            <div key={i} className="flex flex-col">
+                              <div className="flex items-center justify-between text-sm text-gray-700">
+                                <span className="truncate">{c.label}</span>
+                                <span className="font-semibold text-sm">{c.pct}%</span>
+                              </div>
+                              <div className="w-full bg-gray-100 rounded-full h-3 mt-2">
+                                <div className={`h-3 rounded-full ${c.color}`} style={{ width: `${c.pct}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col" style={{ minHeight: 550 }}>
+                        <h4 className="text-base font-semibold text-gray-800">Top Performing Students</h4>
+                        <div className="mt-4 flex-1 flex flex-col justify-between divide-y divide-gray-100 overflow-hidden">
+                          {[{name:'Alex Johnson', score:'97%'},{name:'Jamie Smith', score:'95%'},{name:'Taylor Brown', score:'93%'}].map((s,i)=>(
+                            <div key={i} className="flex items-center gap-6 py-4 cursor-pointer hover:bg-gray-50 rounded-md px-3">
+                              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 font-semibold text-lg">{s.name.split(' ').map(n=>n[0]).slice(0,2).join('')}</div>
+                              <div className="flex-1">
+                                <div className="text-base font-semibold text-gray-900">{s.name}</div>
+                                <div className="text-sm text-gray-500 mt-1">{s.score} across 5 subjects</div>
+                              </div>
+                              <div className="text-base text-gray-600 font-semibold">{s.score}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between" style={{ minHeight: 550 }}>
+                        <h4 className="text-base font-semibold text-gray-800">Recent Submissions</h4>
+                        <div className="mt-4 flex-1 flex flex-col justify-between divide-y divide-gray-100 text-sm text-gray-700 overflow-hidden">
+                          {[{student:'Casey Williams', item:'Calculus Quiz 3', date:'May 16, 2023', score:'88', color:'text-blue-600'},{student:'Jordan Lee', item:'Statistics Homework', date:'May 15, 2023', score:'92', color:'text-green-600'},{student:'Riley Garcia', item:'Algebra Test', date:'May 15, 2023', score:'78', color:'text-yellow-500'}].map((r,i)=>(
+                            <div key={i} className="flex items-center justify-between py-4 cursor-pointer hover:bg-gray-50 rounded-md px-3">
+                              <div>
+                                <div className="font-semibold text-base">{r.student}</div>
+                                <div className="text-sm text-gray-500">{r.item} • {r.date}</div>
+                              </div>
+                              <div className={`text-lg font-semibold ${r.color}`}>{r.score}%</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                </div>
+              ) : (
+                <div className="max-w-4xl mx-auto bg-white rounded-2xl p-6 shadow-sm border border-gray-100" style={{ width: 564.44, height: 600 }}>
+                  <h3 className="text-lg font-semibold mb-4">Privacy & Data</h3>
+
+                  <div className="space-y-6">
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 flex items-start justify-between">
+                      <div className="max-w-[78%]">
+                        <h4 className="text-sm font-medium text-gray-900">Emotion Data Consent</h4>
+                        <p className="text-sm text-gray-500 mt-2">Allow the application to collect and analyze emotional data during quiz sessions to improve teaching experience.</p>
+                        <a href="#" className="text-sm text-emerald-600 font-medium mt-3 inline-block">Read our privacy policy</a>
+                      </div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setEmotionConsent((v) => !v)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${emotionConsent ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                          aria-pressed={emotionConsent}
+                        >
+                          <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${emotionConsent ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900">Export Your Data</h4>
+                      <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
+
+                      <div className="mt-4 space-y-4">
+                        <button className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
+                          <span className="text-sm">Export All Data</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
+                              const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
+                              const payload = { emotionConsent };
+                              if (isLocal) {
+                                localStorage.setItem('privacySettings', JSON.stringify(payload));
+                                alert('Privacy settings saved locally');
+                                return;
+                              }
+                              // persist locally for quick UI load
+                              localStorage.setItem('privacySettings', JSON.stringify(payload));
+                              alert('Privacy settings saved');
+                            } catch (err) {
+                              localStorage.setItem('privacySettings', JSON.stringify({ emotionConsent }));
+                              alert('Saved locally. Server error.');
+                            }
+                          }}
+                          className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-white border border-gray-200 text-sm text-[#19765A] hover:bg-gray-50 shadow"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                          <span>Save Privacy Settings</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           </div>
@@ -511,16 +809,16 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                             </button>
                           </div>
                   <div className="text-white mt-2" style={{ marginLeft: 20 }}>
-                    <h1 className="text-2xl font-semibold text-black">Sarah Johnson</h1>
-                    <p className="text-sm mt-2" style={{ color: 'rgba(0,0,0,0.6)' }}>Teacher • Mathematics Department</p>
-                    <p className="text-sm" style={{ color: 'rgba(0,0,0,0.6)' }}>sarah.johnson@school.edu</p>
+                    <h1 className="text-2xl font-semibold text-black">{formData.fullName}</h1>
+                    <p className="text-sm mt-2" style={{ color: 'rgba(0,0,0,0.6)' }}>{formData.role || ''}</p>
+                    <p className="text-sm" style={{ color: 'rgba(0,0,0,0.6)' }}>{formData.email}</p>
                   </div>
                 </div>
               </div>
 
               {/* Tabs below header */}
               <div className="px-6 pt-25" style={{ height: 140 }}>
-                <div className="flex items-center space-x-6 border-b border-gray-100">
+                <div className="flex items-center space-x-16 border-b border-gray-100">
                   {tabs.map((tab) => (
                     <button
                       key={tab}
@@ -537,76 +835,294 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                 </div>
               </div>
 
-              {/* Form Content (unchanged) */}
+              {/* Form Content: render according to active tab */}
               <div className="p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-6">Account Information</h2>
+                {activeTab === "Account Info" ? (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          name="fullName"
+                          value={formData.fullName}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Email Address
+                        </label>
+                        <input
+                          type="email"
+                          name="email"
+                          value={formData.email}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition text-sm"
+                        />
+                      </div>
+                    </div>
 
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
+                    <div className="max-w-[calc(50%-12px)]">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Full Name
+                        Role
                       </label>
                       <input
                         type="text"
-                        name="fullName"
-                        value={formData.fullName}
+                        name="role"
+                        value={formData.role}
                         onChange={handleInputChange}
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition text-sm"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Email Address
+
+                    <div className="pt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-3">
+                        Change Password
                       </label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition text-sm"
-                      />
+                      <button 
+                        type="button"
+                        onClick={handleChangePassword}
+                        className="w-full max-w-xs px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-sm font-medium rounded-lg transition"
+                      >
+                        Do you want change the password
+                      </button>
+                    </div>
+
+                    <div className="pt-6">
+                      <button
+                        onClick={handleSaveChanges}
+                        className="px-6 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-sm font-medium rounded-lg transition flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                        </svg>
+                        Save Changes
+                      </button>
                     </div>
                   </div>
+                ) : activeTab === "Settings" ? (
+                  <div className="max-w-4xl mx-auto bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col" style={{ width: 612.44, height: 600 }}>
+                    <h3 className="text-lg font-semibold mb-4">Notification Preferences</h3>
 
-                  <div className="max-w-[calc(50%-12px)]">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Role
-                    </label>
-                    <input
-                      type="text"
-                      name="role"
-                      value={formData.role}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition text-sm"
-                    />
-                  </div>
+                    <div className="flex-1 flex flex-col justify-between gap-6">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-medium">Email Notifications</p>
+                          <p className="text-sm text-gray-500">Receive notifications via email</p>
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setEmailNotifications((s) => !s)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${emailNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
+                            aria-pressed={emailNotifications}
+                          >
+                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${emailNotifications ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                      </div>
 
-                  <div className="pt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Change Password
-                    </label>
-                    <button 
-                      type="button"
-                      onClick={handleChangePassword}
-                      className="w-full max-w-xs px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-sm font-medium rounded-lg transition"
-                    >
-                      Do you want change the password
-                    </button>
-                  </div>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-medium">SMS Notifications</p>
+                          <p className="text-sm text-gray-500">Receive notifications via text message</p>
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setSmsNotifications((s) => !s)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${smsNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
+                            aria-pressed={smsNotifications}
+                          >
+                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${smsNotifications ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                      </div>
 
-                  <div className="pt-6">
-                    <button
-                      onClick={handleSaveChanges}
-                      className="px-6 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-sm font-medium rounded-lg transition flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                      </svg>
-                      Save Changes
-                    </button>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-medium">In-App Notifications</p>
+                          <p className="text-sm text-gray-500">Receive notifications in the application</p>
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setInAppNotifications((s) => !s)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${inAppNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
+                            aria-pressed={inAppNotifications}
+                          >
+                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${inAppNotifications ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={handleSaveSettings}
+                          className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          <span className="text-sm">Save Changes</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : activeTab === "Activity" ? (
+                  <div>
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                      <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
+
+                      <div className="space-y-3">
+                        {[{
+                          title: 'Algebra Fundamentals', date: 'May 15, 2023', duration: '01 Hour', status: 'Average', statusColor: 'bg-blue-100 text-blue-700'
+                        },{
+                          title: 'Geometry Basics', date: 'May 12, 2023', duration: '01 Hour', status: 'Good', statusColor: 'bg-green-100 text-green-700'
+                        },{
+                          title: 'Calculus Introduction', date: 'May 10, 2023', duration: '02 Hours', status: 'Weak', statusColor: 'bg-yellow-100 text-yellow-700'
+                        },{
+                          title: 'Statistics Fundamentals', date: 'May 5, 2023', duration: '01 Hour', status: 'Average', statusColor: 'bg-blue-100 text-blue-700'
+                        },{
+                          title: 'Probability Theory', date: 'May 3, 2023', duration: '02 Hours', status: 'Good', statusColor: 'bg-green-100 text-green-700'
+                        }].map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-4 rounded-lg border border-gray-50 hover:shadow-sm">
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 bg-emerald-50 rounded flex items-center justify-center text-emerald-600">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6" /></svg>
+                              </div>
+                              <div>
+                                <a href="#" className="font-medium text-gray-800 hover:underline">{item.title}</a>
+                                <div className="text-xs text-gray-500">{item.date} • {item.duration}</div>
+                              </div>
+                            </div>
+                            <div>
+                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${item.statusColor}`}>{item.status}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-6 items-start">
+                      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col" style={{ minHeight: 550 }}>
+                        <div className="flex items-start justify-between mb-3">
+                          <h4 className="text-base font-semibold text-gray-800">Class Average</h4>
+                          <div className="text-sm bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">87.2%</div>
+                        </div>
+
+                        <div className="flex-1 flex flex-col justify-between">
+                          {[{label:'Algebra Fundamentals', pct:85,color:'bg-blue-500'},{label:'Geometry Basics', pct:92,color:'bg-green-500'},{label:'Calculus Introduction', pct:78,color:'bg-yellow-400'},{label:'Statistics Fundamentals', pct:88,color:'bg-blue-500'},{label:'Probability Theory', pct:95,color:'bg-emerald-500'}].map((c,i)=> (
+                            <div key={i} className="flex flex-col">
+                              <div className="flex items-center justify-between text-sm text-gray-700">
+                                <span className="truncate">{c.label}</span>
+                                <span className="font-semibold text-sm">{c.pct}%</span>
+                              </div>
+                              <div className="w-full bg-gray-100 rounded-full h-3 mt-2">
+                                <div className={`h-3 rounded-full ${c.color}`} style={{ width: `${c.pct}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col" style={{ minHeight: 550 }}>
+                        <h4 className="text-base font-semibold text-gray-800">Top Performing Students</h4>
+                        <div className="mt-4 flex-1 flex flex-col justify-between divide-y divide-gray-100 overflow-hidden">
+                          {[{name:'Alex Johnson', score:'97%'},{name:'Jamie Smith', score:'95%'},{name:'Taylor Brown', score:'93%'}].map((s,i)=>(
+                            <div key={i} className="flex items-center gap-6 py-4 cursor-pointer hover:bg-gray-50 rounded-md px-3">
+                              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 font-semibold text-lg">{s.name.split(' ').map(n=>n[0]).slice(0,2).join('')}</div>
+                              <div className="flex-1">
+                                <div className="text-base font-semibold text-gray-900">{s.name}</div>
+                                <div className="text-sm text-gray-500 mt-1">{s.score} across 5 subjects</div>
+                              </div>
+                              <div className="text-base text-gray-600 font-semibold">{s.score}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between" style={{ minHeight: 550 }}>
+                        <h4 className="text-base font-semibold text-gray-800">Recent Submissions</h4>
+                        <div className="mt-4 flex-1 flex flex-col justify-between divide-y divide-gray-100 text-sm text-gray-700 overflow-hidden">
+                          {[{student:'Casey Williams', item:'Calculus Quiz 3', date:'May 16, 2023', score:'88', color:'text-blue-600'},{student:'Jordan Lee', item:'Statistics Homework', date:'May 15, 2023', score:'92', color:'text-green-600'},{student:'Riley Garcia', item:'Algebra Test', date:'May 15, 2023', score:'78', color:'text-yellow-500'}].map((r,i)=>(
+                            <div key={i} className="flex items-center justify-between py-4 cursor-pointer hover:bg-gray-50 rounded-md px-3">
+                              <div>
+                                <div className="font-semibold text-base">{r.student}</div>
+                                <div className="text-sm text-gray-500">{r.item} • {r.date}</div>
+                              </div>
+                              <div className={`text-lg font-semibold ${r.color}`}>{r.score}%</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="max-w-4xl mx-auto bg-white rounded-2xl p-6 shadow-sm border border-gray-100" style={{ width: 564.44, height: 600 }}>
+                    <h3 className="text-lg font-semibold mb-4">Privacy & Data</h3>
+
+                    <div className="space-y-6">
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 flex items-start justify-between">
+                        <div className="max-w-[78%]">
+                          <h4 className="text-sm font-medium text-gray-900">Emotion Data Consent</h4>
+                          <p className="text-sm text-gray-500 mt-2">Allow the application to collect and analyze emotional data during quiz sessions to improve teaching experience.</p>
+                          <a href="#" className="text-sm text-emerald-600 font-medium mt-3 inline-block">Read our privacy policy</a>
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setEmotionConsent((v) => !v)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${emotionConsent ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                            aria-pressed={emotionConsent}
+                          >
+                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${emotionConsent ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900">Export Your Data</h4>
+                        <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
+
+                        <div className="mt-4 space-y-4">
+                          <button className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
+                            <span className="text-sm">Export All Data</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
+                                const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
+                                const payload = { emotionConsent };
+                                if (isLocal) {
+                                  localStorage.setItem('privacySettings', JSON.stringify(payload));
+                                  alert('Privacy settings saved locally');
+                                  return;
+                                }
+                                localStorage.setItem('privacySettings', JSON.stringify(payload));
+                                alert('Privacy settings saved');
+                              } catch (err) {
+                                localStorage.setItem('privacySettings', JSON.stringify({ emotionConsent }));
+                                alert('Saved locally. Server error.');
+                              }
+                            }}
+                            className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-white border border-gray-200 text-sm text-[#19765A] hover:bg-gray-50 shadow"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                            <span>Save Privacy Settings</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
