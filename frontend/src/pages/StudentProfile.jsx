@@ -179,7 +179,7 @@ const Profile = () => {
 
       if (!isAdminViewing) {
         try {
-          const response = await axios.get('http://localhost:5000/api/user/profile', {
+          const response = await axios.get('http://localhost:5000/api/users/profile', {
             headers: { Authorization: `Bearer ${token}` }
           });
           
@@ -300,7 +300,7 @@ const Profile = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.put(
-        'http://localhost:5000/api/user/update-profile',
+        'http://localhost:5000/api/users/update-profile',
         formData,
         { headers: { Authorization: `Bearer ${token}` }}
       );
@@ -329,7 +329,7 @@ const Profile = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.put(
-        'http://localhost:5000/api/user/change-password',
+        'http://localhost:5000/api/users/change-password',
         {
           currentPassword: currentPassword,
           newPassword: newPassword
@@ -351,7 +351,7 @@ const Profile = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.put(
-        'http://localhost:5000/api/user/notification-settings',
+        'http://localhost:5000/api/users/notification-settings',
         notificationSettings,
         { headers: { Authorization: `Bearer ${token}` }}
       );
@@ -369,7 +369,7 @@ const Profile = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.put(
-        'http://localhost:5000/api/user/privacy-settings',
+        'http://localhost:5000/api/users/privacy-settings',
         privacySettings,
         { headers: { Authorization: `Bearer ${token}` }}
       );
@@ -386,7 +386,7 @@ const Profile = () => {
   const handleExportData = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/user/export-data', {
+      const response = await axios.get('http://localhost:5000/api/users/export-data', {
         headers: { Authorization: `Bearer ${token}` }
       });
 
