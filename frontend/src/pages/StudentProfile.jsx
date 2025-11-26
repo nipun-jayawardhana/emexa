@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -144,7 +144,7 @@ const Profile = () => {
   const adminToken = localStorage.getItem('adminToken');
   const isAdminViewing = localStorage.getItem('adminViewingAs');
   
-  // Form states
+  // Form states - Initialize with empty values to prevent re-render issues
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -162,7 +162,7 @@ const Profile = () => {
   });
 
   const [profileImage, setProfileImage] = useState(null);
-  const fileInputRef = React.useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetchUserData();
@@ -460,8 +460,8 @@ const Profile = () => {
         {/* Profile Header */}
         <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-32 rounded-t-lg"></div>
         
-        <div className="bg-white rounded-b-lg shadow-sm p-8 -mt-16">
-          <div className="flex items-start gap-6 mb-8 relative">
+        <div className="bg-white rounded-b-lg shadow-sm p-8 -mt-20">
+          <div className="flex items-center gap-6 mb-8 relative">
             <div className="relative z-10">
               <input
                 ref={fileInputRef}
@@ -484,7 +484,7 @@ const Profile = () => {
               </button>
             </div>
             
-            <div className="flex-1 mt-16">
+            <div className="flex-1 mt-12">
               <h1 className="text-2xl font-bold text-gray-900">{userData?.name || 'Student'}</h1>
               <p className="text-gray-600">{userData?.email || ''}</p>
             </div>
