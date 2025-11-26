@@ -1,5 +1,5 @@
 import express from 'express';
-import { getUsers, createUser, getDashboardData, getProfile } from '../controllers/userController.js';
+import { getUsers, createUser, getDashboardData, getProfile, updateProfileSettings } from '../controllers/userController.js';
 import { protect } from '../middleware/auth.js';
 import User from '../models/user.js';
 import Student from '../models/student.js';
@@ -14,6 +14,8 @@ router.post('/', createUser);
 // New dashboard routes
 router.get('/dashboard', protect, getDashboardData);
 router.get('/profile', protect, getProfile);
+// Update profile settings (notifications)
+router.put('/profile/settings', protect, updateProfileSettings);
 
 // === NEW ROUTES FOR USER MANAGEMENT ===
 

@@ -33,12 +33,32 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
 
   // Handle menu item click
   const handleMenuClick = (item) => {
+    // If parent provided a setter, prefer local content switching (no navigation)
     if (setActiveMenuItem) {
       setActiveMenuItem(item.id);
+      return;
     }
-    
+
+    // If the menu item provides a custom handler, call it
     if (item.onClick) {
       item.onClick();
+      return;
+    }
+
+    // Fallback: navigate based on common item ids so clicks still work when
+    // the sidebar is used in pages that expect actual routing.
+    const routeMap = {
+      dashboard: "/teacher-dashboard",
+      quizzes: "/quiz-list",
+      profile: "/teacher/profile",
+      wellness: "/wellness-centre",
+      "user-management": "/admin/user-management",
+      settings: "/settings",
+    };
+
+    const path = routeMap[item.id];
+    if (path) {
+      navigate(path);
     }
   };
 
@@ -53,16 +73,6 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
         </svg>
       ),
       onClick: () => navigate("/dashboard"),
-    },
-    {
-      id: "wellness",
-      label: "Wellness Centre",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-        </svg>
-      ),
-      onClick: () => navigate("/wellness-centre"),
     },
     {
       id: "profile",
@@ -80,21 +90,22 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
 
   return (
     <>
-      <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-gradient-to-b from-green-50 via-green-50 to-white border-r border-gray-200 overflow-y-auto">
+      <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-[#bdf2d1] border-r border-gray-200 overflow-y-auto">
         {/* Menu Items */}
         <nav className="pt-4 px-3 space-y-2">
           {items.map((item) => (
             <button
               key={item.id}
+              type="button"
               onClick={() => handleMenuClick(item)}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-lg transition text-sm whitespace-nowrap ${
+              className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-lg transition text-sm whitespace-nowrap cursor-pointer text-left pointer-events-auto select-none ${
                 activeMenuItem === item.id
                   ? "bg-white text-green-600 shadow-sm font-medium"
                   : "text-gray-700 hover:bg-white/70"
               }`}
             >
-              {item.icon}
-              <span>{item.label}</span>
+              <span className="pointer-events-none select-none">{item.icon}</span>
+              <span className="pointer-events-none select-none">{item.label}</span>
             </button>
           ))}
         </nav>
@@ -102,7 +113,8 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
         {/* Logout Button */}
         <button
           onClick={handleLogoutClick}
-          className="absolute bottom-4 left-3 right-3 flex items-center space-x-2.5 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition text-sm"
+          type="button"
+          className="absolute bottom-4 left-3 right-3 flex items-center space-x-2.5 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition text-sm cursor-pointer"
         >
           <svg
             className="w-4 h-4"
@@ -124,7 +136,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-9999 p-4"
           onClick={handleCancelLogout}
         >
           <div 
