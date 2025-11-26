@@ -1,5 +1,7 @@
 import userService from '../services/user.service.js';
 import User from '../models/user.js';
+import Student from '../models/student.js';
+import Teacher from '../models/teacher.js';
 import bcrypt from 'bcrypt';
 
 export const getUsers = async (req, res) => {
@@ -34,7 +36,18 @@ export const createUser = async (req, res) => {
 // Dashboard functions
 export const getDashboardData = async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select('-password');
+    // Try User collection first
+    let user = await User.findById(req.userId).select('-password');
+    
+    // If not found in User, try Student collection
+    if (!user) {
+      user = await Student.findById(req.userId).select('-password');
+    }
+    
+    // If still not found, try Teacher collection
+    if (!user) {
+      user = await Teacher.findById(req.userId).select('-password');
+    }
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -55,14 +68,33 @@ export const getDashboardData = async (req, res) => {
   }
 };
 
-// Profile functions - FIXED to ensure all data is returned
+// Profile functions - FIXED to check all collections
 export const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select('-password');
+    console.log('🔍 Getting profile for userId:', req.userId);
+    
+    // Try User collection first
+    let user = await User.findById(req.userId).select('-password');
+    let collectionName = 'User';
+    
+    // If not found in User, try Student collection
+    if (!user) {
+      user = await Student.findById(req.userId).select('-password');
+      collectionName = 'Student';
+    }
+    
+    // If still not found, try Teacher collection
+    if (!user) {
+      user = await Teacher.findById(req.userId).select('-password');
+      collectionName = 'Teacher';
+    }
     
     if (!user) {
+      console.error('❌ User not found in any collection. userId:', req.userId);
       return res.status(404).json({ message: 'User not found' });
     }
+
+    console.log(`✅ User found in ${collectionName} collection:`, user.email);
 
     // Return complete profile data with all fields
     const profileData = {
@@ -86,10 +118,10 @@ export const getProfile = async (req, res) => {
       upcomingQuizzes: user.upcomingQuizzes || []
     };
 
-    console.log('Sending profile data:', profileData); // Debug log
+    console.log('📤 Sending profile data:', profileData);
     res.status(200).json(profileData);
   } catch (error) {
-    console.error('Get profile error:', error);
+    console.error('❌ Get profile error:', error);
     res.status(500).json({ message: 'Error fetching profile', error: error.message });
   }
 };
@@ -99,7 +131,18 @@ export const updateProfile = async (req, res) => {
   try {
     const { name, email } = req.body;
     
-    const user = await User.findById(req.userId);
+    // Try User collection first
+    let user = await User.findById(req.userId);
+    
+    // If not in User, try Student collection
+    if (!user) {
+      user = await Student.findById(req.userId);
+    }
+    
+    // If still not found, try Teacher collection
+    if (!user) {
+      user = await Teacher.findById(req.userId);
+    }
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -107,8 +150,11 @@ export const updateProfile = async (req, res) => {
 
     // Check if email is already taken by another user
     if (email && email !== user.email) {
-      const emailExists = await User.findOne({ email, _id: { $ne: req.userId } });
-      if (emailExists) {
+      const emailExistsInUser = await User.findOne({ email, _id: { $ne: req.userId } });
+      const emailExistsInStudent = await Student.findOne({ email, _id: { $ne: req.userId } });
+      const emailExistsInTeacher = await Teacher.findOne({ email, _id: { $ne: req.userId } });
+      
+      if (emailExistsInUser || emailExistsInStudent || emailExistsInTeacher) {
         return res.status(400).json({ message: 'Email already in use' });
       }
     }
@@ -139,6 +185,8 @@ export const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     
+    console.log('🔐 Password change request for userId:', req.userId);
+    
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ message: 'Please provide all required fields' });
     }
@@ -147,17 +195,32 @@ export const changePassword = async (req, res) => {
       return res.status(400).json({ message: 'Password must be at least 6 characters long' });
     }
 
-    // Get user with password field
-    const user = await User.findById(req.userId).select('+password');
+    // Get user with password field - try all collections
+    let user = await User.findById(req.userId).select('+password');
+    let collectionName = 'User';
     
     if (!user) {
+      user = await Student.findById(req.userId).select('+password');
+      collectionName = 'Student';
+    }
+    
+    if (!user) {
+      user = await Teacher.findById(req.userId).select('+password');
+      collectionName = 'Teacher';
+    }
+    
+    if (!user) {
+      console.error('❌ User not found for password change. userId:', req.userId);
       return res.status(404).json({ message: 'User not found' });
     }
+
+    console.log(`✅ User found in ${collectionName} collection for password change`);
 
     // Verify current password
     const isMatch = await user.comparePassword(currentPassword);
     
     if (!isMatch) {
+      console.log('❌ Current password incorrect');
       return res.status(400).json({ message: 'Current password is incorrect' });
     }
 
@@ -165,9 +228,10 @@ export const changePassword = async (req, res) => {
     user.password = newPassword;
     await user.save();
 
+    console.log('✅ Password changed successfully');
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
-    console.error('Error changing password:', error);
+    console.error('❌ Error changing password:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -177,7 +241,10 @@ export const updateNotificationSettings = async (req, res) => {
   try {
     const { emailNotifications, smsNotifications, inAppNotifications } = req.body;
     
-    const user = await User.findById(req.userId);
+    // Try all collections
+    let user = await User.findById(req.userId);
+    if (!user) user = await Student.findById(req.userId);
+    if (!user) user = await Teacher.findById(req.userId);
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -206,7 +273,10 @@ export const updatePrivacySettings = async (req, res) => {
   try {
     const { emotionDataConsent } = req.body;
     
-    const user = await User.findById(req.userId);
+    // Try all collections
+    let user = await User.findById(req.userId);
+    if (!user) user = await Student.findById(req.userId);
+    if (!user) user = await Teacher.findById(req.userId);
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -231,7 +301,10 @@ export const updatePrivacySettings = async (req, res) => {
 // Export user data
 export const exportUserData = async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select('-password');
+    // Try all collections
+    let user = await User.findById(req.userId).select('-password');
+    if (!user) user = await Student.findById(req.userId).select('-password');
+    if (!user) user = await Teacher.findById(req.userId).select('-password');
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -271,7 +344,10 @@ export const uploadProfileImage = async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const user = await User.findById(req.userId);
+    // Try all collections
+    let user = await User.findById(req.userId);
+    if (!user) user = await Student.findById(req.userId);
+    if (!user) user = await Teacher.findById(req.userId);
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
