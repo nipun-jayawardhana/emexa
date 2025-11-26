@@ -1,10 +1,136 @@
-import React, { useState, useEffect } from 'react';
-import { Camera } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Camera, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/sidebarorigin';
 import Header from '../components/headerorigin';
 import AdminViewWrapper from '../components/AdminViewWrapper';
+
+// Separate Password Modal Component to prevent re-renders
+const PasswordModal = ({ isOpen, onClose, onSave }) => {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
+  // Password visibility toggles
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const handleSave = () => {
+    onSave({ currentPassword, newPassword, confirmPassword });
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+  };
+
+  const handleClose = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 shadow-2xl">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold text-gray-900">Change Password</h2>
+          <button 
+            onClick={handleClose}
+            className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+        
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Current Password</label>
+            <div className="relative">
+              <input 
+                type={showCurrentPassword ? "text" : "password"}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white"
+                placeholder="Enter current password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showCurrentPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">New Password</label>
+              <div className="relative">
+                <input 
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white"
+                  placeholder="Enter new password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">Confirm New Password</label>
+              <div className="relative">
+                <input 
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white"
+                  placeholder="Confirm new password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-4 pt-4">
+            <button 
+              onClick={handleSave}
+              type="button"
+              className="px-8 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium flex items-center gap-2"
+            >
+              <span>💾</span> Save Changes
+            </button>
+            <button 
+              onClick={handleClose}
+              type="button"
+              className="px-8 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState('account');
@@ -23,12 +149,6 @@ const Profile = () => {
     name: '',
     email: '',
     role: 'student'
-  });
-  
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
   });
   
   const [notificationSettings, setNotificationSettings] = useState({
@@ -162,14 +282,6 @@ const Profile = () => {
     }));
   };
 
-  const handlePasswordChange = (e) => {
-    const { name, value } = e.target;
-    setPasswordData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
   const handleNotificationToggle = (key) => {
     setNotificationSettings(prev => ({
       ...prev,
@@ -203,13 +315,13 @@ const Profile = () => {
     }
   };
 
-  const handleChangePassword = async () => {
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
+  const handleChangePassword = async ({ currentPassword, newPassword, confirmPassword }) => {
+    if (newPassword !== confirmPassword) {
       alert('New passwords do not match!');
       return;
     }
 
-    if (passwordData.newPassword.length < 6) {
+    if (newPassword.length < 6) {
       alert('Password must be at least 6 characters long!');
       return;
     }
@@ -219,8 +331,8 @@ const Profile = () => {
       const response = await axios.put(
         'http://localhost:5000/api/user/change-password',
         {
-          currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword
+          currentPassword: currentPassword,
+          newPassword: newPassword
         },
         { headers: { Authorization: `Bearer ${token}` }}
       );
@@ -228,7 +340,6 @@ const Profile = () => {
       if (response.data) {
         alert('Password changed successfully!');
         setShowPasswordModal(false);
-        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       }
     } catch (error) {
       console.error('Error changing password:', error);
@@ -433,16 +544,16 @@ const Profile = () => {
                 <h3 className="font-semibold text-gray-900 mb-4">Change Password</h3>
                 <button 
                   onClick={() => setShowPasswordModal(true)}
-                  className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+                  className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium"
                 >
-                  Change Password
+                  Do you want change the password
                 </button>
               </div>
 
               <div className="pt-6">
                 <button 
                   onClick={handleSaveAccountInfo}
-                  className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
+                  className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors font-medium"
                 >
                   <span>💾</span> Save Changes
                 </button>
@@ -616,69 +727,11 @@ const Profile = () => {
       </div>
 
       {/* Password Change Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold mb-6 text-gray-900">Change Password</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
-                <input 
-                  type="password"
-                  name="currentPassword"
-                  value={passwordData.currentPassword}
-                  onChange={handlePasswordChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
-                  placeholder="Enter current password"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
-                <input 
-                  type="password"
-                  name="newPassword"
-                  value={passwordData.newPassword}
-                  onChange={handlePasswordChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
-                  placeholder="Enter new password"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
-                <input 
-                  type="password"
-                  name="confirmPassword"
-                  value={passwordData.confirmPassword}
-                  onChange={handlePasswordChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
-                  placeholder="Confirm new password"
-                />
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button 
-                  onClick={handleChangePassword}
-                  className="flex-1 px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium"
-                >
-                  Save Changes
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowPasswordModal(false);
-                    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-                  }}
-                  className="flex-1 px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <PasswordModal 
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onSave={handleChangePassword}
+      />
     </div>
   );
 
