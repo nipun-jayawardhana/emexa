@@ -161,9 +161,18 @@ const Profile = () => {
     emotionDataConsent: true
   });
 
+  const [profileImage, setProfileImage] = useState(null);
+  const fileInputRef = React.useRef(null);
+
   useEffect(() => {
     fetchUserData();
     setUserName(localStorage.getItem('userName') || 'Student');
+    
+    // Load profile image from localStorage
+    const savedImage = localStorage.getItem('profileImage');
+    if (savedImage) {
+      setProfileImage(savedImage);
+    }
   }, []);
 
   const fetchUserData = async () => {
@@ -404,6 +413,36 @@ const Profile = () => {
     }
   };
 
+  const handleProfileImageClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleProfileImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size should be less than 5MB');
+        return;
+      }
+
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result;
+        setProfileImage(base64String);
+        localStorage.setItem('profileImage', base64String);
+        alert('Profile picture updated successfully!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -424,12 +463,23 @@ const Profile = () => {
         <div className="bg-white rounded-b-lg shadow-sm p-8 -mt-16">
           <div className="flex items-start gap-6 mb-8 relative">
             <div className="relative z-10">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleProfileImageChange}
+                className="hidden"
+              />
               <img 
-                src={userData?.profileImage || "https://via.placeholder.com/120"} 
+                src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"} 
                 alt="Profile" 
                 className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
               />
-              <button className="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full hover:bg-teal-700 shadow-lg transition-colors">
+              <button 
+                onClick={handleProfileImageClick}
+                type="button"
+                className="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full hover:bg-teal-700 shadow-lg transition-colors"
+              >
                 <Camera size={18} />
               </button>
             </div>
@@ -578,7 +628,13 @@ const Profile = () => {
                       onChange={() => handleNotificationToggle('emailNotifications')}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                    <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
+                      notificationSettings.emailNotifications ? 'bg-teal-600' : 'bg-gray-200'
+                    }`}>
+                      <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
+                        notificationSettings.emailNotifications ? 'translate-x-6 left-0.5' : 'left-0.5'
+                      }`}></div>
+                    </div>
                   </label>
                 </div>
 
@@ -594,7 +650,13 @@ const Profile = () => {
                       onChange={() => handleNotificationToggle('smsNotifications')}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                    <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
+                      notificationSettings.smsNotifications ? 'bg-teal-600' : 'bg-gray-200'
+                    }`}>
+                      <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
+                        notificationSettings.smsNotifications ? 'translate-x-6 left-0.5' : 'left-0.5'
+                      }`}></div>
+                    </div>
                   </label>
                 </div>
 
@@ -610,7 +672,13 @@ const Profile = () => {
                       onChange={() => handleNotificationToggle('inAppNotifications')}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                    <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
+                      notificationSettings.inAppNotifications ? 'bg-teal-600' : 'bg-gray-200'
+                    }`}>
+                      <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
+                        notificationSettings.inAppNotifications ? 'translate-x-6 left-0.5' : 'left-0.5'
+                      }`}></div>
+                    </div>
                   </label>
                 </div>
               </div>
@@ -694,7 +762,13 @@ const Profile = () => {
                         onChange={() => handlePrivacyToggle('emotionDataConsent')}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                      <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
+                        privacySettings.emotionDataConsent ? 'bg-teal-600' : 'bg-gray-200'
+                      }`}>
+                        <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
+                          privacySettings.emotionDataConsent ? 'translate-x-6 left-0.5' : 'left-0.5'
+                        }`}></div>
+                      </div>
                     </label>
                   </div>
                 </div>
