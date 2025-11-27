@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Camera, Eye, EyeOff } from "lucide-react";
 import { putJSON } from "../services/api.js";
 import tProfile from "../assets/t-profile.png";
@@ -12,6 +12,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     email: "",
     role: ""
   });
+
+  // Avatar image (data URL) for preview and persistence
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const fileInputRef = useRef(null);
 
   // Load any saved user data from localStorage when component mounts
   useEffect(() => {
@@ -44,6 +48,38 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       console.warn("Failed to load stored user data:", e);
     }
   }, []);
+
+  // Load avatar from localStorage if present
+  useEffect(() => {
+    try {
+      const storedAvatar = localStorage.getItem('avatar');
+      if (storedAvatar) setAvatarUrl(storedAvatar);
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const handleAvatarClick = () => {
+    if (fileInputRef.current) fileInputRef.current.click();
+  };
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const dataUrl = evt.target.result;
+      setAvatarUrl(dataUrl);
+      try {
+        localStorage.setItem('avatar', dataUrl);
+      } catch (err) {
+        // ignore storage errors
+      }
+    };
+    reader.readAsDataURL(file);
+    // reset input value so same file can be chosen again
+    e.target.value = '';
+  };
 
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [changePwdData, setChangePwdData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -210,6 +246,14 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
   return (
     <div className="min-h-screen bg-gray-50" style={frame ? { display: "flex", alignItems: "center", justifyContent: "center", background: "transparent" } : undefined}>
+      {/* Hidden file input for avatar upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleAvatarChange}
+        style={{ display: 'none' }}
+      />
       {/* Header */}
       {!isEmbedded && (
         <header className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 h-14 z-50">
@@ -372,6 +416,132 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                         {showPwd.current ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>
                     </div>
+                    {/* Single Privacy & Data card placed under Activity (per request) */}
+                    <div className="mt-6 bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                      <h3 className="text-lg font-semibold mb-4">Privacy & Data</h3>
+
+                      <div className="flex flex-col h-full gap-10">
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">Emotion Data Consent</h4>
+                          <div className="mt-3 flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-500">Allow the application to collect and analyze emotional data during quiz sessions to improve teaching experience.</p>
+                              <a href="#" className="text-sm text-emerald-600 font-medium mt-3 inline-block">Read our privacy policy</a>
+                            </div>
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => setEmotionConsent((v) => !v)}
+                                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${emotionConsent ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                                aria-pressed={emotionConsent}
+                              >
+                                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${emotionConsent ? 'translate-x-5' : 'translate-x-0'}`} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">Export Your Data</h4>
+                          <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
+
+                          <div className="mt-8 flex flex-col items-start gap-6">
+                            <button className="inline-flex items-center gap-3 px-5 py-3 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
+                              <span className="text-sm">Export All Data</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
+                                  const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
+                                  const payload = { emotionConsent };
+                                  if (isLocal) {
+                                    localStorage.setItem('privacySettings', JSON.stringify(payload));
+                                    alert('Privacy settings saved locally');
+                                    return;
+                                  }
+                                  localStorage.setItem('privacySettings', JSON.stringify(payload));
+                                  alert('Privacy settings saved');
+                                } catch (err) {
+                                  localStorage.setItem('privacySettings', JSON.stringify({ emotionConsent }));
+                                  alert('Saved locally. Server error.');
+                                }
+                              }}
+                              className="inline-flex items-center gap-3 px-5 py-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 shadow"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                              <span>Save Privacy Settings</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Single Privacy & Data card placed under Activity (per request) */}
+                    <div className="mt-6 bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+                      <h3 className="text-lg font-semibold mb-4">Privacy & Data</h3>
+
+                      <div className="flex flex-col h-full gap-10">
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">Emotion Data Consent</h4>
+                          <div className="mt-3 flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-500">Allow the application to collect and analyze emotional data during quiz sessions to improve teaching experience.</p>
+                              <a href="#" className="text-sm text-emerald-600 font-medium mt-3 inline-block">Read our privacy policy</a>
+                            </div>
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => setEmotionConsent((v) => !v)}
+                                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${emotionConsent ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                                aria-pressed={emotionConsent}
+                              >
+                                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${emotionConsent ? 'translate-x-5' : 'translate-x-0'}`} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">Export Your Data</h4>
+                          <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
+
+                          <div className="mt-8 flex flex-col items-start gap-6">
+                            <button className="inline-flex items-center gap-3 px-5 py-3 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
+                              <span className="text-sm">Export All Data</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
+                                  const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
+                                  const payload = { emotionConsent };
+                                  if (isLocal) {
+                                    localStorage.setItem('privacySettings', JSON.stringify(payload));
+                                    alert('Privacy settings saved locally');
+                                    return;
+                                  }
+                                  localStorage.setItem('privacySettings', JSON.stringify(payload));
+                                  alert('Privacy settings saved');
+                                } catch (err) {
+                                  localStorage.setItem('privacySettings', JSON.stringify({ emotionConsent }));
+                                  alert('Saved locally. Server error.');
+                                }
+                              }}
+                              className="inline-flex items-center gap-3 px-5 py-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 shadow"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                              <span>Save Privacy Settings</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-6 mb-4">
@@ -450,11 +620,11 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
             <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 16, padding: '8px 12px' }}>
               <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
                 <img
-                  src={tProfile}
+                  src={avatarUrl || tProfile}
                   alt="Profile"
                   style={{ width: 88, height: 88, borderRadius: '9999px', objectFit: 'cover', display: 'block', border: 'none' }}
                 />
-                <button aria-label="change-avatar" style={{ position: 'absolute', right: -6, bottom: -6, width: 36, height: 36, borderRadius: '9999px', background: '#1F2937BF', border: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:opacity-90 transition">
+                <button aria-label="change-avatar" onClick={handleAvatarClick} style={{ position: 'absolute', right: -6, bottom: -6, width: 36, height: 36, borderRadius: '9999px', background: '#1F2937BF', border: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:opacity-90 transition">
                   <Camera className="w-4 h-4 text-white" />
                 </button>
               </div>
@@ -469,7 +639,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
           </div>
 
           {/* White spacer matching green header height (separates gradient and tabs) */}
-          <div className="bg-white" style={{ height: 150 }} />
+          <div className="bg-white" style={{ height: 48 }} />
 
           {/* Form Content */}
           <div className="bg-white rounded-b-2xl p-8 shadow-sm">
@@ -479,18 +649,18 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
               {activeTab === "Account Info" ? (
                 <>
                   <div className="max-w-4xl mx-auto">
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible" style={{ width: 612.44, height: 200, position: 'relative' }}>
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible flex flex-col justify-between" style={{ width: 612.44, minHeight: 220, position: 'relative' }}>
                       {/* main container: fixed 803x216 */}
-                      <div className="bg-linear-to-r from-emerald-400 to-teal-500 px-6 py-3 relative" style={{ height: 128 }}>
+                      <div className="bg-linear-to-r from-emerald-400 to-teal-500 px-6 py-3 relative" style={{ height: 88 }}>
                         {/* Combined centered block inside inner account container */}
                         <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px' }}>
                           <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
                             <img
-                              src={tProfile}
+                              src={avatarUrl || tProfile}
                               alt="Profile"
                               style={{ width: 88, height: 88, borderRadius: '9999px', objectFit: 'cover', display: 'block', border: 'none' }}
                             />
-                            <button aria-label="change-avatar" style={{ position: 'absolute', right: -6, bottom: -6, width: 36, height: 36, borderRadius: '9999px', background: '#1F2937BF', border: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:opacity-90 transition">
+                            <button aria-label="change-avatar" onClick={handleAvatarClick} style={{ position: 'absolute', right: -6, bottom: -6, width: 36, height: 36, borderRadius: '9999px', background: '#1F2937BF', border: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:opacity-90 transition">
                               <Camera className="w-4 h-4 text-white" />
                             </button>
                           </div>
@@ -503,24 +673,25 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                         </div>
                       </div>
 
-                      {/* White spacer under inner gradient to match its height */}
-                      <div style={{ height: 128 }} className="bg-white" />
-
-                      {/* Tabs inside the inner account container, anchored to its bottom */}
-                      <div style={{ position: 'absolute', left: 16, right: 16, bottom: 12 }} className="flex justify-start gap-16">
-                        {tabs.map((tab) => (
-                          <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`px-4 py-2 text-sm font-medium transition relative ${
-                              activeTab === tab
-                                ? "text-gray-900 border-b-2 border-gray-900"
-                                : "text-gray-500 hover:text-gray-700"
-                            }`}
-                          >
-                            {tab}
-                          </button>
-                        ))}
+                      {/* Replace fixed spacer + absolute tabs with flex-based footer */}
+                      <div className="flex-1 flex items-end">
+                        <div className="w-full px-4" style={{ paddingBottom: 50 }}>
+                          <div className="flex justify-start gap-16">
+                            {tabs.map((tab) => (
+                              <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab)}
+                                className={`px-4 py-2 text-sm font-medium transition relative ${
+                                  activeTab === tab
+                                    ? "text-gray-900 border-b-2 border-gray-900"
+                                    : "text-gray-500 hover:text-gray-700"
+                                }`}
+                              >
+                                {tab}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -567,7 +738,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                   </div>
                 </>
               ) : activeTab === "Settings" ? (
-                <div className="max-w-4xl mx-auto bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col" style={{ width: 612.44, height: 600 }}>
+                <div className="max-w-4xl mx-auto">
                   <h3 className="text-lg font-semibold mb-4">Notification Preferences</h3>
 
                   <div className="flex-1 flex flex-col justify-between gap-6">
@@ -723,26 +894,28 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                       </div>
                     </div>
                 </div>
-              ) : (
-                <div className="max-w-4xl mx-auto bg-white rounded-2xl p-6 shadow-sm border border-gray-100" style={{ width: 564.44, height: 600 }}>
-                  <h3 className="text-lg font-semibold mb-4">Privacy & Data</h3>
+                ) : (
+                  <div className="max-w-4xl mx-auto">
+                    <h3 className="text-lg font-semibold mb-4">Privacy & Data</h3>
 
-                  <div className="space-y-6">
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 flex items-start justify-between">
-                      <div className="max-w-[78%]">
-                        <h4 className="text-sm font-medium text-gray-900">Emotion Data Consent</h4>
-                        <p className="text-sm text-gray-500 mt-2">Allow the application to collect and analyze emotional data during quiz sessions to improve teaching experience.</p>
-                        <a href="#" className="text-sm text-emerald-600 font-medium mt-3 inline-block">Read our privacy policy</a>
-                      </div>
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => setEmotionConsent((v) => !v)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${emotionConsent ? 'bg-emerald-600' : 'bg-gray-300'}`}
-                          aria-pressed={emotionConsent}
-                        >
-                          <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${emotionConsent ? 'translate-x-5' : 'translate-x-0'}`} />
-                        </button>
+                    <div className="flex flex-col gap-8">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900">Emotion Data Consent</h4>
+                      <div className="mt-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-500">Allow the application to collect and analyze emotional data during quiz sessions to improve teaching experience.</p>
+                          <a href="#" className="text-sm text-emerald-600 font-medium mt-3 inline-block">Read our privacy policy</a>
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setEmotionConsent((v) => !v)}
+                            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${emotionConsent ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                            aria-pressed={emotionConsent}
+                          >
+                            <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${emotionConsent ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -750,7 +923,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                       <h4 className="text-sm font-medium text-gray-900">Export Your Data</h4>
                       <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
 
-                      <div className="mt-4 space-y-4">
+                      <div className="mt-6 flex flex-col items-start gap-4">
                         <button className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
                           <span className="text-sm">Export All Data</span>
@@ -768,7 +941,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                                 alert('Privacy settings saved locally');
                                 return;
                               }
-                              // persist locally for quick UI load
                               localStorage.setItem('privacySettings', JSON.stringify(payload));
                               alert('Privacy settings saved');
                             } catch (err) {
@@ -776,7 +948,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                               alert('Saved locally. Server error.');
                             }
                           }}
-                          className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-white border border-gray-200 text-sm text-[#19765A] hover:bg-gray-50 shadow"
+                          className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 shadow"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
                           <span>Save Privacy Settings</span>
@@ -795,16 +967,16 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
           <div className="max-w-4xl mx-auto" style={frame ? { height: '100%', overflow: 'auto' } : undefined}>
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               {/* large gradient header area */}
-              <div className="relative bg-linear-to-r from-emerald-400 to-teal-500 rounded-t-2xl" style={{ height: 140 }}>
+              <div className="relative bg-linear-to-r from-emerald-400 to-teal-500 rounded-t-2xl" style={{ height: 120 }}>
                     {/* Combined centered block for embedded/frame header (text stays white here) */}
                     <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px' }}>
                           <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent' }}>
                             <img
-                              src={tProfile}
+                              src={avatarUrl || tProfile}
                               alt="Profile"
                               style={{ width: 88, height: 88, borderRadius: '9999px', objectFit: 'cover', boxShadow: '0 2px 6px rgba(0,0,0,0.04)', border: 'none' }}
                             />
-                            <button aria-label="change-avatar" style={{ position: 'absolute', right: -6, bottom: -6, width: 36, height: 36, borderRadius: '9999px', background: '#1F2937BF', border: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:opacity-90 transition">
+                            <button aria-label="change-avatar" onClick={handleAvatarClick} style={{ position: 'absolute', right: -6, bottom: -6, width: 36, height: 36, borderRadius: '9999px', background: '#1F2937BF', border: 'none', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:opacity-90 transition">
                               <Camera className="w-4 h-4 text-white" />
                             </button>
                           </div>
@@ -817,7 +989,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
               </div>
 
               {/* Tabs below header */}
-              <div className="px-6 pt-25" style={{ height: 140 }}>
+              <div className="px-6 pt-25" style={{ height: 88, paddingBottom: 50 }}>
                 <div className="flex items-center space-x-16 border-b border-gray-100">
                   {tabs.map((tab) => (
                     <button
@@ -836,7 +1008,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
               </div>
 
               {/* Form Content: render according to active tab */}
-              <div className="p-6">
+              <div className="p-6" style={{ minHeight: 220 }}>
                 {activeTab === "Account Info" ? (
                   <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-6">
@@ -856,13 +1028,9 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Email Address
                         </label>
-                        <input
-                          type="email"
-                          name="email"
-                          value={formData.email}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition text-sm"
-                        />
+                        <button type="button" disabled aria-disabled="true" className="w-full text-left px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700 cursor-not-allowed">
+                          {formData.email}
+                        </button>
                       </div>
                     </div>
 
@@ -870,13 +1038,9 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Role
                       </label>
-                      <input
-                        type="text"
-                        name="role"
-                        value={formData.role}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition text-sm"
-                      />
+                      <button type="button" disabled aria-disabled="true" className="w-full text-left px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700 cursor-not-allowed">
+                        {formData.role}
+                      </button>
                     </div>
 
                     <div className="pt-4">
@@ -905,72 +1069,72 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                     </div>
                   </div>
                 ) : activeTab === "Settings" ? (
-                  <div className="max-w-4xl mx-auto bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col" style={{ width: 612.44, height: 600 }}>
+                  <div className="max-w-4xl mx-auto">
                     <h3 className="text-lg font-semibold mb-4">Notification Preferences</h3>
 
-                    <div className="flex-1 flex flex-col justify-between gap-6">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium">Email Notifications</p>
-                          <p className="text-sm text-gray-500">Receive notifications via email</p>
-                        </div>
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() => setEmailNotifications((s) => !s)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${emailNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
-                            aria-pressed={emailNotifications}
-                          >
-                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${emailNotifications ? 'translate-x-5' : 'translate-x-0'}`} />
-                          </button>
-                        </div>
+                  <div className="flex-1 flex flex-col justify-between gap-8">
+                    <div className="flex items-center justify-between py-4">
+                      <div>
+                        <p className="font-medium">Email Notifications</p>
+                        <p className="text-sm text-gray-500">Receive notifications via email</p>
                       </div>
-
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium">SMS Notifications</p>
-                          <p className="text-sm text-gray-500">Receive notifications via text message</p>
-                        </div>
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() => setSmsNotifications((s) => !s)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${smsNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
-                            aria-pressed={smsNotifications}
-                          >
-                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${smsNotifications ? 'translate-x-5' : 'translate-x-0'}`} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium">In-App Notifications</p>
-                          <p className="text-sm text-gray-500">Receive notifications in the application</p>
-                        </div>
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() => setInAppNotifications((s) => !s)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${inAppNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
-                            aria-pressed={inAppNotifications}
-                          >
-                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${inAppNotifications ? 'translate-x-5' : 'translate-x-0'}`} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="pt-2">
+                      <div>
                         <button
                           type="button"
-                          onClick={handleSaveSettings}
-                          className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                          onClick={() => setEmailNotifications((s) => !s)}
+                          className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${emailNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
+                          aria-pressed={emailNotifications}
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                          <span className="text-sm">Save Changes</span>
+                          <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${emailNotifications ? 'translate-x-6' : 'translate-x-0'}`} />
                         </button>
                       </div>
                     </div>
+
+                    <div className="flex items-center justify-between py-4">
+                      <div>
+                        <p className="font-medium">SMS Notifications</p>
+                        <p className="text-sm text-gray-500">Receive notifications via text message</p>
+                      </div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setSmsNotifications((s) => !s)}
+                          className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${smsNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
+                          aria-pressed={smsNotifications}
+                        >
+                          <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${smsNotifications ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-4">
+                      <div>
+                        <p className="font-medium">In-App Notifications</p>
+                        <p className="text-sm text-gray-500">Receive notifications in the application</p>
+                      </div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setInAppNotifications((s) => !s)}
+                          className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${inAppNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
+                          aria-pressed={inAppNotifications}
+                        >
+                          <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${inAppNotifications ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveSettings}
+                        className="inline-flex items-center gap-3 px-5 py-3 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        <span className="text-sm">Save Changes</span>
+                      </button>
+                    </div>
+                  </div>
                   </div>
                 ) : activeTab === "Activity" ? (
                   <div>
@@ -1062,65 +1226,67 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                     </div>
                   </div>
                 ) : (
-                  <div className="max-w-4xl mx-auto bg-white rounded-2xl p-6 shadow-sm border border-gray-100" style={{ width: 564.44, height: 600 }}>
+                  <div className="max-w-4xl mx-auto">
                     <h3 className="text-lg font-semibold mb-4">Privacy & Data</h3>
 
-                    <div className="space-y-6">
-                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 flex items-start justify-between">
-                        <div className="max-w-[78%]">
-                          <h4 className="text-sm font-medium text-gray-900">Emotion Data Consent</h4>
-                          <p className="text-sm text-gray-500 mt-2">Allow the application to collect and analyze emotional data during quiz sessions to improve teaching experience.</p>
-                          <a href="#" className="text-sm text-emerald-600 font-medium mt-3 inline-block">Read our privacy policy</a>
-                        </div>
+                      <div className="flex flex-col gap-8">
                         <div>
-                          <button
-                            type="button"
-                            onClick={() => setEmotionConsent((v) => !v)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${emotionConsent ? 'bg-emerald-600' : 'bg-gray-300'}`}
-                            aria-pressed={emotionConsent}
-                          >
-                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${emotionConsent ? 'translate-x-5' : 'translate-x-0'}`} />
-                          </button>
+                          <h4 className="text-sm font-medium text-gray-900">Emotion Data Consent</h4>
+                          <div className="mt-3 flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-500">Allow the application to collect and analyze emotional data during quiz sessions to improve teaching experience.</p>
+                              <a href="#" className="text-sm text-emerald-600 font-medium mt-3 inline-block">Read our privacy policy</a>
+                            </div>
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => setEmotionConsent((v) => !v)}
+                                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${emotionConsent ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                                aria-pressed={emotionConsent}
+                              >
+                                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${emotionConsent ? 'translate-x-5' : 'translate-x-0'}`} />
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
 
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900">Export Your Data</h4>
-                        <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">Export Your Data</h4>
+                          <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
 
-                        <div className="mt-4 space-y-4">
-                          <button className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
-                            <span className="text-sm">Export All Data</span>
-                          </button>
+                          <div className="mt-6 flex flex-col items-start gap-4">
+                            <button className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
+                              <span className="text-sm">Export All Data</span>
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
-                                const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
-                                const payload = { emotionConsent };
-                                if (isLocal) {
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
+                                  const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
+                                  const payload = { emotionConsent };
+                                  if (isLocal) {
+                                    localStorage.setItem('privacySettings', JSON.stringify(payload));
+                                    alert('Privacy settings saved locally');
+                                    return;
+                                  }
                                   localStorage.setItem('privacySettings', JSON.stringify(payload));
-                                  alert('Privacy settings saved locally');
-                                  return;
+                                  alert('Privacy settings saved');
+                                } catch (err) {
+                                  localStorage.setItem('privacySettings', JSON.stringify({ emotionConsent }));
+                                  alert('Saved locally. Server error.');
                                 }
-                                localStorage.setItem('privacySettings', JSON.stringify(payload));
-                                alert('Privacy settings saved');
-                              } catch (err) {
-                                localStorage.setItem('privacySettings', JSON.stringify({ emotionConsent }));
-                                alert('Saved locally. Server error.');
-                              }
-                            }}
-                            className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-white border border-gray-200 text-sm text-[#19765A] hover:bg-gray-50 shadow"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                            <span>Save Privacy Settings</span>
-                          </button>
+                              }}
+                              className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 shadow"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                              <span>Save Privacy Settings</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
                   </div>
                 )}
               </div>
