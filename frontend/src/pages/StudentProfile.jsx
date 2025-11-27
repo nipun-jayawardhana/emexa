@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -11,7 +11,7 @@ const PasswordModal = ({ isOpen, onClose, onSave }) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+
   // Password visibility toggles
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -38,7 +38,7 @@ const PasswordModal = ({ isOpen, onClose, onSave }) => {
       <div className="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 shadow-2xl">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-gray-900">Change Password</h2>
-          <button 
+          <button
             onClick={handleClose}
             className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
             type="button"
@@ -46,12 +46,12 @@ const PasswordModal = ({ isOpen, onClose, onSave }) => {
             ×
           </button>
         </div>
-        
+
         <div className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">Current Password</label>
             <div className="relative">
-              <input 
+              <input
                 type={showCurrentPassword ? "text" : "password"}
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
@@ -72,7 +72,7 @@ const PasswordModal = ({ isOpen, onClose, onSave }) => {
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-2">New Password</label>
               <div className="relative">
-                <input 
+                <input
                   type={showNewPassword ? "text" : "password"}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -92,7 +92,7 @@ const PasswordModal = ({ isOpen, onClose, onSave }) => {
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-2">Confirm New Password</label>
               <div className="relative">
-                <input 
+                <input
                   type={showConfirmPassword ? "text" : "password"}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -111,14 +111,14 @@ const PasswordModal = ({ isOpen, onClose, onSave }) => {
           </div>
 
           <div className="flex gap-4 pt-4">
-            <button 
+            <button
               onClick={handleSave}
               type="button"
               className="px-8 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium flex items-center gap-2"
             >
-              <span>💾</span> Save Changes
+              <span>Save Changes</span>
             </button>
-            <button 
+            <button
               onClick={handleClose}
               type="button"
               className="px-8 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
@@ -133,54 +133,62 @@ const PasswordModal = ({ isOpen, onClose, onSave }) => {
 };
 
 const Profile = () => {
+  const navigate = useNavigate();
+
   const [activeTab, setActiveTab] = useState('account');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [activeMenuItem, setActiveMenuItem] = useState('profile');
-  const navigate = useNavigate();
 
-  const adminToken = localStorage.getItem('adminToken');
-  const isAdminViewing = localStorage.getItem('adminViewingAs');
-  
-  // Form states
+  // Read these once and store in state to prevent re-renders
+  const [adminToken] = useState(() => localStorage.getItem('adminToken'));
+  const [isAdminViewing] = useState(() => localStorage.getItem('adminViewingAs'));
+
+  // Form states - Initialize with empty values to prevent re-render issues
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     role: 'student'
   });
-  
+
   const [notificationSettings, setNotificationSettings] = useState({
     emailNotifications: true,
     smsNotifications: false,
     inAppNotifications: true
   });
-  
+
   const [privacySettings, setPrivacySettings] = useState({
     emotionDataConsent: true
   });
 
   const [profileImage, setProfileImage] = useState(null);
-  const fileInputRef = React.useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
-    fetchUserData();
-    setUserName(localStorage.getItem('userName') || 'Student');
-    
-    // Load profile image from localStorage
-    const savedImage = localStorage.getItem('profileImage');
-    if (savedImage) {
-      setProfileImage(savedImage);
-    }
-  }, []);
+    const loadInitialData = async () => {
+      await fetchUserData();
+      setUserName(localStorage.getItem('userName') || 'Student');
+
+      // Load profile image from localStorage
+      const savedImage = localStorage.getItem('profileImage');
+      if (savedImage) {
+        setProfileImage(savedImage);
+      }
+    };
+
+    loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array ensures this only runs once on mount
 
   const fetchUserData = async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem('token');
       const storedUserName = localStorage.getItem('userName');
       const storedUserEmail = localStorage.getItem('userEmail');
-      
+
       if (!token && !adminToken) {
         navigate('/login');
         return;
@@ -191,32 +199,32 @@ const Profile = () => {
           const response = await axios.get('http://localhost:5000/api/users/profile', {
             headers: { Authorization: `Bearer ${token}` }
           });
-          
+
           const user = response.data;
-          console.log('✅ Fetched user data:', user);
+          console.log('Fetched user data:', user);
           setUserData(user);
-          
-          // Set form data from API response
+
+          // FIXED: Direct assignment without prev
           setFormData({
             name: user.name || storedUserName || '',
             email: user.email || storedUserEmail || '',
             role: user.role || 'student'
           });
-          
+
           setNotificationSettings(user.notificationSettings || {
             emailNotifications: true,
             smsNotifications: false,
             inAppNotifications: true
           });
-          
+
           setPrivacySettings(user.privacySettings || {
             emotionDataConsent: true
           });
         } catch (apiError) {
-          console.error('❌ API Error:', apiError);
-          
+          console.error('API Error:', apiError);
+
           // Fallback to localStorage data if API fails
-          console.log('⚠️ Using fallback data from localStorage');
+          console.log('Using fallback data from localStorage');
           const fallbackData = {
             name: storedUserName || 'Student',
             email: storedUserEmail || 'student@school.edu',
@@ -232,8 +240,9 @@ const Profile = () => {
               emotionDataConsent: true
             }
           };
-          
+
           setUserData(fallbackData);
+          // FIXED: Direct assignment without prev
           setFormData({
             name: fallbackData.name,
             email: fallbackData.email,
@@ -260,6 +269,7 @@ const Profile = () => {
           }
         };
         setUserData(mockData);
+        // FIXED: Direct assignment without prev
         setFormData({
           name: mockData.name,
           email: mockData.email,
@@ -269,15 +279,18 @@ const Profile = () => {
         setPrivacySettings(mockData.privacySettings);
       }
     } catch (error) {
-      console.error('💥 Critical error:', error);
-      // Set minimal fallback data
-      const minimalData = {
+      console.error('Critical error:', error);
+      // FIXED: Direct assignment without prev
+      setFormData({
         name: localStorage.getItem('userName') || 'Student',
         email: 'student@school.edu',
         role: 'student'
-      };
-      setFormData(minimalData);
-      setUserData(minimalData);
+      });
+      setUserData({
+        name: localStorage.getItem('userName') || 'Student',
+        email: 'student@school.edu',
+        role: 'student'
+      });
     } finally {
       setLoading(false);
     }
@@ -285,10 +298,13 @@ const Profile = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prevData => {
+      if (prevData[name] === value) return prevData;
+      return {
+        ...prevData,
+        [name]: value
+      };
+    });
   };
 
   const handleNotificationToggle = (key) => {
@@ -308,15 +324,23 @@ const Profile = () => {
   const handleSaveAccountInfo = async () => {
     try {
       const token = localStorage.getItem('token');
+      // Create a copy to avoid state mutation
+      const dataToSave = { ...formData };
       const response = await axios.put(
         'http://localhost:5000/api/users/update-profile',
-        formData,
+        dataToSave,
         { headers: { Authorization: `Bearer ${token}` }}
       );
-
       if (response.data) {
         alert('Profile updated successfully!');
-        fetchUserData();
+        // Update localStorage with new values
+        localStorage.setItem('userName', dataToSave.name);
+        localStorage.setItem('userEmail', dataToSave.email);
+        // Refresh user data without resetting form
+        setUserData(prev => ({
+          ...prev,
+          ...dataToSave
+        }));
       }
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -329,12 +353,10 @@ const Profile = () => {
       alert('New passwords do not match!');
       return;
     }
-
     if (newPassword.length < 6) {
       alert('Password must be at least 6 characters long!');
       return;
     }
-
     try {
       const token = localStorage.getItem('token');
       const response = await axios.put(
@@ -345,7 +367,6 @@ const Profile = () => {
         },
         { headers: { Authorization: `Bearer ${token}` }}
       );
-
       if (response.data) {
         alert('Password changed successfully!');
         setShowPasswordModal(false);
@@ -364,7 +385,6 @@ const Profile = () => {
         notificationSettings,
         { headers: { Authorization: `Bearer ${token}` }}
       );
-
       if (response.data) {
         alert('Notification settings saved successfully!');
       }
@@ -382,7 +402,6 @@ const Profile = () => {
         privacySettings,
         { headers: { Authorization: `Bearer ${token}` }}
       );
-
       if (response.data) {
         alert('Privacy settings saved successfully!');
       }
@@ -398,7 +417,6 @@ const Profile = () => {
       const response = await axios.get('http://localhost:5000/api/users/export-data', {
         headers: { Authorization: `Bearer ${token}` }
       });
-
       const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -425,13 +443,11 @@ const Profile = () => {
         alert('File size should be less than 5MB');
         return;
       }
-
       // Check file type
       if (!file.type.startsWith('image/')) {
         alert('Please select an image file');
         return;
       }
-
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result;
@@ -454,15 +470,20 @@ const Profile = () => {
     );
   }
 
-  const ProfileContent = () => (
+  const profileContent = (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Profile Header */}
-        <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-32 rounded-t-lg"></div>
-        
-        <div className="bg-white rounded-b-lg shadow-sm p-8 -mt-16">
-          <div className="flex items-start gap-6 mb-8 relative">
-            <div className="relative z-10">
+        {/* Profile Header - Equal Green and White Bar with Profile at Middle */}
+        <div className="relative">
+          {/* Green Bar */}
+          <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-24 rounded-t-lg"></div>
+          
+          {/* White Bar */}
+          <div className="bg-white h-24"></div>
+          
+          {/* Profile Info at the Exact Middle - Left Aligned */}
+          <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 z-10">
+            <div className="relative">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -470,12 +491,14 @@ const Profile = () => {
                 onChange={handleProfileImageChange}
                 className="hidden"
               />
-              <img 
-                src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"} 
-                alt="Profile" 
-                className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
-              />
-              <button 
+              <div className="bg-white rounded-full p-1 shadow-lg">
+                <img
+                  src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"}
+                  alt="Profile"
+                  className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
+                />
+              </div>
+              <button
                 onClick={handleProfileImageClick}
                 type="button"
                 className="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full hover:bg-teal-700 shadow-lg transition-colors"
@@ -484,20 +507,23 @@ const Profile = () => {
               </button>
             </div>
             
-            <div className="flex-1 mt-16">
-              <h1 className="text-2xl font-bold text-gray-900">{userData?.name || 'Student'}</h1>
-              <p className="text-gray-600">{userData?.email || ''}</p>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">{userData?.name || 'Student'}</h1>
+              <p className="text-gray-600 text-sm">{userData?.email || ''}</p>
             </div>
           </div>
+        </div>
+
+        <div className="bg-white rounded-b-lg shadow-sm p-8">
 
           {/* Tabs */}
           <div className="mb-8">
             <div className="flex gap-8 border-b border-gray-200">
-              <button 
+              <button
                 onClick={() => setActiveTab('account')}
                 className={`pb-4 px-2 transition relative ${
-                  activeTab === 'account' 
-                    ? 'text-teal-600 font-medium' 
+                  activeTab === 'account'
+                    ? 'text-teal-600 font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
@@ -506,11 +532,11 @@ const Profile = () => {
                   <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
                 )}
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('settings')}
                 className={`pb-4 px-2 transition relative ${
-                  activeTab === 'settings' 
-                    ? 'text-teal-600 font-medium' 
+                  activeTab === 'settings'
+                    ? 'text-teal-600 font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
@@ -519,11 +545,11 @@ const Profile = () => {
                   <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
                 )}
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('activity')}
                 className={`pb-4 px-2 transition relative ${
-                  activeTab === 'activity' 
-                    ? 'text-teal-600 font-medium' 
+                  activeTab === 'activity'
+                    ? 'text-teal-600 font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
@@ -532,11 +558,11 @@ const Profile = () => {
                   <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
                 )}
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('privacy')}
                 className={`pb-4 px-2 transition relative ${
-                  activeTab === 'privacy' 
-                    ? 'text-teal-600 font-medium' 
+                  activeTab === 'privacy'
+                    ? 'text-teal-600 font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
@@ -552,28 +578,30 @@ const Profile = () => {
           {activeTab === 'account' && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-900">Account Information</h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                  <input 
+                  <input
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
+                    autoComplete="off"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
                     placeholder="Enter your full name"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                  <input 
+                  <input
                     type="email"
                     name="email"
                     value={formData.email}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
+                    disabled
+                    autoComplete="off"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
                     placeholder="Enter your email"
                   />
                 </div>
@@ -581,7 +609,7 @@ const Profile = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                <input 
+                <input
                   type="text"
                   value={formData.role}
                   disabled
@@ -591,7 +619,7 @@ const Profile = () => {
 
               <div className="pt-4">
                 <h3 className="font-semibold text-gray-900 mb-4">Change Password</h3>
-                <button 
+                <button
                   onClick={() => setShowPasswordModal(true)}
                   className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium"
                 >
@@ -600,11 +628,11 @@ const Profile = () => {
               </div>
 
               <div className="pt-6">
-                <button 
+                <button
                   onClick={handleSaveAccountInfo}
                   className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors font-medium"
                 >
-                  <span>💾</span> Save Changes
+                  <span>Save Changes</span>
                 </button>
               </div>
             </div>
@@ -613,7 +641,7 @@ const Profile = () => {
           {activeTab === 'settings' && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-900">Notification Preferences</h2>
-              
+
               <div className="space-y-6">
                 <div className="flex items-center justify-between py-4">
                   <div>
@@ -621,8 +649,8 @@ const Profile = () => {
                     <p className="text-sm text-gray-600">Receive notifications via email</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer ml-4">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       checked={notificationSettings.emailNotifications}
                       onChange={() => handleNotificationToggle('emailNotifications')}
                       className="sr-only peer"
@@ -643,8 +671,8 @@ const Profile = () => {
                     <p className="text-sm text-gray-600">Receive notifications via text message</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer ml-4">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       checked={notificationSettings.smsNotifications}
                       onChange={() => handleNotificationToggle('smsNotifications')}
                       className="sr-only peer"
@@ -665,8 +693,8 @@ const Profile = () => {
                     <p className="text-sm text-gray-600">Receive notifications in the application</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer ml-4">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       checked={notificationSettings.inAppNotifications}
                       onChange={() => handleNotificationToggle('inAppNotifications')}
                       className="sr-only peer"
@@ -683,11 +711,11 @@ const Profile = () => {
               </div>
 
               <div className="pt-4">
-                <button 
+                <button
                   onClick={handleSaveNotifications}
                   className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
                 >
-                  <span>💾</span> Save Changes
+                  <span>Save Changes</span>
                 </button>
               </div>
             </div>
@@ -696,7 +724,7 @@ const Profile = () => {
           {activeTab === 'activity' && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
-              
+
               {userData?.recentActivity && userData.recentActivity.length > 0 ? (
                 <div className="space-y-4">
                   {userData.recentActivity.map((activity, index) => (
@@ -706,15 +734,15 @@ const Profile = () => {
                           <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
                         </svg>
                       </div>
-                      
+
                       <div className="flex-1">
                         <h3 className="font-medium text-teal-600">{activity.title}</h3>
                         <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
-                          <span>📅 {new Date(activity.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                          <span>🔄 Attempts: {activity.attempts || 1}</span>
+                          <span>Calendar {new Date(activity.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                          <span>Attempts: {activity.attempts || 1}</span>
                         </div>
                       </div>
-                      
+
                       {activity.score && (
                         <div className={`px-3 py-1 rounded-full text-sm font-medium ${
                           activity.score >= 90 ? 'bg-green-100 text-green-800' :
@@ -742,10 +770,10 @@ const Profile = () => {
           {activeTab === 'privacy' && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-900">Privacy & Data</h2>
-              
+
               <div className="space-y-4">
                 <h3 className="font-semibold text-gray-900">Emotion Data Consent</h3>
-                
+
                 <div className="bg-gray-50 p-6 rounded-lg">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
@@ -755,8 +783,8 @@ const Profile = () => {
                       <a href="#" className="text-sm text-teal-600 hover:underline">Read our privacy policy</a>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         checked={privacySettings.emotionDataConsent}
                         onChange={() => handlePrivacyToggle('emotionDataConsent')}
                         className="sr-only peer"
@@ -777,20 +805,20 @@ const Profile = () => {
                   <p className="text-sm text-gray-600 mb-4">
                     Download a copy of your personal data and activity history. The export includes your profile information, quiz history, and performance data.
                   </p>
-                  <button 
+                  <button
                     onClick={handleExportData}
                     className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
                   >
-                    <span>⬇️</span> Export All Data
+                    <span>Export All Data</span>
                   </button>
                 </div>
 
                 <div className="pt-6">
-                  <button 
+                  <button
                     onClick={handleSavePrivacy}
                     className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
                   >
-                    <span>💾</span> Save Privacy Settings
+                    <span>Save Privacy Settings</span>
                   </button>
                 </div>
               </div>
@@ -800,7 +828,7 @@ const Profile = () => {
       </div>
 
       {/* Password Change Modal */}
-      <PasswordModal 
+      <PasswordModal
         isOpen={showPasswordModal}
         onClose={() => setShowPasswordModal(false)}
         onSave={handleChangePassword}
@@ -812,7 +840,7 @@ const Profile = () => {
   if (isAdminViewing && adminToken) {
     return (
       <AdminViewWrapper dashboardType="student">
-        <ProfileContent />
+        {profileContent}
       </AdminViewWrapper>
     );
   }
@@ -823,7 +851,7 @@ const Profile = () => {
       <Header userName={userName} userRole="student" />
       <Sidebar activeMenuItem={activeMenuItem} setActiveMenuItem={setActiveMenuItem} />
       <div className="ml-52 pt-14">
-        <ProfileContent />
+        {profileContent}
       </div>
     </div>
   );
