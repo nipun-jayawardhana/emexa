@@ -154,11 +154,13 @@ const StudentDashboard = () => {
               <button className="text-green-600 text-xs font-medium hover:underline">View All</button>
             </div>
             <div className="space-y-3">
-              {(dashboardData?.upcomingQuizzes || [
-                { title: "Matrix", date: "2025-10-20", description: "Prepare for your Matrix quiz by revising matrix operations, determinants, and inverse concepts to strengthen your problem-solving skills." },
-                { title: "Vectors", date: "2025-10-25", description: "Review vector basics, dot and cross products, and geometric interpretations to get ready for your Vectors quiz." },
-                { title: "Limits", date: "2025-10-30", description: "Study the fundamentals of limits, continuity, and approaching values to perform well in your Limits quiz." },
-              ]).map((quiz, index) => (
+              {((dashboardData?.upcomingQuizzes && dashboardData.upcomingQuizzes.length > 0)
+                ? dashboardData.upcomingQuizzes
+                : [
+                  { title: "Matrix", date: "2025-10-20", description: "Prepare for your Matrix quiz by revising matrix operations, determinants, and inverse concepts to strengthen your problem-solving skills." },
+                  { title: "Vectors", date: "2025-10-25", description: "Review vector basics, dot and cross products, and geometric interpretations to get ready for your Vectors quiz." },
+                  { title: "Limits", date: "2025-10-30", description: "Study the fundamentals of limits, continuity, and approaching values to perform well in your Limits quiz." },
+                ]).map((quiz, index) => (
                 <div key={index} className="flex items-start justify-between p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition">
                   <div className="flex-1 pr-4">
                     <h3 className="font-semibold text-gray-900 text-sm mb-0.5">{quiz.title}</h3>
@@ -192,11 +194,13 @@ const StudentDashboard = () => {
               <button className="text-green-600 text-xs font-medium hover:underline">View All</button>
             </div>
             <div className="divide-y divide-gray-100">
-              {(dashboardData?.recentActivity || [
-                { type: "Completed Quiz", title: "Limits Basics", date: "2025-10-10", score: 85, status: "completed" },
-                { type: "Started Quiz", title: "Trigonometry Fundamentals", date: "2025-10-09", status: "in-progress" },
-                { type: "Viewed Results", title: "History Timeline", date: "2025-10-07", score: 78, status: "viewed" },
-              ]).map((activity, index) => (
+              {((dashboardData?.recentActivity && dashboardData.recentActivity.length > 0)
+                ? dashboardData.recentActivity
+                : [
+                  { type: "Completed Quiz", title: "Limits Basics", date: "2025-10-10", score: 85, status: "completed" },
+                  { type: "Started Quiz", title: "Trigonometry Fundamentals", date: "2025-10-09", status: "in-progress" },
+                  { type: "Viewed Results", title: "History Timeline", date: "2025-10-07", score: 78, status: "viewed" },
+                ]).map((activity, index) => (
                 <div key={index} className="flex items-center justify-between py-3 first:pt-0">
                   <div>
                     <p className="font-semibold text-gray-900 text-sm">{activity.type}</p>
