@@ -473,12 +473,17 @@ const Profile = () => {
   const profileContent = (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Profile Header */}
-        <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-32 rounded-t-lg"></div>
-
-        <div className="bg-white rounded-b-lg shadow-sm p-8 -mt-20">
-          <div className="flex items-center gap-6 mb-8 relative">
-            <div className="relative z-10">
+        {/* Profile Header - Equal Green and White Bar with Profile at Middle */}
+        <div className="relative">
+          {/* Green Bar */}
+          <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-24 rounded-t-lg"></div>
+          
+          {/* White Bar */}
+          <div className="bg-white h-24"></div>
+          
+          {/* Profile Info at the Exact Middle - Left Aligned */}
+          <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 z-10">
+            <div className="relative">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -486,11 +491,13 @@ const Profile = () => {
                 onChange={handleProfileImageChange}
                 className="hidden"
               />
-              <img
-                src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"}
-                alt="Profile"
-                className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
-              />
+              <div className="bg-white rounded-full p-1 shadow-lg">
+                <img
+                  src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"}
+                  alt="Profile"
+                  className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
+                />
+              </div>
               <button
                 onClick={handleProfileImageClick}
                 type="button"
@@ -499,12 +506,15 @@ const Profile = () => {
                 <Camera size={18} />
               </button>
             </div>
-
-            <div className="flex-1 mt-12">
-              <h1 className="text-2xl font-bold text-gray-900">{userData?.name || 'Student'}</h1>
-              <p className="text-gray-600">{userData?.email || ''}</p>
+            
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">{userData?.name || 'Student'}</h1>
+              <p className="text-gray-600 text-sm">{userData?.email || ''}</p>
             </div>
           </div>
+        </div>
+
+        <div className="bg-white rounded-b-lg shadow-sm p-8">
 
           {/* Tabs */}
           <div className="mb-8">
