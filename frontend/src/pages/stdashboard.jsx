@@ -32,7 +32,7 @@ const StudentDashboard = () => {
       // Only fetch real data if not admin viewing
       if (!isAdminViewing) {
         const response = await axios.get(
-          "http://localhost:5000/api/user/dashboard",
+           "http://localhost:5000/api/users/dashboard",
           {
             headers: {
               Authorization: `Bearer ${token}`,
