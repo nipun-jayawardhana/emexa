@@ -1,10 +1,55 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+
+const LogoutModal = ({ isOpen, onConfirm, onCancel }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-8 max-w-sm w-full text-center shadow-xl">
+        {/* Checkmark Icon */}
+        <div className="flex justify-center mb-6">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Title and Message */}
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Are you sure?</h2>
+        <p className="text-gray-600 text-sm mb-6">You will be logged out of your account.</p>
+
+        {/* Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition font-medium text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition font-medium text-sm"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
   const navigate = useNavigate();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleLogoutClick = () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setShowLogoutModal(false);
     // Clear all auth data
     localStorage.removeItem("token");
     localStorage.removeItem("userName");
@@ -19,6 +64,10 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
     sessionStorage.removeItem("userRole");
 
     navigate("/logout");
+  };
+
+  const handleCancelLogout = () => {
+    setShowLogoutModal(false);
   };
 
   // Handle menu item click
@@ -99,7 +148,8 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
   const items = menuItems || defaultMenuItems;
 
   return (
-    <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-gradient-to-b from-green-50 via-green-50 to-white border-r border-gray-200 overflow-y-auto">
+    <>
+      <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-gradient-to-b from-green-50 via-green-50 to-white border-r border-gray-200 overflow-y-auto">
       {/* Menu Items */}
       <nav className="pt-4 px-3 space-y-2">
         {items.map((item) => (
@@ -138,7 +188,15 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
         </svg>
         <span>Log Out</span>
       </button>
-    </div>
+      </div>
+
+      {/* Logout Modal */}
+      <LogoutModal
+        isOpen={showLogoutModal}
+        onConfirm={handleConfirmLogout}
+        onCancel={handleCancelLogout}
+      />
+    </>
   );
 };
 
