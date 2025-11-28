@@ -241,6 +241,18 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
     }
   }, []);
 
+  // Listen for draft updates from other components (same-window)
+  useEffect(() => {
+    const handleDraftsUpdated = () => {
+      const saved = localStorage.getItem("quizDrafts");
+      setDraftQuizzes(saved ? JSON.parse(saved) : []);
+    };
+
+    window.addEventListener("quizDraftsUpdated", handleDraftsUpdated);
+    return () =>
+      window.removeEventListener("quizDraftsUpdated", handleDraftsUpdated);
+  }, []);
+
   const handleBackToQuizzes = () => {
     setActiveMenuItem("quizzes");
   };
