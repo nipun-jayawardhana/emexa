@@ -292,6 +292,14 @@ const TeacherCreateQuiz = ({ setActiveMenuItem, editingDraftId }) => {
     }
 
     localStorage.setItem("quizDrafts", JSON.stringify(updatedDrafts));
+    // Notify other parts of the app (same-window) that drafts have been updated
+    // so the draft list can reload without requiring a remount.
+    try {
+      window.dispatchEvent(new Event("quizDraftsUpdated"));
+    } catch (e) {
+      // ignore in SSR or restrictive envs
+    }
+
     setActiveMenuItem("quiz-drafts");
   };
 
