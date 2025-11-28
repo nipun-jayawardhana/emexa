@@ -6,9 +6,14 @@ const Header = ({ userName, userRole }) => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userName");
-    navigate("/login");
+    // Show confirmation dialog
+    const confirmed = window.confirm("Are you sure you want to log out?");
+    
+    if (confirmed) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("userName");
+      navigate("/login");
+    }
   };
 
   // Read profile image from localStorage so header updates when user changes it
