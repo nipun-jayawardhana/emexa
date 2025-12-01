@@ -8,26 +8,42 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
   });
 
   useEffect(() => {
-    // Load quiz data from localStorage
-    const savedDrafts = localStorage.getItem("quizDrafts");
-    if (savedDrafts) {
-      const drafts = JSON.parse(savedDrafts);
+    const loadStats = () => {
+      // Load quiz data from localStorage
+      const savedDrafts = localStorage.getItem("quizDrafts");
+      if (savedDrafts) {
+        const drafts = JSON.parse(savedDrafts);
 
-      // Calculate stats
-      const draftCount = drafts.filter(
-        (q) => !q.isScheduled && q.progress < 100
-      ).length;
-      const scheduledCount = drafts.filter((q) => q.isScheduled).length;
-      const activeCount = drafts.filter(
-        (q) => q.progress === 100 && !q.isScheduled
-      ).length;
+        // Calculate stats
+        const scheduledCount = drafts.filter((q) => q.isScheduled).length;
+        const draftCount = drafts.filter((q) => !q.isScheduled).length;
+        const activeCount = 0; // Can be updated based on your business logic
 
-      setQuizStats({
-        active: activeCount,
-        drafts: draftCount,
-        scheduled: scheduledCount,
-      });
-    }
+        setQuizStats({
+          active: activeCount,
+          drafts: draftCount,
+          scheduled: scheduledCount,
+        });
+      } else {
+        // If no drafts exist, set all to 0
+        setQuizStats({
+          active: 0,
+          drafts: 0,
+          scheduled: 0,
+        });
+      }
+    };
+
+    loadStats();
+
+    // Listen for quiz draft updates to refresh stats
+    window.addEventListener("quizDraftsUpdated", loadStats);
+    window.addEventListener("storage", loadStats);
+
+    return () => {
+      window.removeEventListener("quizDraftsUpdated", loadStats);
+      window.removeEventListener("storage", loadStats);
+    };
   }, []);
 
   return (
@@ -41,7 +57,10 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {/* Active Quizzes */}
-        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+        <div
+          onClick={() => setActiveMenuItem("quiz-drafts")}
+          className="bg-white rounded-xl p-5 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:shadow-[0_8px_16px_rgba(0,0,0,0.3)] transition"
+        >
           <div className="flex items-start gap-3 mb-3">
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
               <svg
@@ -70,7 +89,10 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
         </div>
 
         {/* Drafts */}
-        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+        <div
+          onClick={() => setActiveMenuItem("quiz-drafts")}
+          className="bg-white rounded-xl p-5 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:shadow-[0_8px_16px_rgba(0,0,0,0.3)] transition"
+        >
           <div className="flex items-start gap-3 mb-3">
             <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center shrink-0">
               <svg
@@ -97,7 +119,10 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
         </div>
 
         {/* Scheduled */}
-        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+        <div
+          onClick={() => setActiveMenuItem("quiz-drafts")}
+          className="bg-white rounded-xl p-5 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:shadow-[0_8px_16px_rgba(0,0,0,0.3)] transition"
+        >
           <div className="flex items-start gap-3 mb-3">
             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center shrink-0">
               <svg

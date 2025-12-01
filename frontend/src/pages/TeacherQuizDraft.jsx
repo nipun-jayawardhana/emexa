@@ -81,7 +81,7 @@ const CustomTimePicker = ({ value, onChange, label }) => {
             className="fixed inset-0 z-40"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-64">
+          <div className="fixed z-50 left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-64 max-h-[400px]">
             <div className="flex gap-2 mb-4">
               {/* Hours */}
               <div className="flex-1">
@@ -458,21 +458,6 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                 </svg>
                 Continue Editing
               </button>
-              <button className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm transition">
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-                  />
-                </svg>
-              </button>
               <button
                 onClick={() => confirmDelete(quiz)}
                 className="px-4 py-2.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 font-medium text-sm transition"
@@ -494,29 +479,6 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
             </div>
           </div>
         ))}
-      </div>
-
-      {/* Create New Button */}
-      <div className="mt-6">
-        <button
-          onClick={() => setActiveMenuItem("create-quiz")}
-          className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-dashed border-gray-300 text-gray-700 rounded-lg hover:border-teal-500 hover:text-teal-600 font-medium text-sm transition w-full md:w-auto justify-center"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4v16m8-8H4"
-            />
-          </svg>
-          Create New Quiz
-        </button>
       </div>
 
       {/* Schedule Modal */}
