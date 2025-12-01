@@ -365,28 +365,3 @@ export const uploadProfileImage = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
-export const updateProfileSettings = async (req, res) => {
-  try {
-    const { emailNotifications, smsNotifications, inAppNotifications } = req.body;
-
-    const updated = await User.findByIdAndUpdate(
-      req.userId,
-      { $set: {
-        'settings.notifications.email': !!emailNotifications,
-        'settings.notifications.sms': !!smsNotifications,
-        'settings.notifications.inApp': !!inAppNotifications,
-      } },
-      { new: true }
-    ).select('-password');
-
-    if (!updated) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    return res.status(200).json({ settings: updated.settings });
-  } catch (error) {
-    console.error('Update profile settings error:', error);
-    return res.status(500).json({ message: 'Error updating settings', error: error.message });
-  }
-};

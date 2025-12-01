@@ -8,10 +8,9 @@ import Sidebar from "../components/sidebarorigin";
 import TeacherQuizzes from "./TeacherQuizzes";
 import TeacherCreateQuiz from "./TeacherCreateQuiz";
 import TeacherQuizDraft from "./TeacherQuizDraft";
-import TeacherProfile from "./TeacherProfile";
 
-const TeacherDashboard = ({ initialMenu = "dashboard" }) => {
-  const [activeMenuItem, setActiveMenuItem] = useState(initialMenu);
+const TeacherDashboard = () => {
+  const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
   const [userName, setUserName] = useState("");
   const [editingDraftId, setEditingDraftId] = useState(null);
 
@@ -122,7 +121,7 @@ const TeacherDashboard = ({ initialMenu = "dashboard" }) => {
           />
         );
       case "profile":
-        return <TeacherProfile embedded={true} />;
+        return <ProfileContent />;
       default:
         return <DashboardContent />;
     }
@@ -637,83 +636,6 @@ const DashboardContent = () => {
     </div>
   );
 };
-
-// Quizzes Content Component
-const QuizzesContent = () => {
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Quizzes</h1>
-      <p className="text-gray-600 mb-6">
-        Create and manage quizzes for your students
-      </p>
-
-      <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Recent Quizzes
-          </h2>
-          <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-medium">
-            + Create Quiz
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          {[
-            {
-              title: "Mathematics Final Exam",
-              students: 24,
-              completed: 18,
-              date: "2024-03-15",
-            },
-            {
-              title: "Physics Quiz 3",
-              students: 28,
-              completed: 28,
-              date: "2024-03-10",
-            },
-            {
-              title: "Chemistry Lab Test",
-              students: 22,
-              completed: 15,
-              date: "2024-03-08",
-            },
-          ].map((quiz, index) => (
-            <div
-              key={index}
-              className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <h3 className="font-semibold text-gray-900">{quiz.title}</h3>
-                  <p className="text-sm text-gray-500">Due: {quiz.date}</p>
-                </div>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    quiz.completed === quiz.students
-                      ? "bg-green-100 text-green-700"
-                      : "bg-yellow-100 text-yellow-700"
-                  }`}
-                >
-                  {quiz.completed}/{quiz.students} Completed
-                </span>
-              </div>
-              <div className="flex space-x-2">
-                <button className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-xs font-medium transition">
-                  View Results
-                </button>
-                <button className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-xs font-medium transition">
-                  Edit
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
 
 // Profile Content Component
 const ProfileContent = () => {
