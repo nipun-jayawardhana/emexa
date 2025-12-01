@@ -88,7 +88,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
       label: "Dashboard",
       icon: (
         <svg
-          className="w-5 h-5"
+          className="w-5 h-5 pointer-events-none"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -108,7 +108,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
       label: "Wellness Centre",
       icon: (
         <svg
-          className="w-5 h-5"
+          className="w-5 h-5 pointer-events-none"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -128,7 +128,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
       label: "Profile",
       icon: (
         <svg
-          className="w-5 h-5"
+          className="w-5 h-5 pointer-events-none"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -149,45 +149,47 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
 
   return (
     <>
-      <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-gradient-to-b from-green-50 via-green-50 to-white border-r border-gray-200 overflow-y-auto">
-      {/* Menu Items */}
-      <nav className="pt-4 px-3 space-y-2">
-        {items.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => handleMenuClick(item)}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-lg transition text-sm whitespace-nowrap ${
-              activeMenuItem === item.id
-                ? "bg-white text-green-600 shadow-sm font-medium"
-                : "text-gray-700 hover:bg-white/70"
-            }`}
-          >
-            {item.icon}
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
+      <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-gradient-to-b from-green-50 via-green-50 to-white border-r border-gray-200 overflow-y-auto z-60">
+        {/* Menu Items */}
+        <nav className="pt-6 px-3 space-y-2">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => handleMenuClick(item)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition text-sm font-medium cursor-pointer ${
+                activeMenuItem === item.id
+                  ? "bg-white text-green-600 shadow-sm"
+                  : "text-gray-700 hover:bg-white/70"
+              }`}
+            >
+              <span className="pointer-events-none">{item.icon}</span>
+              <span className="flex-1 text-left">{item.label}</span>
+            </button>
+          ))}
+        </nav>
 
-      {/* Logout Button */}
-      <button
-        onClick={handleLogoutClick}
-        className="absolute bottom-4 left-3 right-3 flex items-center space-x-2.5 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition text-sm"
-      >
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+        {/* Logout Button */}
+        <button
+          type="button"
+          onClick={handleLogoutClick}
+          className="absolute bottom-4 left-3 right-3 flex items-center gap-2.5 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition text-sm font-medium cursor-pointer"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-          />
-        </svg>
-        <span>Log Out</span>
-      </button>
+          <svg
+            className="w-4 h-4 pointer-events-none"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+            />
+          </svg>
+          <span>Log Out</span>
+        </button>
       </div>
 
       {/* Logout Modal */}
