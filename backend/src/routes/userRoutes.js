@@ -3,7 +3,7 @@ import {
   getUsers, 
   createUser, 
   getDashboardData, 
-  getProfile,
+  getProfile, updateProfileSettings,
   updateProfile,
   changePassword,
   updateNotificationSettings,
@@ -34,6 +34,13 @@ router.get('/', protect, getUsers);
 router.post('/', createUser);
 
 // === USER MANAGEMENT ROUTES ===
+// New dashboard routes
+router.get('/dashboard', protect, getDashboardData);
+router.get('/profile', protect, getProfile);
+// Update profile settings (notifications)
+router.put('/profile/settings', protect, updateProfileSettings);
+
+// === NEW ROUTES FOR USER MANAGEMENT ===
 
 // Get all users from all collections (User, Student, Teacher)
 router.get('/all-users', async (req, res) => {
