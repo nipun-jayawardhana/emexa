@@ -19,6 +19,15 @@ const Sidebar = ({ activeMenu = 'User Management' }) => {
       ),
     },
     {
+      id: 'wellness',
+      name: 'Wellness Centre',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+        </svg>
+      ),
+    },
+    {
       id: 'profile',
       name: 'Profile',
       icon: (
@@ -49,19 +58,19 @@ const Sidebar = ({ activeMenu = 'User Management' }) => {
   ];
 
   return (
-      <div className="w-64 bg-[#bdf2d1] min-h-screen flex flex-col">
+    <div className="w-64 bg-green-100 min-h-screen flex flex-col">
       <div className="flex-1 pt-6">
         {menuItems.map((item) => (
-            <button
+          <button
             key={item.id}
-            className={`w-full flex items-center gap-3 px-6 py-3 text-left transition-colors cursor-pointer select-none ${
+            className={`w-full flex items-center gap-3 px-6 py-3 text-left transition-colors ${
               activeMenu === item.name
                 ? 'bg-white text-gray-900 font-medium border-l-4 border-green-600'
-                : 'text-gray-700 hover:bg-[#bdf2d1]/80'
+                : 'text-gray-700 hover:bg-green-50'
             }`}
           >
-            <span className="pointer-events-none select-none">{item.icon}</span>
-            <span className="text-sm pointer-events-none select-none">{item.name}</span>
+            {item.icon}
+            <span className="text-sm">{item.name}</span>
           </button>
         ))}
       </div>
