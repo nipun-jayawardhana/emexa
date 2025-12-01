@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import logo from "../assets/auth-pages-images/EMEXA Logo.png";
 import api from "../lib/api";
 import "./Form.css";
-import { Link } from "react-router-dom";
 
 export default function ForgotPassword() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
@@ -34,14 +35,21 @@ export default function ForgotPassword() {
       .then((res) => {
         console.log("✅ Password reset response:", res);
         setSent(true);
-        setSuccess("✅ Password reset link sent! Check your email.");
 
-        // Clear success message and redirect after 4 seconds
+        // Generate a demo reset code (6 digits)
+        const demoResetCode = Math.floor(
+          100000 + Math.random() * 900000
+        ).toString();
+        setSuccess(`✅ Reset code: ${demoResetCode} - Redirecting...`);
+
+        // Redirect to reset password page after 2 seconds with reset code
         setTimeout(() => {
-          setSent(false);
-          setSuccess("");
-          window.location.hash = "#/login";
-        }, 4000);
+          navigate(
+            `/reset-password?email=${encodeURIComponent(
+              email
+            )}&token=${demoResetCode}`
+          );
+        }, 2000);
       })
       .catch((err) => {
         console.error("❌ Password reset failed:", err);

@@ -1,6 +1,57 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+const LogoutModal = ({ isOpen, onConfirm, onCancel }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-8 max-w-sm w-full text-center shadow-xl">
+        {/* Checkmark Icon */}
+        <div className="flex justify-center mb-6">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+            <svg
+              className="w-8 h-8 text-green-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+        </div>
+
+        {/* Title and Message */}
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Are you sure?</h2>
+        <p className="text-gray-600 text-sm mb-6">
+          You will be logged out of your account.
+        </p>
+
+        {/* Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition font-medium text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition font-medium text-sm"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -10,6 +61,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
   };
 
   const handleConfirmLogout = () => {
+    setShowLogoutModal(false);
     // Clear all auth data
     localStorage.removeItem("token");
     localStorage.removeItem("userName");
@@ -22,8 +74,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("userName");
     sessionStorage.removeItem("userRole");
-    
-    setShowLogoutModal(false);
+
     navigate("/logout");
   };
 
@@ -68,18 +119,58 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
       id: "dashboard",
       label: "Dashboard",
       icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        <svg
+          className="w-5 h-5 pointer-events-none"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+          />
         </svg>
       ),
       onClick: () => navigate("/dashboard"),
     },
     {
+      id: "wellness",
+      label: "Wellness Centre",
+      icon: (
+        <svg
+          className="w-5 h-5 pointer-events-none"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+          />
+        </svg>
+      ),
+      onClick: () => navigate("/wellness-centre"),
+    },
+    {
       id: "profile",
       label: "Profile",
       icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        <svg
+          className="w-5 h-5 pointer-events-none"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+          />
         </svg>
       ),
       onClick: () => navigate("/profile"),
@@ -112,12 +203,13 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
 
         {/* Logout Button */}
         <button
+          type="button"
           onClick={handleLogoutClick}
           type="button"
-          className="absolute bottom-4 left-3 right-3 flex items-center space-x-2.5 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition text-sm cursor-pointer"
+          className="absolute bottom-4 left-3 right-3 flex items-center gap-2.5 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition text-sm cursor-pointer font-medium cursor-pointer"
         >
           <svg
-            className="w-4 h-4"
+            className="w-4 h-4 pointer-events-none"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"

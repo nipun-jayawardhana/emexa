@@ -6,10 +6,18 @@ const Header = ({ userName, userRole }) => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userName");
-    navigate("/login");
+    // Show confirmation dialog
+    const confirmed = window.confirm("Are you sure you want to log out?");
+    
+    if (confirmed) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("userName");
+      navigate("/login");
+    }
   };
+
+  // Read profile image from localStorage so header updates when user changes it
+  const profileImage = typeof window !== 'undefined' ? localStorage.getItem('profileImage') : null;
 
   return (
     <header className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 h-14 z-50">
@@ -62,13 +70,21 @@ const Header = ({ userName, userRole }) => {
           {/* User Profile - Display Only */}
           <div className="relative">
             <div className="flex items-center space-x-2 hover:bg-gray-100 px-2 py-1.5 rounded-lg transition ml-1">
-              <div
-                className={`w-7 h-7 ${
-                  userRole === "teacher" ? "bg-purple-600" : "bg-blue-600"
-                } rounded-full flex items-center justify-center text-white font-semibold text-xs`}
-              >
-                {userName?.charAt(0).toUpperCase() || "A"}
-              </div>
+              {profileImage ? (
+                <img
+                  src={profileImage}
+                  alt={userName || 'User'}
+                  className="w-7 h-7 rounded-full object-cover shadow-sm"
+                />
+              ) : (
+                <div
+                  className={`w-7 h-7 ${
+                    userRole === "teacher" ? "bg-purple-600" : "bg-blue-600"
+                  } rounded-full flex items-center justify-center text-white font-semibold text-xs`}
+                >
+                  {userName?.charAt(0).toUpperCase() || "A"}
+                </div>
+              )}
               <span className="font-medium text-gray-900 text-sm">
                 {userName || "User"}
               </span>

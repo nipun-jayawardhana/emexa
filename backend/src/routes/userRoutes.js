@@ -1,5 +1,15 @@
 import express from 'express';
-import { getUsers, createUser, getDashboardData, getProfile, updateProfileSettings } from '../controllers/userController.js';
+import { 
+  getUsers, 
+  createUser, 
+  getDashboardData, 
+  getProfile, updateProfileSettings,
+  updateProfile,
+  changePassword,
+  updateNotificationSettings,
+  updatePrivacySettings,
+  exportUserData
+} from '../controllers/userController.js';
 import { protect } from '../middleware/auth.js';
 import User from '../models/user.js';
 import Student from '../models/student.js';
@@ -7,10 +17,23 @@ import Teacher from '../models/teacher.js';
 
 const router = express.Router();
 
-// Existing routes
+// === PROFILE ROUTES - MUST BE BEFORE GENERAL ROUTES ===
+// These specific routes must come first to avoid conflicts
+
+// Profile management routes
+router.get('/profile', protect, getProfile);
+router.put('/update-profile', protect, updateProfile);
+router.put('/change-password', protect, changePassword);
+router.put('/notification-settings', protect, updateNotificationSettings);
+router.put('/privacy-settings', protect, updatePrivacySettings);
+router.get('/export-data', protect, exportUserData);
+router.get('/dashboard', protect, getDashboardData);
+
+// === GENERAL USER ROUTES ===
 router.get('/', protect, getUsers);
 router.post('/', createUser);
 
+// === USER MANAGEMENT ROUTES ===
 // New dashboard routes
 router.get('/dashboard', protect, getDashboardData);
 router.get('/profile', protect, getProfile);

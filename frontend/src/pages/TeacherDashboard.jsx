@@ -1,11 +1,22 @@
+// frontend/src/pages/TeacherDashboard.jsx
+// COMPLETE VERSION with all graphs and student overview
+
 import React, { useState, useEffect } from "react";
+import AdminViewWrapper from "../components/AdminViewWrapper";
 import Header from "../components/headerorigin";
 import Sidebar from "../components/sidebarorigin";
+import TeacherQuizzes from "./TeacherQuizzes";
+import TeacherCreateQuiz from "./TeacherCreateQuiz";
+import TeacherQuizDraft from "./TeacherQuizDraft";
 import TeacherProfile from "./TeacherProfile";
 
 const TeacherDashboard = ({ initialMenu = "dashboard" }) => {
   const [activeMenuItem, setActiveMenuItem] = useState(initialMenu);
   const [userName, setUserName] = useState("");
+  const [editingDraftId, setEditingDraftId] = useState(null);
+
+  const adminToken = localStorage.getItem("adminToken");
+  const isAdminViewing = localStorage.getItem("adminViewingAs");
 
   useEffect(() => {
     const storedUserName = localStorage.getItem("userName");
@@ -14,7 +25,21 @@ const TeacherDashboard = ({ initialMenu = "dashboard" }) => {
     }
   }, []);
 
-  // Teacher-specific menu items including Quizzes
+  // Clear editingDraftId when navigating to create-quiz without coming from draft
+  useEffect(() => {
+    if (activeMenuItem === "create-quiz" && !editingDraftId) {
+      // User navigated to create-quiz directly (not from "Continue Editing")
+      // editingDraftId should already be null, but ensure it
+      setEditingDraftId(null);
+    } else if (
+      activeMenuItem !== "create-quiz" &&
+      activeMenuItem !== "quiz-drafts"
+    ) {
+      // Clear editingDraftId when navigating away from quiz-related pages
+      setEditingDraftId(null);
+    }
+  }, [activeMenuItem]);
+
   const teacherMenuItems = [
     {
       id: "dashboard",
@@ -80,7 +105,22 @@ const TeacherDashboard = ({ initialMenu = "dashboard" }) => {
       case "dashboard":
         return <DashboardContent />;
       case "quizzes":
-        return <QuizzesContent />;
+        return <TeacherQuizzes setActiveMenuItem={setActiveMenuItem} />;
+      case "create-quiz":
+        return (
+          <TeacherCreateQuiz
+            setActiveMenuItem={setActiveMenuItem}
+            editingDraftId={editingDraftId}
+            setEditingDraftId={setEditingDraftId}
+          />
+        );
+      case "quiz-drafts":
+        return (
+          <TeacherQuizDraft
+            setActiveMenuItem={setActiveMenuItem}
+            setEditingDraftId={setEditingDraftId}
+          />
+        );
       case "profile":
         return <TeacherProfile embedded={true} />;
       default:
@@ -88,25 +128,36 @@ const TeacherDashboard = ({ initialMenu = "dashboard" }) => {
     }
   };
 
+  const PageLayout = ({ children }) => (
+    <div className="bg-gradient-to-br from-green-50 to-white min-h-screen">
+      {children}
+    </div>
+  );
+
+  // Check both adminToken AND isAdminViewing
+  if (isAdminViewing && adminToken) {
+    return (
+      <AdminViewWrapper dashboardType="teacher">
+        <PageLayout>{renderContent()}</PageLayout>
+      </AdminViewWrapper>
+    );
+  }
+
+  // Regular teacher view
   return (
     <div className="bg-gradient-to-br from-green-50 to-white min-h-screen">
-      {/* Header */}
       <Header userName={userName} userRole="teacher" />
-
-      {/* Sidebar */}
       <Sidebar
         activeMenuItem={activeMenuItem}
         setActiveMenuItem={setActiveMenuItem}
         menuItems={teacherMenuItems}
       />
-
-      {/* Main Content */}
       <div className="ml-52 pt-14">{renderContent()}</div>
     </div>
   );
 };
 
-// Dashboard Content Component
+// Dashboard Content Component - COMPLETE WITH ALL GRAPHS
 const DashboardContent = () => {
   return (
     <div className="p-6">
@@ -315,8 +366,8 @@ const DashboardContent = () => {
         </div>
       </div>
 
-      {/* Engagement Trend */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Engagement Trend & Emotional State - Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Engagement Trend Chart */}
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -372,6 +423,7 @@ const DashboardContent = () => {
                   vectorEffect="non-scaling-stroke"
                 />
               </svg>
+
               {/* Data points overlay */}
               <div className="absolute inset-0">
                 <div
@@ -495,7 +547,7 @@ const DashboardContent = () => {
       </div>
 
       {/* Student Overview */}
-      <div className="bg-white rounded-xl p-6 border border-gray-200 mt-6 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Student Overview
@@ -671,7 +723,6 @@ const ProfileContent = () => {
       <p className="text-gray-600 mb-6">
         Manage your account settings and preferences
       </p>
-
       <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
         <p className="text-gray-600">Profile settings coming soon...</p>
       </div>
