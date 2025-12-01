@@ -57,10 +57,4 @@ router.get(
   teacherController.getRecentQuizzes
 );
 
-// Profile routes
-router.get('/profile', protect, authorize('teacher'), teacherController.getProfile);
-
-// Password change route
-router.put('/change-password', protect, authorize('teacher'), teacherController.changePassword);
-
 export default router;
