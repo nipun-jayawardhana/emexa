@@ -13,11 +13,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     role: ""
   });
 
-  // Avatar image (data URL) for preview and persistence
   const [avatarUrl, setAvatarUrl] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Load any saved user data from localStorage when component mounts
+  // Load user data from localStorage
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem("user");
@@ -32,24 +31,22 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         return;
       }
 
-          // Fallback to individual keys if present
-          const storedName = localStorage.getItem("userName") || localStorage.getItem("name");
-          const storedEmail = localStorage.getItem("email");
-          const storedRole = localStorage.getItem("userRole") || localStorage.getItem("role");
-          const capRole = storedRole ? (storedRole.charAt(0).toUpperCase() + storedRole.slice(1)) : storedRole;
-          setFormData((prev) => ({
-            ...prev,
-            fullName: storedName || prev.fullName,
-            email: storedEmail || prev.email,
-            role: capRole || prev.role,
-          }));
+      const storedName = localStorage.getItem("userName") || localStorage.getItem("name");
+      const storedEmail = localStorage.getItem("email");
+      const storedRole = localStorage.getItem("userRole") || localStorage.getItem("role");
+      const capRole = storedRole ? (storedRole.charAt(0).toUpperCase() + storedRole.slice(1)) : storedRole;
+      setFormData((prev) => ({
+        ...prev,
+        fullName: storedName || prev.fullName,
+        email: storedEmail || prev.email,
+        role: capRole || prev.role,
+      }));
     } catch (e) {
-      // ignore parse errors
       console.warn("Failed to load stored user data:", e);
     }
   }, []);
 
-  // Load avatar from localStorage if present
+  // Load avatar from localStorage
   useEffect(() => {
     try {
       const storedAvatar = localStorage.getItem('avatar');
@@ -73,23 +70,20 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       try {
         localStorage.setItem('avatar', dataUrl);
       } catch (err) {
-        // ignore storage errors
+        // ignore
       }
     };
     reader.readAsDataURL(file);
-    // reset input value so same file can be chosen again
     e.target.value = '';
   };
 
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [changePwdData, setChangePwdData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
-  const [showPwd, setShowPwd] = useState({ current: false, new: false, confirm: false });
 
-  // Settings toggles (Notification preferences)
+  // Settings toggles
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [smsNotifications, setSmsNotifications] = useState(false);
   const [inAppNotifications, setInAppNotifications] = useState(true);
-  // Privacy toggles
   const [emotionConsent, setEmotionConsent] = useState(true);
 
   // Load settings from localStorage
@@ -109,10 +103,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
   const userName = formData.fullName ? formData.fullName.split(" ")[0] : "";
   const userRole = (formData.role || "").toLowerCase();
-
   const tabs = ["Account Info", "Settings", "Activity", "Privacy & Data"];
-
-  
 
   const menuItems = [
     {
@@ -147,7 +138,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     let newValue = value;
-    // Ensure role's first letter is capitalized
     if (name === "role") {
       newValue = value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
     }
@@ -157,6 +147,51 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     }));
   };
 
+  const handleSubmitChangePassword = async () => {
+    const { currentPassword, newPassword, confirmPassword } = changePwdData;
+    
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      alert('Please fill all fields.');
+      return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+      alert('New password and confirmation do not match.');
+      return;
+    }
+    
+    if (newPassword.length < 6) {
+      alert('New password must be at least 6 characters.');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch('http://localhost:5000/api/teacher/change-password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || 'Failed to change password');
+        return;
+      }
+
+      alert('Password changed successfully!');
+      handleCloseChangePassword();
+    } catch (error) {
+      console.error('Password change error:', error);
+      alert('Failed to change password. Please try again.');
+    }
+  };
+
   const handleSaveChanges = () => {
     console.log("Saving changes:", formData);
     alert("Changes saved successfully!");
@@ -164,7 +199,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
   const handleSaveSettings = async () => {
     const payload = { emailNotifications, smsNotifications, inAppNotifications };
-    // If running on localhost, persist locally only and return success
     try {
       const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
       const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
@@ -175,11 +209,9 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       }
 
       const data = await putJSON('/users/profile/settings', payload);
-      // persist locally for quick UI load
       localStorage.setItem('profileSettings', JSON.stringify(payload));
       alert('Settings saved');
     } catch (err) {
-      // fallback to localStorage if API fails
       localStorage.setItem('profileSettings', JSON.stringify(payload));
       const msg = err?.message || (err?.body && err.body.message) || 'Server error';
       alert('Saved locally. Server error: ' + msg);
@@ -187,7 +219,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
   };
 
   const handleChangePassword = () => {
-    console.log('open change password modal');
     setShowChangePassword(true);
   };
 
@@ -199,21 +230,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
   const handleCloseChangePassword = () => {
     setShowChangePassword(false);
     setChangePwdData({ currentPassword: "", newPassword: "", confirmPassword: "" });
-  };
-
-  const handleSubmitChangePassword = () => {
-    const { currentPassword, newPassword, confirmPassword } = changePwdData;
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      alert('Please fill all fields.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      alert('New password and confirmation do not match.');
-      return;
-    }
-    // Frontend-only: simulate success
-    alert('Password changed successfully (frontend only)');
-    handleCloseChangePassword();
   };
 
   const handleLogoutClick = () => {
@@ -376,19 +392,19 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         </div>
       )}
 
-      {/* Change Password Modal (frontend-only) */}
+      {/* Change Password Modal */}
       {showChangePassword && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-10000 p-6"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10000 p-6"
           onClick={handleCloseChangePassword}
         >
-          <div className="w-full max-w-3xl mt-16" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-[#bdf2d1] border border-gray-200 rounded-md shadow-2xl overflow-hidden">
-              <div className="relative px-8 pt-5 pb-4 text-center">
+          <div className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-[#bdf2d1] rounded-lg shadow-2xl overflow-hidden">
+              <div className="relative px-8 pt-6 pb-4 text-center">
                 <h3 className="text-lg font-semibold text-gray-900">Change Password</h3>
                 <button
                   onClick={handleCloseChangePassword}
-                  className="absolute right-4 top-3 text-gray-700 hover:text-gray-900 p-1 rounded"
+                  className="absolute right-4 top-4 text-gray-700 hover:text-gray-900 p-1 rounded"
                   aria-label="close-modal"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
@@ -396,213 +412,51 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
               </div>
 
               <div className="px-10 pb-8">
-                <div className="bg-transparent">
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
-                    <div className="relative">
-                      <input
-                        type={showPwd.current ? "text" : "password"}
-                        name="currentPassword"
-                        value={changePwdData.currentPassword}
-                        onChange={handleChangePwdInput}
-                        className="w-full pr-10 px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPwd((p) => ({ ...p, current: !p.current }))}
-                        className="absolute inset-y-0 right-3 flex items-center text-gray-500"
-                        aria-label="toggle-current-password"
-                      >
-                        {showPwd.current ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                      </button>
-                    </div>
-                    {/* Single Privacy & Data card placed under Activity (per request) */}
-                    <div className="mt-6 bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
-                      <h3 className="text-lg font-semibold mb-4">Privacy & Data</h3>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
+                  <input
+                    type="password"
+                    name="currentPassword"
+                    value={changePwdData.currentPassword}
+                    onChange={handleChangePwdInput}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
+                  />
+                </div>
 
-                      <div className="flex flex-col h-full gap-10">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">Emotion Data Consent</h4>
-                          <div className="mt-3 flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-gray-500">Allow the application to collect and analyze emotional data during quiz sessions to improve teaching experience.</p>
-                              <a href="#" className="text-sm text-emerald-600 font-medium mt-3 inline-block">Read our privacy policy</a>
-                            </div>
-                            <div>
-                              <button
-                                type="button"
-                                onClick={() => setEmotionConsent((v) => !v)}
-                                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${emotionConsent ? 'bg-emerald-600' : 'bg-gray-300'}`}
-                                aria-pressed={emotionConsent}
-                              >
-                                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${emotionConsent ? 'translate-x-5' : 'translate-x-0'}`} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">Export Your Data</h4>
-                          <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
-
-                          <div className="mt-8 flex flex-col items-start gap-6">
-                            <button className="inline-flex items-center gap-3 px-5 py-3 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
-                              <span className="text-sm">Export All Data</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
-                                  const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
-                                  const payload = { emotionConsent };
-                                  if (isLocal) {
-                                    localStorage.setItem('privacySettings', JSON.stringify(payload));
-                                    alert('Privacy settings saved locally');
-                                    return;
-                                  }
-                                  localStorage.setItem('privacySettings', JSON.stringify(payload));
-                                  alert('Privacy settings saved');
-                                } catch (err) {
-                                  localStorage.setItem('privacySettings', JSON.stringify({ emotionConsent }));
-                                  alert('Saved locally. Server error.');
-                                }
-                              }}
-                              className="inline-flex items-center gap-3 px-5 py-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 shadow"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                              <span>Save Privacy Settings</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Single Privacy & Data card placed under Activity (per request) */}
-                    <div className="mt-6 bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
-                      <h3 className="text-lg font-semibold mb-4">Privacy & Data</h3>
-
-                      <div className="flex flex-col h-full gap-10">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">Emotion Data Consent</h4>
-                          <div className="mt-3 flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-gray-500">Allow the application to collect and analyze emotional data during quiz sessions to improve teaching experience.</p>
-                              <a href="#" className="text-sm text-emerald-600 font-medium mt-3 inline-block">Read our privacy policy</a>
-                            </div>
-                            <div>
-                              <button
-                                type="button"
-                                onClick={() => setEmotionConsent((v) => !v)}
-                                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${emotionConsent ? 'bg-emerald-600' : 'bg-gray-300'}`}
-                                aria-pressed={emotionConsent}
-                              >
-                                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${emotionConsent ? 'translate-x-5' : 'translate-x-0'}`} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">Export Your Data</h4>
-                          <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
-
-                          <div className="mt-8 flex flex-col items-start gap-6">
-                            <button className="inline-flex items-center gap-3 px-5 py-3 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
-                              <span className="text-sm">Export All Data</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
-                                  const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
-                                  const payload = { emotionConsent };
-                                  if (isLocal) {
-                                    localStorage.setItem('privacySettings', JSON.stringify(payload));
-                                    alert('Privacy settings saved locally');
-                                    return;
-                                  }
-                                  localStorage.setItem('privacySettings', JSON.stringify(payload));
-                                  alert('Privacy settings saved');
-                                } catch (err) {
-                                  localStorage.setItem('privacySettings', JSON.stringify({ emotionConsent }));
-                                  alert('Saved locally. Server error.');
-                                }
-                              }}
-                              className="inline-flex items-center gap-3 px-5 py-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 shadow"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                              <span>Save Privacy Settings</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+                    <input
+                      type="password"
+                      name="newPassword"
+                      value={changePwdData.newPassword}
+                      onChange={handleChangePwdInput}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
+                    />
                   </div>
-
-                  <div className="grid grid-cols-2 gap-6 mb-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
-                      <div className="relative">
-                        <input
-                          type={showPwd.new ? "text" : "password"}
-                          name="newPassword"
-                          value={changePwdData.newPassword}
-                          onChange={handleChangePwdInput}
-                          className="w-full pr-10 px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPwd((p) => ({ ...p, new: !p.new }))}
-                          className="absolute inset-y-0 right-3 flex items-center text-gray-500"
-                          aria-label="toggle-new-password"
-                        >
-                          {showPwd.new ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
-                      <div className="relative">
-                        <input
-                          type={showPwd.confirm ? "text" : "password"}
-                          name="confirmPassword"
-                          value={changePwdData.confirmPassword}
-                          onChange={handleChangePwdInput}
-                          className="w-full pr-10 px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPwd((p) => ({ ...p, confirm: !p.confirm }))}
-                          className="absolute inset-y-0 right-3 flex items-center text-gray-500"
-                          aria-label="toggle-confirm-password"
-                        >
-                          {showPwd.confirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                      {changePwdData.confirmPassword !== '' && changePwdData.newPassword !== changePwdData.confirmPassword && (
-                        <p className="text-xs text-red-600 mt-2">Passwords do not match</p>
-                      )}
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
+                    <input
+                      type="password"
+                      name="confirmPassword"
+                      value={changePwdData.confirmPassword}
+                      onChange={handleChangePwdInput}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
+                    />
+                    {changePwdData.confirmPassword !== '' && changePwdData.newPassword !== changePwdData.confirmPassword && (
+                      <p className="text-xs text-red-600 mt-2">Passwords do not match</p>
+                    )}
                   </div>
+                </div>
 
-                  <div className="flex items-center">
-                    <button
-                      onClick={handleSubmitChangePassword}
-                      className="flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                      <span className="text-sm">Save Changes</span>
-                    </button>
-
-                    <div className="flex-1" />
-
-                    <button onClick={handleCloseChangePassword} className="px-4 py-2 rounded-md bg-white border border-gray-200 hover:bg-gray-50 text-sm">Cancel</button>
-                  </div>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={handleSubmitChangePassword}
+                    className="flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    <span className="text-sm">Save Changes</span>
+                  </button>
                 </div>
               </div>
             </div>
