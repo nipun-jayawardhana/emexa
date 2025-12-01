@@ -81,9 +81,7 @@ const CustomTimePicker = ({ value, onChange, label }) => {
             className="fixed inset-0 z-40"
             onClick={() => setIsOpen(false)}
           />
-          {/* Use fixed positioning to avoid being clipped by parent containers
-              (ensures the Apply button remains visible when the picker opens) */}
-          <div className="fixed z-50 left-1/2 bottom-24 transform -translate-x-1/2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-64">
+          <div className="absolute z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-64">
             <div className="flex gap-2 mb-4">
               {/* Hours */}
               <div className="flex-1">
@@ -239,18 +237,6 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
       setDraftQuizzes(defaultDrafts);
       localStorage.setItem("quizDrafts", JSON.stringify(defaultDrafts));
     }
-  }, []);
-
-  // Listen for draft updates from other components (same-window)
-  useEffect(() => {
-    const handleDraftsUpdated = () => {
-      const saved = localStorage.getItem("quizDrafts");
-      setDraftQuizzes(saved ? JSON.parse(saved) : []);
-    };
-
-    window.addEventListener("quizDraftsUpdated", handleDraftsUpdated);
-    return () =>
-      window.removeEventListener("quizDraftsUpdated", handleDraftsUpdated);
   }, []);
 
   const handleBackToQuizzes = () => {
@@ -508,6 +494,29 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Create New Button */}
+      <div className="mt-6">
+        <button
+          onClick={() => setActiveMenuItem("create-quiz")}
+          className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-dashed border-gray-300 text-gray-700 rounded-lg hover:border-teal-500 hover:text-teal-600 font-medium text-sm transition w-full md:w-auto justify-center"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          Create New Quiz
+        </button>
       </div>
 
       {/* Schedule Modal */}
