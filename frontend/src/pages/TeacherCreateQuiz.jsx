@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from "react";
 
-const TeacherCreateQuiz = ({ setActiveMenuItem, editingDraftId }) => {
+const TeacherCreateQuiz = ({
+  setActiveMenuItem,
+  editingDraftId,
+  setEditingDraftId,
+}) => {
   const [assignmentTitle, setAssignmentTitle] = useState("");
   const [subject, setSubject] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -54,6 +58,10 @@ const TeacherCreateQuiz = ({ setActiveMenuItem, editingDraftId }) => {
   };
 
   const handleBackToDashboard = () => {
+    // Clear the editing draft ID when going back
+    if (setEditingDraftId) {
+      setEditingDraftId(null);
+    }
     // If editing a draft, go back to drafts page; otherwise go to quizzes
     setActiveMenuItem(editingDraftId ? "quiz-drafts" : "quizzes");
   };

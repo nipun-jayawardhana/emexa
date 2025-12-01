@@ -24,6 +24,21 @@ const TeacherDashboard = () => {
     }
   }, []);
 
+  // Clear editingDraftId when navigating to create-quiz without coming from draft
+  useEffect(() => {
+    if (activeMenuItem === "create-quiz" && !editingDraftId) {
+      // User navigated to create-quiz directly (not from "Continue Editing")
+      // editingDraftId should already be null, but ensure it
+      setEditingDraftId(null);
+    } else if (
+      activeMenuItem !== "create-quiz" &&
+      activeMenuItem !== "quiz-drafts"
+    ) {
+      // Clear editingDraftId when navigating away from quiz-related pages
+      setEditingDraftId(null);
+    }
+  }, [activeMenuItem]);
+
   const teacherMenuItems = [
     {
       id: "dashboard",
@@ -95,6 +110,7 @@ const TeacherDashboard = () => {
           <TeacherCreateQuiz
             setActiveMenuItem={setActiveMenuItem}
             editingDraftId={editingDraftId}
+            setEditingDraftId={setEditingDraftId}
           />
         );
       case "quiz-drafts":
