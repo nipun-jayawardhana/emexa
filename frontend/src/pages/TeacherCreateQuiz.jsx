@@ -23,6 +23,14 @@ const TeacherCreateQuiz = ({ setActiveMenuItem, editingDraftId }) => {
           setQuestions(draftToEdit.fullData.questions);
         }
       }
+    } else {
+      // Reset form when not editing (editingDraftId is null/undefined)
+      setAssignmentTitle("");
+      setSubject("");
+      setDueDate("");
+      setSelectedGrades([]);
+      setQuestions([]);
+      setIsGradeLevelOpen(false);
     }
   }, [editingDraftId]);
 
@@ -46,7 +54,8 @@ const TeacherCreateQuiz = ({ setActiveMenuItem, editingDraftId }) => {
   };
 
   const handleBackToDashboard = () => {
-    setActiveMenuItem("quizzes");
+    // If editing a draft, go back to drafts page; otherwise go to quizzes
+    setActiveMenuItem(editingDraftId ? "quiz-drafts" : "quizzes");
   };
 
   const addQuestion = () => {
@@ -248,7 +257,7 @@ const TeacherCreateQuiz = ({ setActiveMenuItem, editingDraftId }) => {
               d="M15 19l-7-7 7-7"
             />
           </svg>
-          <span className="text-sm font-medium">Back to Dashboard</span>
+          <span className="text-sm font-medium">Back to Quizzes</span>
         </button>
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">
