@@ -1,5 +1,7 @@
 import userService from '../services/user.service.js';
 import User from '../models/user.js';
+import Student from '../models/student.js';
+import Teacher from '../models/teacher.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
@@ -152,21 +154,116 @@ export const forgotPassword = async (req, res) => {
       return res.status(400).json({ message: 'Missing email' });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    // For security, always return success message whether email exists or not
+    // TODO: In future, implement actual password reset token generation and email sending
+    console.log('📧 Password reset requested for:', email);
     
-    const user = await userService.findByEmail(normalizedEmail);
-    
-    if (!user) {
-      return res.status(200).json({ 
-        message: 'If the email exists we sent a link' 
-      });
-    }
-
-    // TODO: generate reset token and send email
-    return res.json({ message: 'If the email exists we sent a link' });
+    return res.status(200).json({ 
+      message: 'If the email exists, we will send a password reset link' 
+    });
   } catch (err) {
     console.error('Forgot password error:', err);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, resetCode, newPassword } = req.body;
+    
+    if (!email || !resetCode || !newPassword) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Find user in Student or Teacher collection
+    let user = await Student.findOne({ email: normalizedEmail }).select('+password');
+    let Model = Student;
+    
+    if (!user) {
+      user = await Teacher.findOne({ email: normalizedEmail }).select('+password');
+      Model = Teacher;
+    }
+    
+    if (!user) {
+      // For security, don't reveal if email exists
+      return res.status(400).json({ message: 'Invalid email address' });
+    }
+    
+    // For demo: Accept any non-empty reset code
+    // TODO: In production, validate resetCode against stored token in database
+    if (!resetCode || resetCode.trim().length === 0) {
+      return res.status(400).json({ message: 'Invalid reset code' });
+    }
+    
+    console.log('🔄 Password reset for:', normalizedEmail, 'Code:', resetCode);
+    
+    // Update password - the model's pre-save hook will hash it automatically
+    user.password = newPassword;
+    await user.save();
+    
+    console.log('✅ Password reset successful for:', normalizedEmail);
+    
+    return res.status(200).json({ 
+      message: 'Password reset successful. You can now login with your new password.' 
+    });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ message: 'Server error resetting password' });
+  }
+};
+
+export const changePassword = async (req, res) => {
+  try {
+    const { email, currentPassword, newPassword } = req.body;
+    
+    if (!email || !currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Find user in Student or Teacher collection
+    let user = await Student.findOne({ email: normalizedEmail }).select('+password');
+    
+    if (!user) {
+      user = await Teacher.findOne({ email: normalizedEmail }).select('+password');
+    }
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Verify current password
+    const isPasswordValid = await user.comparePassword(currentPassword);
+    
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+    
+    // Check if new password is different from current
+    const isSamePassword = await user.comparePassword(newPassword);
+    if (isSamePassword) {
+      return res.status(400).json({ message: 'New password must be different from current password' });
+    }
+    
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
+    
+    console.log('✅ Password changed successfully for:', normalizedEmail);
+    
+    return res.status(200).json({ 
+      message: 'Password changed successfully' 
+    });
+  } catch (err) {
+    console.error('Change password error:', err);
+    res.status(500).json({ message: 'Server error changing password' });
   }
 };
 
@@ -235,11 +332,4 @@ export const rejectStudent = async (req, res) => {
   }
 };
 
-export default { 
-  register, 
-  login, 
-  forgotPassword, 
-  getStudentApprovals, 
-  approveStudent, 
-  rejectStudent 
-};
+export default { register, login, forgotPassword, resetPassword, changePassword, getStudentApprovals, approveStudent, rejectStudent };

@@ -1,0 +1,860 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Camera, Eye, EyeOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import Sidebar from '../components/sidebarorigin';
+import Header from '../components/headerorigin';
+import AdminViewWrapper from '../components/AdminViewWrapper';
+
+// Separate Password Modal Component to prevent re-renders
+const PasswordModal = ({ isOpen, onClose, onSave }) => {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Password visibility toggles
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const handleSave = () => {
+    onSave({ currentPassword, newPassword, confirmPassword });
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+  };
+
+  const handleClose = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 shadow-2xl">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold text-gray-900">Change Password</h2>
+          <button
+            onClick={handleClose}
+            className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Current Password</label>
+            <div className="relative">
+              <input
+                type={showCurrentPassword ? "text" : "password"}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white"
+                placeholder="Enter current password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showCurrentPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">New Password</label>
+              <div className="relative">
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white"
+                  placeholder="Enter new password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">Confirm New Password</label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white"
+                  placeholder="Confirm new password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-4 pt-4">
+            <button
+              onClick={handleSave}
+              type="button"
+              className="px-8 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium flex items-center gap-2"
+            >
+              <span>Save Changes</span>
+            </button>
+            <button
+              onClick={handleClose}
+              type="button"
+              className="px-8 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Profile = () => {
+  const navigate = useNavigate();
+
+  const [activeTab, setActiveTab] = useState('account');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState('');
+  const [activeMenuItem, setActiveMenuItem] = useState('profile');
+
+  // Read these once and store in state to prevent re-renders
+  const [adminToken] = useState(() => localStorage.getItem('adminToken'));
+  const [isAdminViewing] = useState(() => localStorage.getItem('adminViewingAs'));
+
+  // Form states - Initialize with empty values to prevent re-render issues
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    role: 'student'
+  });
+
+  const [notificationSettings, setNotificationSettings] = useState({
+    emailNotifications: true,
+    smsNotifications: false,
+    inAppNotifications: true
+  });
+
+  const [privacySettings, setPrivacySettings] = useState({
+    emotionDataConsent: true
+  });
+
+  const [profileImage, setProfileImage] = useState(null);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const loadInitialData = async () => {
+      await fetchUserData();
+      setUserName(localStorage.getItem('userName') || 'Student');
+
+      // Load profile image from localStorage
+      const savedImage = localStorage.getItem('profileImage');
+      if (savedImage) {
+        setProfileImage(savedImage);
+      }
+    };
+
+    loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array ensures this only runs once on mount
+
+  const fetchUserData = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const storedUserName = localStorage.getItem('userName');
+      const storedUserEmail = localStorage.getItem('userEmail');
+
+      if (!token && !adminToken) {
+        navigate('/login');
+        return;
+      }
+
+      if (!isAdminViewing) {
+        try {
+          const response = await axios.get('http://localhost:5000/api/users/profile', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          const user = response.data;
+          console.log('Fetched user data:', user);
+          setUserData(user);
+
+          // FIXED: Direct assignment without prev
+          setFormData({
+            name: user.name || storedUserName || '',
+            email: user.email || storedUserEmail || '',
+            role: user.role || 'student'
+          });
+
+          setNotificationSettings(user.notificationSettings || {
+            emailNotifications: true,
+            smsNotifications: false,
+            inAppNotifications: true
+          });
+
+          setPrivacySettings(user.privacySettings || {
+            emotionDataConsent: true
+          });
+        } catch (apiError) {
+          console.error('API Error:', apiError);
+
+          // Fallback to localStorage data if API fails
+          console.log('Using fallback data from localStorage');
+          const fallbackData = {
+            name: storedUserName || 'Student',
+            email: storedUserEmail || 'student@school.edu',
+            role: 'student',
+            profileImage: null,
+            recentActivity: [],
+            notificationSettings: {
+              emailNotifications: true,
+              smsNotifications: false,
+              inAppNotifications: true
+            },
+            privacySettings: {
+              emotionDataConsent: true
+            }
+          };
+
+          setUserData(fallbackData);
+          // FIXED: Direct assignment without prev
+          setFormData({
+            name: fallbackData.name,
+            email: fallbackData.email,
+            role: fallbackData.role
+          });
+          setNotificationSettings(fallbackData.notificationSettings);
+          setPrivacySettings(fallbackData.privacySettings);
+        }
+      } else {
+        // Mock data for admin viewing
+        const mockData = {
+          name: 'Anna Faris',
+          email: 'anna.faris@school.edu',
+          role: 'student',
+          profileImage: null,
+          recentActivity: [],
+          notificationSettings: {
+            emailNotifications: true,
+            smsNotifications: false,
+            inAppNotifications: true
+          },
+          privacySettings: {
+            emotionDataConsent: true
+          }
+        };
+        setUserData(mockData);
+        // FIXED: Direct assignment without prev
+        setFormData({
+          name: mockData.name,
+          email: mockData.email,
+          role: mockData.role
+        });
+        setNotificationSettings(mockData.notificationSettings);
+        setPrivacySettings(mockData.privacySettings);
+      }
+    } catch (error) {
+      console.error('Critical error:', error);
+      // FIXED: Direct assignment without prev
+      setFormData({
+        name: localStorage.getItem('userName') || 'Student',
+        email: 'student@school.edu',
+        role: 'student'
+      });
+      setUserData({
+        name: localStorage.getItem('userName') || 'Student',
+        email: 'student@school.edu',
+        role: 'student'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prevData => {
+      if (prevData[name] === value) return prevData;
+      return {
+        ...prevData,
+        [name]: value
+      };
+    });
+  };
+
+  const handleNotificationToggle = (key) => {
+    setNotificationSettings(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const handlePrivacyToggle = (key) => {
+    setPrivacySettings(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const handleSaveAccountInfo = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      // Create a copy to avoid state mutation
+      const dataToSave = { ...formData };
+      const response = await axios.put(
+        'http://localhost:5000/api/users/update-profile',
+        dataToSave,
+        { headers: { Authorization: `Bearer ${token}` }}
+      );
+      if (response.data) {
+        alert('Profile updated successfully!');
+        // Update localStorage with new values
+        localStorage.setItem('userName', dataToSave.name);
+        localStorage.setItem('userEmail', dataToSave.email);
+        // Refresh user data without resetting form
+        setUserData(prev => ({
+          ...prev,
+          ...dataToSave
+        }));
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert(error.response?.data?.message || 'Failed to update profile');
+    }
+  };
+
+  const handleChangePassword = async ({ currentPassword, newPassword, confirmPassword }) => {
+    if (newPassword !== confirmPassword) {
+      alert('New passwords do not match!');
+      return;
+    }
+    if (newPassword.length < 6) {
+      alert('Password must be at least 6 characters long!');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(
+        'http://localhost:5000/api/users/change-password',
+        {
+          currentPassword: currentPassword,
+          newPassword: newPassword
+        },
+        { headers: { Authorization: `Bearer ${token}` }}
+      );
+      if (response.data) {
+        alert('Password changed successfully!');
+        setShowPasswordModal(false);
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      alert(error.response?.data?.message || 'Failed to change password');
+    }
+  };
+
+  const handleSaveNotifications = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(
+        'http://localhost:5000/api/users/notification-settings',
+        notificationSettings,
+        { headers: { Authorization: `Bearer ${token}` }}
+      );
+      if (response.data) {
+        alert('Notification settings saved successfully!');
+      }
+    } catch (error) {
+      console.error('Error saving notifications:', error);
+      alert('Failed to save notification settings');
+    }
+  };
+
+  const handleSavePrivacy = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(
+        'http://localhost:5000/api/users/privacy-settings',
+        privacySettings,
+        { headers: { Authorization: `Bearer ${token}` }}
+      );
+      if (response.data) {
+        alert('Privacy settings saved successfully!');
+      }
+    } catch (error) {
+      console.error('Error saving privacy settings:', error);
+      alert('Failed to save privacy settings');
+    }
+  };
+
+  const handleExportData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/users/export-data', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'user-data.json';
+      a.click();
+      window.URL.revokeObjectURL(url);
+      alert('Data exported successfully!');
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Failed to export data');
+    }
+  };
+
+  const handleProfileImageClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleProfileImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size should be less than 5MB');
+        return;
+      }
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result;
+        setProfileImage(base64String);
+        localStorage.setItem('profileImage', base64String);
+        alert('Profile picture updated successfully!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const profileContent = (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Profile Header - Equal Green and White Bar with Profile at Middle */}
+        <div className="relative">
+          {/* Green Bar */}
+          <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-24 rounded-t-lg"></div>
+          
+          {/* White Bar */}
+          <div className="bg-white h-24"></div>
+          
+          {/* Profile Info at the Exact Middle - Left Aligned */}
+          <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 z-10">
+            <div className="relative">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleProfileImageChange}
+                className="hidden"
+              />
+              <div className="bg-white rounded-full p-1 shadow-lg">
+                <img
+                  src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"}
+                  alt="Profile"
+                  className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
+                />
+              </div>
+              <button
+                onClick={handleProfileImageClick}
+                type="button"
+                className="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full hover:bg-teal-700 shadow-lg transition-colors"
+              >
+                <Camera size={18} />
+              </button>
+            </div>
+            
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">{userData?.name || 'Student'}</h1>
+              <p className="text-gray-600 text-sm">{userData?.email || ''}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-b-lg shadow-sm p-8">
+
+          {/* Tabs */}
+          <div className="mb-8">
+            <div className="flex gap-8 border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab('account')}
+                className={`pb-4 px-2 transition relative ${
+                  activeTab === 'account'
+                    ? 'text-teal-600 font-medium'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Account Info
+                {activeTab === 'account' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`pb-4 px-2 transition relative ${
+                  activeTab === 'settings'
+                    ? 'text-teal-600 font-medium'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Settings
+                {activeTab === 'settings' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('activity')}
+                className={`pb-4 px-2 transition relative ${
+                  activeTab === 'activity'
+                    ? 'text-teal-600 font-medium'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Recent Activity
+                {activeTab === 'activity' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('privacy')}
+                className={`pb-4 px-2 transition relative ${
+                  activeTab === 'privacy'
+                    ? 'text-teal-600 font-medium'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Privacy & Data
+                {activeTab === 'privacy' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          {activeTab === 'account' && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-bold text-gray-900">Account Information</h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    autoComplete="off"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
+                    placeholder="Enter your full name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    disabled
+                    autoComplete="off"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
+                    placeholder="Enter your email"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                <input
+                  type="text"
+                  value={formData.role}
+                  disabled
+                  className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 capitalize cursor-not-allowed"
+                />
+              </div>
+
+              <div className="pt-4">
+                <h3 className="font-semibold text-gray-900 mb-4">Change Password</h3>
+                <button
+                  onClick={() => setShowPasswordModal(true)}
+                  className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium"
+                >
+                  Do you want change the password
+                </button>
+              </div>
+
+              <div className="pt-6">
+                <button
+                  onClick={handleSaveAccountInfo}
+                  className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors font-medium"
+                >
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-bold text-gray-900">Notification Preferences</h2>
+
+              <div className="space-y-6">
+                <div className="flex items-center justify-between py-4">
+                  <div>
+                    <h3 className="font-medium text-gray-900">Email Notifications</h3>
+                    <p className="text-sm text-gray-600">Receive notifications via email</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer ml-4">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.emailNotifications}
+                      onChange={() => handleNotificationToggle('emailNotifications')}
+                      className="sr-only peer"
+                    />
+                    <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
+                      notificationSettings.emailNotifications ? 'bg-teal-600' : 'bg-gray-200'
+                    }`}>
+                      <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
+                        notificationSettings.emailNotifications ? 'translate-x-6 left-0.5' : 'left-0.5'
+                      }`}></div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between py-4">
+                  <div>
+                    <h3 className="font-medium text-gray-900">SMS Notifications</h3>
+                    <p className="text-sm text-gray-600">Receive notifications via text message</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer ml-4">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.smsNotifications}
+                      onChange={() => handleNotificationToggle('smsNotifications')}
+                      className="sr-only peer"
+                    />
+                    <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
+                      notificationSettings.smsNotifications ? 'bg-teal-600' : 'bg-gray-200'
+                    }`}>
+                      <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
+                        notificationSettings.smsNotifications ? 'translate-x-6 left-0.5' : 'left-0.5'
+                      }`}></div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between py-4">
+                  <div>
+                    <h3 className="font-medium text-gray-900">In-App Notifications</h3>
+                    <p className="text-sm text-gray-600">Receive notifications in the application</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer ml-4">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.inAppNotifications}
+                      onChange={() => handleNotificationToggle('inAppNotifications')}
+                      className="sr-only peer"
+                    />
+                    <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
+                      notificationSettings.inAppNotifications ? 'bg-teal-600' : 'bg-gray-200'
+                    }`}>
+                      <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
+                        notificationSettings.inAppNotifications ? 'translate-x-6 left-0.5' : 'left-0.5'
+                      }`}></div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <button
+                  onClick={handleSaveNotifications}
+                  className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
+                >
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'activity' && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
+
+              {userData?.recentActivity && userData.recentActivity.length > 0 ? (
+                <div className="space-y-4">
+                  {userData.recentActivity.map((activity, index) => (
+                    <div key={index} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center shrink-0">
+                        <svg className="w-6 h-6 text-teal-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                        </svg>
+                      </div>
+
+                      <div className="flex-1">
+                        <h3 className="font-medium text-teal-600">{activity.title}</h3>
+                        <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
+                          <span>Calendar {new Date(activity.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                          <span>Attempts: {activity.attempts || 1}</span>
+                        </div>
+                      </div>
+
+                      {activity.score && (
+                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          activity.score >= 90 ? 'bg-green-100 text-green-800' :
+                          activity.score >= 80 ? 'bg-blue-100 text-blue-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          Score: {activity.score}%
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <p className="text-gray-500 font-medium">No recent activity yet</p>
+                  <p className="text-sm text-gray-400 mt-2">Your quiz attempts will appear here</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'privacy' && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-bold text-gray-900">Privacy & Data</h2>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-900">Emotion Data Consent</h3>
+
+                <div className="bg-gray-50 p-6 rounded-lg">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-700 mb-3">
+                        Allow the application to collect and analyze emotional data during quiz sessions to improve learning experience.
+                      </p>
+                      <a href="#" className="text-sm text-teal-600 hover:underline">Read our privacy policy</a>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                      <input
+                        type="checkbox"
+                        checked={privacySettings.emotionDataConsent}
+                        onChange={() => handlePrivacyToggle('emotionDataConsent')}
+                        className="sr-only peer"
+                      />
+                      <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
+                        privacySettings.emotionDataConsent ? 'bg-teal-600' : 'bg-gray-200'
+                      }`}>
+                        <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
+                          privacySettings.emotionDataConsent ? 'translate-x-6 left-0.5' : 'left-0.5'
+                        }`}></div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="pt-6">
+                  <h3 className="font-semibold text-gray-900 mb-2">Export Your Data</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Download a copy of your personal data and activity history. The export includes your profile information, quiz history, and performance data.
+                  </p>
+                  <button
+                    onClick={handleExportData}
+                    className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
+                  >
+                    <span>Export All Data</span>
+                  </button>
+                </div>
+
+                <div className="pt-6">
+                  <button
+                    onClick={handleSavePrivacy}
+                    className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
+                  >
+                    <span>Save Privacy Settings</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Password Change Modal */}
+      <PasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onSave={handleChangePassword}
+      />
+    </div>
+  );
+
+  // Admin viewing check
+  if (isAdminViewing && adminToken) {
+    return (
+      <AdminViewWrapper dashboardType="student">
+        {profileContent}
+      </AdminViewWrapper>
+    );
+  }
+
+  // Regular student view
+  return (
+    <div className="min-h-screen bg-white">
+      <Header userName={userName} userRole="student" />
+      <Sidebar activeMenuItem={activeMenuItem} setActiveMenuItem={setActiveMenuItem} />
+      <div className="ml-52 pt-14">
+        {profileContent}
+      </div>
+    </div>
+  );
+};
+
+export default Profile;
