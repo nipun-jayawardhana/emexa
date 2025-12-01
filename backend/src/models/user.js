@@ -117,15 +117,6 @@ const userSchema = new mongoose.Schema({
       }
     ]
   }
-  ,
-  // User settings (notifications, preferences)
-  settings: {
-    notifications: {
-      email: { type: Boolean, default: true },
-      sms: { type: Boolean, default: false },
-      inApp: { type: Boolean, default: true }
-    }
-  }
 }, { timestamps: true });
 
 // Hash password before saving
