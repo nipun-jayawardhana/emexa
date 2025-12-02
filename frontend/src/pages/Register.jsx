@@ -25,10 +25,86 @@ export default function Register() {
     }
     if (!email.trim()) {
       e.email = "Email is required";
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
+    } else if (!/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
       e.email = "Please enter a valid email address";
     } else if (email !== email.toLowerCase()) {
       e.email = "Email must be in lowercase only";
+    } else {
+      // Validate TLD
+      const tld = email.split(".").pop().toLowerCase();
+      const validTLDs = [
+        "com",
+        "org",
+        "net",
+        "edu",
+        "gov",
+        "mil",
+        "int",
+        "co",
+        "uk",
+        "us",
+        "ca",
+        "au",
+        "de",
+        "fr",
+        "jp",
+        "cn",
+        "in",
+        "br",
+        "ru",
+        "za",
+        "es",
+        "it",
+        "nl",
+        "se",
+        "no",
+        "dk",
+        "fi",
+        "be",
+        "ch",
+        "at",
+        "nz",
+        "sg",
+        "hk",
+        "kr",
+        "tw",
+        "mx",
+        "ar",
+        "cl",
+        "info",
+        "biz",
+        "io",
+        "ai",
+        "app",
+        "dev",
+        "tech",
+        "online",
+        "site",
+        "website",
+        "space",
+        "store",
+        "club",
+        "xyz",
+        "top",
+        "pro",
+        "name",
+        "me",
+        "tv",
+        "cc",
+        "ws",
+        "mobi",
+        "asia",
+        "tel",
+        "travel",
+        "museum",
+        "coop",
+        "aero",
+        "jobs",
+        "cat",
+      ];
+      if (!validTLDs.includes(tld)) {
+        e.email = "Please enter a valid email address";
+      }
     }
     if (!password) {
       e.password = "Password is required";
@@ -143,7 +219,138 @@ export default function Register() {
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      const newEmail = e.target.value;
+                      setEmail(newEmail);
+
+                      // Real-time validation
+                      if (newEmail.trim()) {
+                        // Check basic format first
+                        if (
+                          !/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
+                            newEmail
+                          )
+                        ) {
+                          setErrors((prev) => ({
+                            ...prev,
+                            email: "Please enter a valid email address",
+                          }));
+                        } else if (newEmail !== newEmail.toLowerCase()) {
+                          setErrors((prev) => ({
+                            ...prev,
+                            email: "Email must be in lowercase only",
+                          }));
+                        } else {
+                          // Validate TLD against whitelist
+                          const tld = newEmail.split(".").pop().toLowerCase();
+                          const validTLDs = [
+                            "com",
+                            "org",
+                            "net",
+                            "edu",
+                            "gov",
+                            "mil",
+                            "int",
+                            "co",
+                            "uk",
+                            "us",
+                            "ca",
+                            "au",
+                            "de",
+                            "fr",
+                            "jp",
+                            "cn",
+                            "in",
+                            "br",
+                            "ru",
+                            "za",
+                            "es",
+                            "it",
+                            "nl",
+                            "se",
+                            "no",
+                            "dk",
+                            "fi",
+                            "be",
+                            "ch",
+                            "at",
+                            "nz",
+                            "sg",
+                            "hk",
+                            "kr",
+                            "tw",
+                            "mx",
+                            "ar",
+                            "cl",
+                            "info",
+                            "biz",
+                            "io",
+                            "ai",
+                            "app",
+                            "dev",
+                            "tech",
+                            "online",
+                            "site",
+                            "website",
+                            "space",
+                            "store",
+                            "club",
+                            "xyz",
+                            "top",
+                            "pro",
+                            "name",
+                            "me",
+                            "tv",
+                            "cc",
+                            "ws",
+                            "mobi",
+                            "asia",
+                            "tel",
+                            "travel",
+                            "museum",
+                            "coop",
+                            "aero",
+                            "jobs",
+                            "cat",
+                          ];
+
+                          if (!validTLDs.includes(tld)) {
+                            setErrors((prev) => ({
+                              ...prev,
+                              email: "Please enter a valid email address",
+                            }));
+                          } else {
+                            setErrors((prev) => ({ ...prev, email: "" }));
+                          }
+                        }
+                      } else {
+                        setErrors((prev) => ({ ...prev, email: "" }));
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const emailValue = e.target.value.trim();
+                      if (
+                        emailValue &&
+                        !/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
+                          emailValue
+                        )
+                      ) {
+                        setErrors((prev) => ({
+                          ...prev,
+                          email: "Please enter a valid email address",
+                        }));
+                      } else if (
+                        emailValue &&
+                        emailValue !== emailValue.toLowerCase()
+                      ) {
+                        setErrors((prev) => ({
+                          ...prev,
+                          email: "Email must be in lowercase only",
+                        }));
+                      } else if (!emailValue) {
+                        setErrors((prev) => ({ ...prev, email: "" }));
+                      }
+                    }}
                     placeholder="Enter your email"
                   />
                   {errors.email && (
