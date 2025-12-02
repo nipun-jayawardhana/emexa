@@ -22,7 +22,7 @@ export default function ForgotPassword() {
       setError("Please enter your email address");
       return;
     }
-    if (!/\S+@\S+\.\S+/.test(email)) {
+    if (!/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
       setError("Please enter a valid email address");
       return;
     }
@@ -105,7 +105,115 @@ export default function ForgotPassword() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  const newEmail = e.target.value;
+                  setEmail(newEmail);
+
+                  // Real-time validation
+                  if (newEmail.trim()) {
+                    if (
+                      !/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
+                        newEmail
+                      )
+                    ) {
+                      setError("Please enter a valid email address");
+                    } else {
+                      // Validate TLD against whitelist
+                      const tld = newEmail.split(".").pop().toLowerCase();
+                      const validTLDs = [
+                        "com",
+                        "org",
+                        "net",
+                        "edu",
+                        "gov",
+                        "mil",
+                        "int",
+                        "co",
+                        "uk",
+                        "us",
+                        "ca",
+                        "au",
+                        "de",
+                        "fr",
+                        "jp",
+                        "cn",
+                        "in",
+                        "br",
+                        "ru",
+                        "za",
+                        "es",
+                        "it",
+                        "nl",
+                        "se",
+                        "no",
+                        "dk",
+                        "fi",
+                        "be",
+                        "ch",
+                        "at",
+                        "nz",
+                        "sg",
+                        "hk",
+                        "kr",
+                        "tw",
+                        "mx",
+                        "ar",
+                        "cl",
+                        "info",
+                        "biz",
+                        "io",
+                        "ai",
+                        "app",
+                        "dev",
+                        "tech",
+                        "online",
+                        "site",
+                        "website",
+                        "space",
+                        "store",
+                        "club",
+                        "xyz",
+                        "top",
+                        "pro",
+                        "name",
+                        "me",
+                        "tv",
+                        "cc",
+                        "ws",
+                        "mobi",
+                        "asia",
+                        "tel",
+                        "travel",
+                        "museum",
+                        "coop",
+                        "aero",
+                        "jobs",
+                        "cat",
+                      ];
+
+                      if (!validTLDs.includes(tld)) {
+                        setError("Please enter a valid email address");
+                      } else if (error && error.includes("valid email")) {
+                        setError("");
+                      }
+                    }
+                  } else if (error && error.includes("valid email")) {
+                    setError("");
+                  }
+                }}
+                onBlur={(e) => {
+                  const emailValue = e.target.value.trim();
+                  if (
+                    emailValue &&
+                    !/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
+                      emailValue
+                    )
+                  ) {
+                    setError("Please enter a valid email address");
+                  } else if (error && error.includes("valid email")) {
+                    setError("");
+                  }
+                }}
                 placeholder="Enter your email"
               />
               {error && <div className="error-text">{error}</div>}
