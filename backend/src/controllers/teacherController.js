@@ -443,11 +443,157 @@ const getRecentQuizzes = async (req, res) => {
   }
 };
 
+/**
+ * Update teacher profile (name)
+ */
+const updateProfile = async (req, res) => {
+  try {
+    const teacherId = req.userId || req.user._id;
+    const { name } = req.body;
+
+    if (!name || name.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Name is required'
+      });
+    }
+
+    const teacher = await Teacher.findByIdAndUpdate(
+      teacherId,
+      { name: name.trim() },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        name: teacher.name,
+        email: teacher.email,
+        teacherId: teacher.teacherId,
+        department: teacher.department,
+        specialization: teacher.specialization,
+        role: teacher.role
+      },
+      message: 'Profile updated successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error updating profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Change password for authenticated teacher
+ */
+const changePassword = async (req, res) => {
+  try {
+    const teacherId = req.userId || req.user._id;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide both current and new password'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters'
+      });
+    }
+
+    const teacher = await Teacher.findById(teacherId).select('+password');
+    
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    const isMatch = await teacher.comparePassword(currentPassword);
+    
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    teacher.password = newPassword;
+    await teacher.save();
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error changing password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to change password',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get teacher profile
+ */
+const getProfile = async (req, res) => {
+  try {
+    const teacherId = req.userId || req.user._id;
+    const teacher = await Teacher.findById(teacherId).select('-password');
+    
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        name: teacher.name,
+        email: teacher.email,
+        teacherId: teacher.teacherId,
+        department: teacher.department,
+        specialization: teacher.specialization,
+        role: teacher.role
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch profile',
+      error: error.message
+    });
+  }
+};
+
 export default {
   getDashboardStats,
   getClassProgress,
   getEngagementTrend,
   getEmotionalState,
   getStudentOverview,
-  getRecentQuizzes
+  getRecentQuizzes,
+  changePassword,
+  getProfile,
+  updateProfile
 };

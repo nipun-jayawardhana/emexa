@@ -57,4 +57,13 @@ router.get(
   teacherController.getRecentQuizzes
 );
 
+// Profile routes
+router.get('/profile', protect, authorize('teacher'), teacherController.getProfile);
+
+// Profile update route
+router.put('/update-name', protect, authorize('teacher'), teacherController.updateProfile);
+
+// Password change route
+router.put('/change-password', protect, authorize('teacher'), teacherController.changePassword);
+
 export default router;
