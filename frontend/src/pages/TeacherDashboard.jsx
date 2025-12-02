@@ -8,6 +8,7 @@ import Sidebar from "../components/sidebarorigin";
 import TeacherQuizzes from "./TeacherQuizzes";
 import TeacherCreateQuiz from "./TeacherCreateQuiz";
 import TeacherQuizDraft from "./TeacherQuizDraft";
+import TeacherProfile from "./TeacherProfile";
 
 const TeacherDashboard = () => {
   const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
@@ -121,7 +122,7 @@ const TeacherDashboard = () => {
           />
         );
       case "profile":
-        return <ProfileContent />;
+        return <TeacherProfile embedded={true} />;
       default:
         return <DashboardContent />;
     }
