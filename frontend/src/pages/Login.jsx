@@ -23,7 +23,7 @@ export default function Login() {
     const newErrors = {};
     if (!email.trim()) {
       newErrors.email = "Please enter your email address";
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
+    } else if (!/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
       newErrors.email = "Please enter a valid email address";
     } else if (email !== email.toLowerCase()) {
       newErrors.email = "Email must be in lowercase only";
@@ -161,8 +161,14 @@ export default function Login() {
           console.log("  - userName:", localStorage.getItem("userName"));
           console.log("  - userRole:", localStorage.getItem("userRole"));
           console.log("  - adminToken:", localStorage.getItem("adminToken"));
-          console.log("  - adminViewingAs:", localStorage.getItem("adminViewingAs"));
-          console.log("  - user object:", JSON.parse(localStorage.getItem("user") || "{}"));
+          console.log(
+            "  - adminViewingAs:",
+            localStorage.getItem("adminViewingAs")
+          );
+          console.log(
+            "  - user object:",
+            JSON.parse(localStorage.getItem("user") || "{}")
+          );
           console.log(
             "  - user object:",
             JSON.parse(localStorage.getItem("user") || "{}")
@@ -250,8 +256,131 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => {
-                  setEmail(e.target.value);
+                  const newEmail = e.target.value;
+                  setEmail(newEmail);
                   setErrors({});
+
+                  // Real-time validation
+                  if (newEmail.trim()) {
+                    // Check basic format
+                    if (
+                      !/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
+                        newEmail
+                      )
+                    ) {
+                      setErrors((prev) => ({
+                        ...prev,
+                        email: "Please enter a valid email address",
+                      }));
+                    } else if (newEmail !== newEmail.toLowerCase()) {
+                      setErrors((prev) => ({
+                        ...prev,
+                        email: "Email must be in lowercase only",
+                      }));
+                    } else {
+                      // Validate TLD against whitelist
+                      const tld = newEmail.split(".").pop().toLowerCase();
+                      const validTLDs = [
+                        "com",
+                        "org",
+                        "net",
+                        "edu",
+                        "gov",
+                        "mil",
+                        "int",
+                        "co",
+                        "uk",
+                        "us",
+                        "ca",
+                        "au",
+                        "de",
+                        "fr",
+                        "jp",
+                        "cn",
+                        "in",
+                        "br",
+                        "ru",
+                        "za",
+                        "es",
+                        "it",
+                        "nl",
+                        "se",
+                        "no",
+                        "dk",
+                        "fi",
+                        "be",
+                        "ch",
+                        "at",
+                        "nz",
+                        "sg",
+                        "hk",
+                        "kr",
+                        "tw",
+                        "mx",
+                        "ar",
+                        "cl",
+                        "info",
+                        "biz",
+                        "io",
+                        "ai",
+                        "app",
+                        "dev",
+                        "tech",
+                        "online",
+                        "site",
+                        "website",
+                        "space",
+                        "store",
+                        "club",
+                        "xyz",
+                        "top",
+                        "pro",
+                        "name",
+                        "me",
+                        "tv",
+                        "cc",
+                        "ws",
+                        "mobi",
+                        "asia",
+                        "tel",
+                        "travel",
+                        "museum",
+                        "coop",
+                        "aero",
+                        "jobs",
+                        "cat",
+                      ];
+
+                      if (!validTLDs.includes(tld)) {
+                        setErrors((prev) => ({
+                          ...prev,
+                          email: "Please enter a valid email address",
+                        }));
+                      }
+                    }
+                  }
+                }}
+                onBlur={(e) => {
+                  const emailValue = e.target.value.trim();
+                  if (
+                    emailValue &&
+                    !/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
+                      emailValue
+                    )
+                  ) {
+                    setErrors((prev) => ({
+                      ...prev,
+                      email: "Please enter a valid email address",
+                    }));
+                  } else if (
+                    emailValue &&
+                    emailValue !== emailValue.toLowerCase()
+                  ) {
+                    setErrors((prev) => ({
+                      ...prev,
+                      email: "Email must be in lowercase only",
+                    }));
+                  }
                 }}
                 placeholder="Enter your email"
               />
