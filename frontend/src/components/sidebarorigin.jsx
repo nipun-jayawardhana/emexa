@@ -5,7 +5,7 @@ const LogoutModal = ({ isOpen, onConfirm, onCancel }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
       <div className="bg-white rounded-lg p-8 max-w-sm w-full text-center shadow-xl">
         {/* Checkmark Icon */}
         <div className="flex justify-center mb-6">
@@ -176,7 +176,9 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
               }`}
             >
               <span className="pointer-events-none">{item.icon}</span>
-              <span className="flex-1 text-left pointer-events-auto">{item.label}</span>
+              <span className="flex-1 text-left pointer-events-auto">
+                {item.label}
+              </span>
             </button>
           ))}
         </nav>
