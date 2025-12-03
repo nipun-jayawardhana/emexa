@@ -272,7 +272,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
       quiz.id === selectedQuizForSchedule.id
         ? {
             ...quiz,
-            scheduledDate: scheduleDate,
+            scheduleDate: scheduleDate,
             startTime: startTime,
             endTime: endTime,
             isScheduled: true,
@@ -380,6 +380,25 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                   </div>
                 </div>
               </div>
+
+              {/* Scheduled Details Box - Top Right */}
+              {quiz.isScheduled && quiz.scheduleDate && (
+                <div className="px-4 py-3 bg-teal-50 border-2 border-teal-600 rounded-lg">
+                  <div className="text-xs font-semibold text-teal-700 mb-1">
+                    📅 Scheduled
+                  </div>
+                  <div className="text-sm font-bold text-teal-900">
+                    {new Date(quiz.scheduleDate).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </div>
+                  <div className="text-xs text-teal-700 mt-1">
+                    {quiz.startTime} - {quiz.endTime}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Progress */}
@@ -441,7 +460,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                   setEditingDraftId(quiz.id);
                   setActiveMenuItem("create-quiz");
                 }}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm transition"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-500 font-medium text-sm transition"
               >
                 <svg
                   className="w-4 h-4"
@@ -459,8 +478,31 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                 Continue Editing
               </button>
               <button
+                onClick={() => {
+                  // Share functionality - copy link or open share dialog
+                  navigator.clipboard.writeText(`Quiz: ${quiz.title}`);
+                  alert("Quiz link copied to clipboard!");
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-500 hover:text-white hover:border-blue-500 font-medium text-sm transition"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                  />
+                </svg>
+                Share
+              </button>
+              <button
                 onClick={() => confirmDelete(quiz)}
-                className="px-4 py-2.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 font-medium text-sm transition"
+                className="flex items-center gap-2 px-4 py-2.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-500 hover:text-white hover:border-red-500 font-medium text-sm transition"
               >
                 <svg
                   className="w-4 h-4"
@@ -475,6 +517,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                     d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                   />
                 </svg>
+                Delete
               </button>
             </div>
           </div>
