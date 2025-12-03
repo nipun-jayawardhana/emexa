@@ -17,7 +17,9 @@ const Header = ({ userName, userRole }) => {
   };
 
   // Read profile image from localStorage so header updates when user changes it
-  const profileImage = typeof window !== 'undefined' ? localStorage.getItem('profileImage') : null;
+  const profileImage = typeof window !== 'undefined' ? 
+    (userRole === 'admin' ? localStorage.getItem('adminProfileImage') : localStorage.getItem('profileImage')) 
+    : null;
 
   return (
     <header className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 h-14 z-50">
