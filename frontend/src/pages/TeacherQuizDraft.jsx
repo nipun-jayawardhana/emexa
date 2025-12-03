@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import teacherQuizService from "../services/teacherQuizService";
 
 // Custom Time Picker Component
 const CustomTimePicker = ({ value, onChange, label }) => {
@@ -184,71 +185,99 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
   const [endTime, setEndTime] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [quizToDelete, setQuizToDelete] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load drafts from localStorage
-    const savedDrafts = localStorage.getItem("quizDrafts");
-    if (savedDrafts) {
-      setDraftQuizzes(JSON.parse(savedDrafts));
-    } else {
-      // Set default drafts if none exist
-      const defaultDrafts = [
-        {
-          id: 1,
-          title: "Calculus Midterm",
-          subject: "Mathematics",
-          grade: "1st Y",
-          semester: "2nd sem",
-          progress: 80,
-          questions: 15,
-          lastEdited: "2 hours ago",
-        },
-        {
-          id: 2,
-          title: "Probability",
-          subject: "Statistics",
-          grade: "1st Y",
-          semester: "2nd sem",
-          progress: 45,
-          questions: 8,
-          lastEdited: "1 day ago",
-        },
-        {
-          id: 3,
-          title: "Statistics",
-          subject: "Mathematics",
-          grade: "1st Y",
-          semester: "2nd sem",
-          progress: 60,
-          questions: 12,
-          lastEdited: "3 days ago",
-        },
-        {
-          id: 4,
-          title: "Vector Calculus",
-          subject: "Mathematics",
-          grade: "1st Y",
-          semester: "2nd sem",
-          progress: 30,
-          questions: 6,
-          lastEdited: "1 week ago",
-        },
-      ];
-      setDraftQuizzes(defaultDrafts);
-      localStorage.setItem("quizDrafts", JSON.stringify(defaultDrafts));
-    }
+    loadDrafts();
   }, []);
+
+  const loadDrafts = async () => {
+    try {
+      setLoading(true);
+      console.log("🔄 Loading drafts from backend...");
+      const response = await teacherQuizService.getDrafts();
+      console.log("✅ Raw API response:", response);
+      console.log("📊 Response type:", typeof response);
+      console.log(
+        "📋 Response keys:",
+        response ? Object.keys(response) : "null/undefined"
+      );
+
+      if (!response) {
+        console.error("❌ Response is null or undefined");
+        setDraftQuizzes([]);
+        return;
+      }
+
+      // Check if response has success flag
+      if (response.success === false) {
+        console.error("❌ API returned error:", response.message);
+        alert("Error: " + response.message);
+        setDraftQuizzes([]);
+        return;
+      }
+
+      const draftsArray = response.drafts || response.data || [];
+      console.log("📊 Number of drafts:", draftsArray.length);
+
+      if (draftsArray.length === 0) {
+        console.log("ℹ️ No drafts found");
+        setDraftQuizzes([]);
+        return;
+      }
+
+      // Transform backend data to match UI format
+      const transformedDrafts = draftsArray.map((quiz) => ({
+        id: quiz._id,
+        title: quiz.title,
+        subject: quiz.subject,
+        grade: Array.isArray(quiz.gradeLevel)
+          ? quiz.gradeLevel[0]
+          : quiz.gradeLevel,
+        progress: quiz.progress || 0,
+        questions: quiz.questions?.length || 0,
+        lastEdited: new Date(quiz.updatedAt).toLocaleString(),
+        isScheduled: quiz.isScheduled,
+        scheduleDate: quiz.scheduleDate,
+        startTime: quiz.startTime,
+        endTime: quiz.endTime,
+        fullData: {
+          assignmentTitle: quiz.title,
+          subject: quiz.subject,
+          dueDate: quiz.dueDate,
+          questions: quiz.questions || [],
+        },
+      }));
+
+      console.log("✨ Transformed drafts:", transformedDrafts);
+      setDraftQuizzes(transformedDrafts);
+    } catch (error) {
+      console.error("❌ Error loading drafts:", error);
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      alert("Failed to load quizzes: " + error.message);
+      setDraftQuizzes([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleBackToQuizzes = () => {
     setActiveMenuItem("quizzes");
   };
 
-  const handleDeleteDraft = (id) => {
-    const updatedDrafts = draftQuizzes.filter((quiz) => quiz.id !== id);
-    setDraftQuizzes(updatedDrafts);
-    localStorage.setItem("quizDrafts", JSON.stringify(updatedDrafts));
-    setShowDeleteModal(false);
-    setQuizToDelete(null);
+  const handleDeleteDraft = async (id) => {
+    try {
+      await teacherQuizService.deleteQuiz(id);
+      // Reload drafts after deletion
+      await loadDrafts();
+      setShowDeleteModal(false);
+      setQuizToDelete(null);
+    } catch (error) {
+      console.error("Error deleting quiz:", error);
+      alert("Failed to delete quiz");
+    }
   };
 
   const confirmDelete = (quiz) => {
@@ -256,7 +285,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
     setShowDeleteModal(true);
   };
 
-  const handleScheduleQuiz = () => {
+  const handleScheduleQuiz = async () => {
     if (!scheduleDate || !startTime || !endTime) {
       alert("Please select date, start time, and end time");
       return;
@@ -267,28 +296,29 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
       return;
     }
 
-    // Update the quiz with schedule information
-    const updatedDrafts = draftQuizzes.map((quiz) =>
-      quiz.id === selectedQuizForSchedule.id
-        ? {
-            ...quiz,
-            scheduleDate: scheduleDate,
-            startTime: startTime,
-            endTime: endTime,
-            isScheduled: true,
-          }
-        : quiz
-    );
+    try {
+      // Update the quiz with schedule information via API
+      await teacherQuizService.scheduleQuiz(selectedQuizForSchedule.id, {
+        scheduleDate,
+        startTime,
+        endTime,
+      });
 
-    setDraftQuizzes(updatedDrafts);
-    localStorage.setItem("quizDrafts", JSON.stringify(updatedDrafts));
+      // Reload drafts to show updated data
+      await loadDrafts();
 
-    // Close modal and reset
-    setShowScheduleModal(false);
-    setSelectedQuizForSchedule(null);
-    setScheduleDate("");
-    setStartTime("");
-    setEndTime("");
+      // Close modal and reset
+      setShowScheduleModal(false);
+      setSelectedQuizForSchedule(null);
+      setScheduleDate("");
+      setStartTime("");
+      setEndTime("");
+
+      alert("✅ Quiz scheduled successfully!");
+    } catch (error) {
+      console.error("Error scheduling quiz:", error);
+      alert("Failed to schedule quiz");
+    }
   };
 
   return (
@@ -323,19 +353,122 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
         </div>
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+        </div>
+      )}
+
+      {/* No Drafts State */}
+      {!loading && draftQuizzes.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-gray-500">
+            No quiz drafts found. Create your first quiz!
+          </p>
+        </div>
+      )}
+
       {/* Draft Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {draftQuizzes.map((quiz) => (
-          <div
-            key={quiz.id}
-            className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition"
-          >
-            {/* Header */}
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-start gap-3">
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center shrink-0">
+      {!loading && draftQuizzes.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {draftQuizzes.map((quiz) => (
+            <div
+              key={quiz.id}
+              className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center shrink-0">
+                    <svg
+                      className="w-6 h-6 text-orange-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">
+                      {quiz.title}
+                    </h3>
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <button
+                        onClick={() => {
+                          setSelectedQuizForSchedule(quiz);
+                          setShowScheduleModal(true);
+                        }}
+                        className="flex items-center gap-2 hover:text-teal-600 transition"
+                      >
+                        <svg
+                          className="w-4 h-4 text-teal-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
+                        </svg>
+                        <span>
+                          {quiz.grade} - {quiz.semester}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Scheduled Details Box - Top Right */}
+                {quiz.isScheduled && quiz.scheduleDate && (
+                  <div className="px-4 py-3 bg-teal-50 border-2 border-teal-600 rounded-lg">
+                    <div className="text-xs font-semibold text-teal-700 mb-1">
+                      📅 Scheduled
+                    </div>
+                    <div className="text-sm font-bold text-teal-900">
+                      {new Date(quiz.scheduleDate).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </div>
+                    <div className="text-xs text-teal-700 mt-1">
+                      {quiz.startTime} - {quiz.endTime}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Progress */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="text-gray-600 font-medium">Progress</span>
+                  <span className="text-gray-900 font-semibold">
+                    {quiz.progress}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-teal-600 h-2 rounded-full transition-all"
+                    style={{ width: `${quiz.progress}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="flex items-center justify-between text-sm text-gray-600 mb-4 pb-4 border-b border-gray-200">
+                <div className="flex items-center gap-1">
                   <svg
-                    className="w-6 h-6 text-orange-600"
+                    className="w-4 h-4"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -344,185 +477,118 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
+                  <span>{quiz.questions} questions</span>
                 </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-1">
-                    {quiz.title}
-                  </h3>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <button
-                      onClick={() => {
-                        setSelectedQuizForSchedule(quiz);
-                        setShowScheduleModal(true);
-                      }}
-                      className="flex items-center gap-2 hover:text-teal-600 transition"
-                    >
-                      <svg
-                        className="w-4 h-4 text-teal-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
-                      <span>
-                        {quiz.grade} - {quiz.semester}
-                      </span>
-                    </button>
-                  </div>
+                <div className="flex items-center gap-1">
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span>{quiz.lastEdited}</span>
                 </div>
               </div>
 
-              {/* Scheduled Details Box - Top Right */}
-              {quiz.isScheduled && quiz.scheduleDate && (
-                <div className="px-4 py-3 bg-teal-50 border-2 border-teal-600 rounded-lg">
-                  <div className="text-xs font-semibold text-teal-700 mb-1">
-                    📅 Scheduled
-                  </div>
-                  <div className="text-sm font-bold text-teal-900">
-                    {new Date(quiz.scheduleDate).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </div>
-                  <div className="text-xs text-teal-700 mt-1">
-                    {quiz.startTime} - {quiz.endTime}
-                  </div>
-                </div>
-              )}
-            </div>
+              {/* Actions */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setEditingDraftId(quiz.id);
+                    setActiveMenuItem("create-quiz");
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-500 font-medium text-sm transition"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
+                  </svg>
+                  Continue Editing
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      // Share quiz means activate it for students
+                      await teacherQuizService.scheduleQuiz(quiz.id, {
+                        scheduleDate:
+                          quiz.scheduleDate ||
+                          new Date().toISOString().split("T")[0],
+                        startTime: quiz.startTime || "00:00",
+                        endTime: quiz.endTime || "23:59",
+                      });
 
-            {/* Progress */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-gray-600 font-medium">Progress</span>
-                <span className="text-gray-900 font-semibold">
-                  {quiz.progress}%
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-teal-600 h-2 rounded-full transition-all"
-                  style={{ width: `${quiz.progress}%` }}
-                ></div>
-              </div>
-            </div>
+                      alert(`✅ Quiz "${quiz.title}" shared with students!`);
 
-            {/* Info */}
-            <div className="flex items-center justify-between text-sm text-gray-600 mb-4 pb-4 border-b border-gray-200">
-              <div className="flex items-center gap-1">
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                      // Reload drafts to reflect changes
+                      await loadDrafts();
+                    } catch (error) {
+                      console.error("Error sharing quiz:", error);
+                      alert(
+                        "❌ Failed to share quiz: " +
+                          (error.response?.data?.message || error.message)
+                      );
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-500 hover:text-white hover:border-blue-500 font-medium text-sm transition"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <span>{quiz.questions} questions</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                    />
+                  </svg>
+                  Share
+                </button>
+                <button
+                  onClick={() => confirmDelete(quiz)}
+                  className="flex items-center gap-2 px-4 py-2.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-500 hover:text-white hover:border-red-500 font-medium text-sm transition"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <span>{quiz.lastEdited}</span>
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                  Delete
+                </button>
               </div>
             </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  setEditingDraftId(quiz.id);
-                  setActiveMenuItem("create-quiz");
-                }}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-500 font-medium text-sm transition"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
-                Continue Editing
-              </button>
-              <button
-                onClick={() => {
-                  // Share functionality - copy link or open share dialog
-                  navigator.clipboard.writeText(`Quiz: ${quiz.title}`);
-                  alert("Quiz link copied to clipboard!");
-                }}
-                className="flex items-center gap-2 px-4 py-2.5 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-500 hover:text-white hover:border-blue-500 font-medium text-sm transition"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-                  />
-                </svg>
-                Share
-              </button>
-              <button
-                onClick={() => confirmDelete(quiz)}
-                className="flex items-center gap-2 px-4 py-2.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-500 hover:text-white hover:border-red-500 font-medium text-sm transition"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Schedule Modal */}
       {showScheduleModal && (

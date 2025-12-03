@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import teacherQuizService from "../services/teacherQuizService";
 
 const TeacherCreateQuiz = ({
   setActiveMenuItem,
@@ -177,7 +178,7 @@ const TeacherCreateQuiz = ({
     );
   };
 
-  const handleCreateAssignment = () => {
+  const handleCreateAssignment = async () => {
     // Validate that required fields are filled
     if (
       !assignmentTitle ||
@@ -196,59 +197,59 @@ const TeacherCreateQuiz = ({
       return;
     }
 
-    // Get existing drafts from localStorage
-    const savedDrafts = localStorage.getItem("quizDrafts");
-    const existingDrafts = savedDrafts ? JSON.parse(savedDrafts) : [];
+    try {
+      // Format grade levels for display
+      const gradeLabels = gradeOptions
+        .filter((g) => selectedGrades.includes(g.id))
+        .map((g) => g.label);
+      const firstGrade = gradeLabels[0] || "";
 
-    // Calculate progress based on filled questions
-    const totalQuestions = questions.length;
-    const filledQuestions = questions.filter(
-      (q) =>
-        q.questionText && q.options.some((opt) => opt.text && opt.isCorrect)
-    ).length;
-    const progress = Math.round((filledQuestions / totalQuestions) * 100);
+      // Prepare quiz data for backend
+      const quizData = {
+        title: assignmentTitle,
+        subject: subject.charAt(0).toUpperCase() + subject.slice(1),
+        gradeLevel: [firstGrade], // Send as array to match backend schema
+        dueDate: new Date(dueDate).toISOString(),
+        questions: questions.map((q) => ({
+          id: q.id,
+          type: q.type,
+          questionText: q.questionText,
+          options: q.type === "mcq" ? q.options : [],
+          shortAnswer: q.type === "short" ? q.shortAnswer : "",
+          hints: q.hints || ["", "", "", ""],
+        })),
+        status: "draft",
+        isScheduled: false,
+      };
 
-    // Format grade levels for display
-    const gradeLabels = gradeOptions
-      .filter((g) => selectedGrades.includes(g.id))
-      .map((g) => g.label);
-    const firstGrade = gradeLabels[0] || "";
+      console.log("Saving quiz to database:", quizData);
 
-    // Create or update draft object
-    const draftData = {
-      id: editingDraftId || Date.now(), // Use existing ID if editing, otherwise new timestamp
-      title: assignmentTitle,
-      subject: subject.charAt(0).toUpperCase() + subject.slice(1),
-      grade: firstGrade.split(" ")[0] + " " + firstGrade.split(" ")[1], // e.g., "1st Y"
-      semester: firstGrade.includes("1st Sem") ? "1st sem" : "2nd sem",
-      progress: progress,
-      questions: totalQuestions,
-      lastEdited: "Just now",
-      fullData: {
-        assignmentTitle,
-        subject,
-        selectedGrades,
-        dueDate,
-        questions,
-      },
-    };
+      // Save to backend
+      if (editingDraftId) {
+        // Update existing quiz
+        await teacherQuizService.updateQuiz(editingDraftId, quizData);
+        alert("✅ Quiz updated successfully!");
+      } else {
+        // Create new quiz
+        const response = await teacherQuizService.createQuiz(quizData);
+        console.log("Quiz created:", response);
+        alert("✅ Quiz saved successfully!");
+      }
 
-    let updatedDrafts;
-    if (editingDraftId) {
-      // Update existing draft
-      updatedDrafts = existingDrafts.map((draft) =>
-        draft.id === editingDraftId ? draftData : draft
+      // Clear editing draft ID
+      if (setEditingDraftId) {
+        setEditingDraftId(null);
+      }
+
+      // Navigate to quiz drafts
+      setActiveMenuItem("quiz-drafts");
+    } catch (error) {
+      console.error("Error saving quiz:", error);
+      alert(
+        "❌ Failed to save quiz: " +
+          (error.response?.data?.message || error.message)
       );
-    } else {
-      // Add new draft to beginning of array
-      updatedDrafts = [draftData, ...existingDrafts];
     }
-
-    // Save to localStorage
-    localStorage.setItem("quizDrafts", JSON.stringify(updatedDrafts));
-
-    // Navigate to quiz drafts
-    setActiveMenuItem("quiz-drafts");
   };
 
   return (
