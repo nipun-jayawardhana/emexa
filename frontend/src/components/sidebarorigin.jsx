@@ -187,7 +187,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
         <button
           type="button"
           onClick={handleLogoutClick}
-          className="absolute bottom-4 left-3 right-3 flex items-center gap-2.5 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition text-sm font-medium cursor-pointer"
+          className="absolute bottom-4 left-3 right-3 flex items-center gap-2.5 px-3 py-2.5 text-black hover:bg-gray-100 rounded-lg transition text-sm font-medium cursor-pointer"
         >
           <svg
             className="w-4 h-4 pointer-events-none"
