@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/sidebarorigin';
@@ -431,33 +431,7 @@ const Profile = () => {
     }
   };
 
-  const handleProfileImageClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleProfileImageChange = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Check file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size should be less than 5MB');
-        return;
-      }
-      // Check file type
-      if (!file.type.startsWith('image/')) {
-        alert('Please select an image file');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result;
-        setProfileImage(base64String);
-        localStorage.setItem('profileImage', base64String);
-        alert('Profile picture updated successfully!');
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  // Profile image is read-only for students - no change handlers needed
 
   if (loading) {
     return (
@@ -484,13 +458,6 @@ const Profile = () => {
           {/* Profile Info at the Exact Middle - Left Aligned */}
           <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 z-10">
             <div className="relative">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleProfileImageChange}
-                className="hidden"
-              />
               <div className="bg-white rounded-full p-1 shadow-lg">
                 <img
                   src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"}
@@ -498,13 +465,6 @@ const Profile = () => {
                   className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
                 />
               </div>
-              <button
-                onClick={handleProfileImageClick}
-                type="button"
-                className="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full hover:bg-teal-700 shadow-lg transition-colors"
-              >
-                <Camera size={18} />
-              </button>
             </div>
             
             <div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Camera, Eye, EyeOff } from "lucide-react";
 import tProfile from "../assets/t-profile.png";
+import jsPDF from "jspdf";
 
 const TeacherProfile = ({ embedded = false, frame = null }) => {
   const [activeMenuItem, setActiveMenuItem] = useState("profile");
@@ -45,10 +46,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     }
   }, []);
 
-  // Load avatar from localStorage
+  // Load avatar from localStorage (teacher-specific key)
   useEffect(() => {
     try {
-      const storedAvatar = localStorage.getItem('profileImage');
+      const storedAvatar = localStorage.getItem('teacherProfileImage');
       if (storedAvatar) setAvatarUrl(storedAvatar);
     } catch (e) {
       // ignore
@@ -179,9 +180,9 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
     // Save avatar to localStorage and trigger header update
     if (avatarUrl) {
-      localStorage.setItem('profileImage', avatarUrl);
-      window.dispatchEvent(new CustomEvent('profileImageChanged', { detail: avatarUrl }));
-      console.log('Profile image updated and event dispatched');
+      localStorage.setItem('teacherProfileImage', avatarUrl);
+      window.dispatchEvent(new CustomEvent('teacherProfileImageChanged', { detail: avatarUrl }));
+      console.log('Teacher profile image updated and event dispatched');
     }
 
     alert('Changes saved successfully!');
@@ -291,41 +292,116 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
   const handleExportData = () => {
     try {
-      // Gather all user data
-      const userData = {
-        profile: {
-          fullName: formData.fullName,
-          email: formData.email,
-          role: formData.role
-        },
-        settings: {
-          emailNotifications,
-          smsNotifications,
-          inAppNotifications,
-          emotionConsent
-        },
-        avatar: avatarUrl,
-        exportDate: new Date().toISOString(),
-        exportedBy: formData.fullName || 'User'
-      };
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 20;
 
-      // Create JSON blob
-      const dataStr = JSON.stringify(userData, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      // Header with background
+      doc.setFillColor(189, 242, 209); // #BDF2D1
+      doc.rect(0, 0, pageWidth, 40, 'F');
       
-      // Create download link
-      const url = URL.createObjectURL(dataBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `profile-data-${new Date().toISOString().split('T')[0]}.json`;
+      // Title
+      doc.setFontSize(22);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Personal Data Export', pageWidth / 2, 25, { align: 'center' });
       
-      // Trigger download
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      yPosition = 50;
+
+      // Export Information
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      const exportDate = new Date().toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      doc.text(`Export Date: ${exportDate}`, 20, yPosition);
+      yPosition += 15;
+
+      // Profile Information Section
+      doc.setFillColor(240, 240, 240);
+      doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Profile Information', 20, yPosition + 7);
+      yPosition += 18;
+
+      doc.setFontSize(11);
+      doc.setTextColor(60, 60, 60);
+      doc.text(`Full Name: ${formData.fullName || 'Not provided'}`, 20, yPosition);
+      yPosition += 8;
+      doc.text(`Email: ${formData.email || 'Not provided'}`, 20, yPosition);
+      yPosition += 8;
+      doc.text(`Role: ${formData.role || 'Not provided'}`, 20, yPosition);
+      yPosition += 15;
+
+      // Notification Settings Section
+      doc.setFillColor(240, 240, 240);
+      doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Notification Settings', 20, yPosition + 7);
+      yPosition += 18;
+
+      doc.setFontSize(11);
+      doc.setTextColor(60, 60, 60);
+      doc.text(`Email Notifications: ${emailNotifications ? 'Enabled' : 'Disabled'}`, 20, yPosition);
+      yPosition += 8;
+      doc.text(`SMS Notifications: ${smsNotifications ? 'Enabled' : 'Disabled'}`, 20, yPosition);
+      yPosition += 8;
+      doc.text(`In-App Notifications: ${inAppNotifications ? 'Enabled' : 'Disabled'}`, 20, yPosition);
+      yPosition += 15;
+
+      // Privacy Settings Section
+      doc.setFillColor(240, 240, 240);
+      doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Privacy Settings', 20, yPosition + 7);
+      yPosition += 18;
+
+      doc.setFontSize(11);
+      doc.setTextColor(60, 60, 60);
+      doc.text(`Emotion Detection Consent: ${emotionConsent ? 'Granted' : 'Not Granted'}`, 20, yPosition);
+      yPosition += 15;
+
+      // Activity History Section
+      if (yPosition > pageHeight - 40) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.setFillColor(240, 240, 240);
+      doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Activity History', 20, yPosition + 7);
+      yPosition += 18;
+
+      doc.setFontSize(11);
+      doc.setTextColor(60, 60, 60);
+      doc.text('Account Created: ' + (formData.createdAt || 'Information not available'), 20, yPosition);
+      yPosition += 8;
+      doc.text('Last Profile Update: ' + new Date().toLocaleDateString(), 20, yPosition);
+      yPosition += 8;
+      doc.text('Total Logins: Information not available', 20, yPosition);
+      yPosition += 8;
+      doc.text('Last Login: ' + new Date().toLocaleString(), 20, yPosition);
+
+      // Footer
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      doc.text('This document contains your personal data as stored in our system.', pageWidth / 2, pageHeight - 15, { align: 'center' });
+      doc.text('Generated by Emexa Platform', pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+      // Save PDF
+      const fileName = `personal-data-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
       
-      alert('Your data has been exported successfully!');
+      alert('Your data has been exported successfully as a PDF!');
     } catch (error) {
       console.error('Export error:', error);
       alert('Failed to export data. Please try again.');
