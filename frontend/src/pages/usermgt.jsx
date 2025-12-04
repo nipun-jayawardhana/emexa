@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera } from "lucide-react";
+import axios from 'axios';
 import {
   getUsers,
   deleteUser,
@@ -62,24 +63,63 @@ const UserManagement = () => {
 
   const handleProfileImageChange = (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size should be less than 5MB');
-        return;
-      }
-      if (!file.type.startsWith('image/')) {
-        alert('Please select an image file');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result;
-        setAdminProfileImage(base64String);
-        localStorage.setItem('adminProfileImage', base64String);
-        alert('Profile picture updated successfully!');
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size should be less than 5MB');
+      return;
     }
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    const upload = async () => {
+      let uploadSucceeded = false;
+      try {
+        const formData = new FormData();
+        formData.append('profile', file);
+        const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+        
+        // Build headers only when values exist. Do NOT set Content-Type manually for FormData
+        const headers = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        console.debug('[usermgt] uploading profile image, token present:', !!token);
+        const res = await axios.post('http://localhost:5000/api/users/upload-profile', formData, { headers });
+
+        console.debug('[usermgt] upload response status:', res.status, 'data:', res.data);
+        const imagePath = res?.data?.profileImage;
+        if (imagePath) {
+          uploadSucceeded = true;
+          // Check if it's already a full URL
+          const fullUrl = imagePath.startsWith('http') ? imagePath : `http://localhost:5000${imagePath}`;
+          setAdminProfileImage(fullUrl);
+          localStorage.setItem('adminProfileImage', fullUrl);
+          window.dispatchEvent(new CustomEvent('adminProfileImageChanged', { detail: fullUrl }));
+          console.info('[usermgt] profile image updated, saved URL:', fullUrl);
+          alert('Profile picture updated successfully!');
+          return;
+        }
+      } catch (err) {
+        console.warn('Upload failed, falling back to local preview', err?.response?.data || err.message);
+      }
+
+      // Only use fallback if upload truly failed
+      if (!uploadSucceeded) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result;
+          setAdminProfileImage(base64String);
+          localStorage.setItem('adminProfileImage', base64String);
+          window.dispatchEvent(new CustomEvent('adminProfileImageChanged', { detail: base64String }));
+          alert('Profile picture updated locally (offline). Changes will sync when connection is restored.');
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    upload();
   };
 
   const navigateToDashboard = (type) => {
@@ -123,6 +163,27 @@ const UserManagement = () => {
     if (savedImage) {
       setAdminProfileImage(savedImage);
     }
+  }, []);
+
+  // Fetch admin profile from server to get profileImage
+  useEffect(() => {
+    const fetchAdminProfile = async () => {
+      try {
+        const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+        const res = await axios.get('http://localhost:5000/api/users/profile', {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : undefined
+          }
+        });
+        if (res.data?.profileImage) {
+          setAdminProfileImage(res.data.profileImage);
+          localStorage.setItem('adminProfileImage', res.data.profileImage);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch admin profile image', err);
+      }
+    };
+    fetchAdminProfile();
   }, []);
 
   useEffect(() => {
@@ -201,7 +262,35 @@ const UserManagement = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-2xl text-gray-600">Loading...</div>
+        <div className="w-full max-w-4xl mx-auto px-6 py-12">
+          {/* Skeleton Header */}
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
+            <div className="bg-gradient-to-r from-purple-400 to-purple-600 h-24"></div>
+            <div className="p-6 -mt-12 relative z-10">
+              <div className="flex items-end gap-4">
+                {/* Avatar skeleton */}
+                <div className="w-24 h-24 bg-gray-300 rounded-full animate-pulse border-4 border-white shadow-lg"></div>
+                {/* Name/Email skeleton */}
+                <div className="flex-1 pb-2">
+                  <div className="h-6 bg-gray-300 rounded w-48 animate-pulse mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Skeleton Content */}
+          <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="space-y-3">
+                <div className="h-4 bg-gray-300 rounded w-32 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-6 text-center text-gray-500 text-sm">Loading admin dashboard...</p>
+        </div>
       </div>
     );
   }

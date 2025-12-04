@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import axios from 'axios';
 import { Camera, Eye, EyeOff } from "lucide-react";
 import tProfile from "../assets/t-profile.png";
 import jsPDF from "jspdf";
@@ -14,6 +15,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
   });
 
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef(null);
 
   // Load user data from localStorage
@@ -56,6 +58,35 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     }
   }, []);
 
+  // Fetch teacher profile from server and sync profileImage
+  useEffect(() => {
+    const fetchTeacherProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        const response = await axios.get('http://localhost:5000/api/users/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data?.profileImage) {
+          setAvatarUrl(response.data.profileImage);
+          localStorage.setItem('teacherProfileImage', response.data.profileImage);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch teacher profile image:', err?.response?.data || err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTeacherProfile();
+  }, []);
+
+
   const handleAvatarClick = () => {
     if (fileInputRef.current) fileInputRef.current.click();
   };
@@ -63,13 +94,68 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
   const handleAvatarChange = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+
+    // Basic validation
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size should be less than 5MB');
+      e.target.value = '';
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      e.target.value = '';
+      return;
+    }
+
+    // Optimistically show preview
     const reader = new FileReader();
     reader.onload = (evt) => {
       const dataUrl = evt.target.result;
       setAvatarUrl(dataUrl);
-      // Don't save to localStorage yet - wait for Save Changes button
     };
     reader.readAsDataURL(file);
+
+    // Upload to backend and persist URL
+    const upload = async () => {
+      try {
+        const formData = new FormData();
+        formData.append('profile', file);
+        const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+        const res = await axios.post('http://localhost:5000/api/users/upload-profile', formData, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : undefined,
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+
+        const imageUrl = res.data?.profileImage;
+        if (imageUrl) {
+          const fullUrl = imageUrl.startsWith('http') ? imageUrl : `http://localhost:5000${imageUrl}`;
+          setAvatarUrl(fullUrl);
+          localStorage.setItem('teacherProfileImage', fullUrl);
+          window.dispatchEvent(new CustomEvent('teacherProfileImageChanged', { detail: fullUrl }));
+          alert('Profile picture updated successfully!');
+          
+          // Refetch to ensure UI is in sync
+          try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get('http://localhost:5000/api/users/profile', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (response.data?.profileImage) {
+              setAvatarUrl(response.data.profileImage);
+            }
+          } catch (refetchErr) {
+            console.warn('Refetch failed:', refetchErr.message);
+          }
+        }
+      } catch (err) {
+        console.warn('Upload failed, keeping local preview', err?.response?.data || err.message);
+        // keep local preview (already set) - do not overwrite localStorage so server is single source of truth
+      }
+    };
+
+    upload();
     e.target.value = '';
   };
 
@@ -177,6 +263,12 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       parsed.fullName = data.data.name;
       localStorage.setItem('user', JSON.stringify(parsed));
     }
+    
+    // Update userName in localStorage for header
+    localStorage.setItem('userName', formData.fullName);
+    
+    // Dispatch event for header to update name
+    window.dispatchEvent(new CustomEvent('userNameChanged', { detail: formData.fullName }));
 
     // Save avatar to localStorage and trigger header update
     if (avatarUrl) {
@@ -422,6 +514,42 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         opacity: frame.opacity,
       }
     : undefined;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-full max-w-4xl mx-auto px-6 py-12">
+          {/* Skeleton Header */}
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
+            <div className="bg-gradient-to-r from-blue-400 to-blue-600 h-24"></div>
+            <div className="p-6 -mt-12 relative z-10">
+              <div className="flex items-end gap-4">
+                {/* Avatar skeleton */}
+                <div className="w-24 h-24 bg-gray-300 rounded-full animate-pulse border-4 border-white shadow-lg"></div>
+                {/* Name/Email skeleton */}
+                <div className="flex-1 pb-2">
+                  <div className="h-6 bg-gray-300 rounded w-48 animate-pulse mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Skeleton Content */}
+          <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="space-y-3">
+                <div className="h-4 bg-gray-300 rounded w-32 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-6 text-center text-gray-500 text-sm">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50" style={frame ? { display: "flex", alignItems: "center", justifyContent: "center", background: "transparent" } : undefined}>

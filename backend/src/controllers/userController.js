@@ -353,7 +353,21 @@ export const uploadProfileImage = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    user.profileImage = `/uploads/profiles/${req.file.filename}`;
+    // Build absolute URL to the uploaded file so clients can consume it directly
+    const host = req.get('host');
+    const protocol = req.protocol;
+    const imageUrl = `${protocol}://${host}/uploads/profiles/${req.file.filename}`;
+
+    // Normalize role for legacy/incorrectly-cased values on User documents
+    try {
+      if (user && user.constructor && user.constructor.modelName === 'User' && user.role) {
+        user.role = String(user.role).toLowerCase();
+      }
+    } catch (normErr) {
+      console.warn('Could not normalize role before saving profile image:', normErr);
+    }
+
+    user.profileImage = imageUrl;
     await user.save();
 
     res.json({ 

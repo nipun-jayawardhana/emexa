@@ -10,12 +10,30 @@ import {
   updatePrivacySettings,
   exportUserData
 } from '../controllers/userController.js';
+import { uploadProfileImage } from '../controllers/userController.js';
 import { protect } from '../middleware/auth.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import User from '../models/user.js';
 import Student from '../models/student.js';
 import Teacher from '../models/teacher.js';
 
 const router = express.Router();
+
+// Multer setup for profile uploads
+const profilesDir = path.resolve(process.cwd(), 'backend', 'uploads', 'profiles');
+fs.mkdirSync(profilesDir, { recursive: true });
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, profilesDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname) || '';
+    cb(null, `${Date.now()}-${Math.round(Math.random()*1e9)}${ext}`);
+  }
+});
+const upload = multer({ storage });
 
 // === PROFILE ROUTES - MUST BE BEFORE GENERAL ROUTES ===
 // These specific routes must come first to avoid conflicts
@@ -23,6 +41,8 @@ const router = express.Router();
 // Profile management routes
 router.get('/profile', protect, getProfile);
 router.put('/update-profile', protect, updateProfile);
+// Endpoint for uploading profile image (multipart/form-data, field name: 'profile')
+router.post('/upload-profile', protect, upload.single('profile'), uploadProfileImage);
 router.put('/change-password', protect, changePassword);
 router.put('/notification-settings', protect, updateNotificationSettings);
 router.put('/privacy-settings', protect, updatePrivacySettings);

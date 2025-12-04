@@ -8,6 +8,8 @@ const studentSchema = new mongoose.Schema({
   password: { type: String, required: true, select: false },
   role: { type: String, default: 'student', immutable: true },
   isActive: { type: Boolean, default: true },
+  // Profile image stored as relative path (e.g. /uploads/profiles/xxx.jpg)
+  profileImage: { type: String, default: null },
   // Student-specific fields
   studentId: { type: String, unique: true, sparse: true },
   grade: { type: String },

@@ -8,6 +8,8 @@ const teacherSchema = new mongoose.Schema({
   password: { type: String, required: true, select: false },
   role: { type: String, default: 'teacher', immutable: true },
   isActive: { type: Boolean, default: true },
+  // Profile image stored as relative path (e.g. /uploads/profiles/xxx.jpg)
+  profileImage: { type: String, default: null },
   // Teacher-specific fields
   teacherId: { type: String, unique: true, sparse: true },
   department: { type: String },
