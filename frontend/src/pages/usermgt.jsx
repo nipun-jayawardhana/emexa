@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { Camera } from "lucide-react";
 import {
   getUsers,
   deleteUser,
@@ -37,6 +38,7 @@ const RoleTag = ({ role }) => (
 const UserManagement = () => {
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const [users, setUsers] = useState([]);
   const [teacherApprovals, setTeacherApprovals] = useState([]);
@@ -50,8 +52,35 @@ const UserManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
+  const [adminProfileImage, setAdminProfileImage] = useState(null);
 
   const roles = ["All Roles", "Admin", "Teacher", "Student"];
+
+  const handleProfileImageClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleProfileImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size should be less than 5MB');
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result;
+        setAdminProfileImage(base64String);
+        localStorage.setItem('adminProfileImage', base64String);
+        alert('Profile picture updated successfully!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const navigateToDashboard = (type) => {
     localStorage.setItem("adminViewingAs", type === "student" ? "student" : "teacher");
@@ -89,6 +118,11 @@ const UserManagement = () => {
   useEffect(() => {
     const admin = localStorage.getItem("adminUser");
     if (admin) setAdminUser(JSON.parse(admin));
+    
+    const savedImage = localStorage.getItem('adminProfileImage');
+    if (savedImage) {
+      setAdminProfileImage(savedImage);
+    }
   }, []);
 
   useEffect(() => {
@@ -182,8 +216,48 @@ const UserManagement = () => {
 
         {/* Main content - pushed down perfectly */}
         <main className="flex-1 ml-64 pt-20 px-8">
-          <div className="max-w-7xl mx-auto">
+          {/* Admin Profile Header Section */}
+          <div className="relative mb-12">
+            {/* Green Bar */}
+            <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-24 rounded-t-lg"></div>
+            
+            {/* White Bar */}
+            <div className="bg-white h-24"></div>
+            
+            {/* Profile Info at the Exact Middle - Left Aligned */}
+            <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 z-10">
+              <div className="relative">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfileImageChange}
+                  className="hidden"
+                />
+                <div className="bg-white rounded-full p-1 shadow-lg">
+                  <img
+                    src={adminProfileImage || "https://via.placeholder.com/120"}
+                    alt="Admin Profile"
+                    className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
+                  />
+                </div>
+                <button
+                  onClick={handleProfileImageClick}
+                  type="button"
+                  className="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full hover:bg-teal-700 shadow-lg transition-colors"
+                >
+                  <Camera size={18} />
+                </button>
+              </div>
+              
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">{adminUser?.name || 'Admin'}</h1>
+                <p className="text-gray-600 text-sm">{adminUser?.email || 'admin@emexa.edu'}</p>
+              </div>
+            </div>
+          </div>
 
+          <div className="max-w-7xl mx-auto">
             {/* Title */}
             <div className="mb-12">
               <h1 className="text-4xl font-bold text-gray-900">User Management Dashboard</h1>
