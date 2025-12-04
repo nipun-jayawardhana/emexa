@@ -76,7 +76,7 @@ const TeacherCreateQuiz = ({
         { id: 2, text: "", isCorrect: false },
       ],
       shortAnswer: "", // For short answer type
-      hint: "",
+      hints: ["", "", "", ""], // 4 hints for each question
     };
     setQuestions([...questions, newQuestion]);
   };
@@ -99,9 +99,16 @@ const TeacherCreateQuiz = ({
     );
   };
 
-  const updateQuestionHint = (questionId, value) => {
+  const updateQuestionHint = (questionId, hintIndex, value) => {
     setQuestions(
-      questions.map((q) => (q.id === questionId ? { ...q, hint: value } : q))
+      questions.map((q) => {
+        if (q.id === questionId) {
+          const updatedHints = [...(q.hints || ["", "", "", ""])];
+          updatedHints[hintIndex] = value;
+          return { ...q, hints: updatedHints };
+        }
+        return q;
+      })
     );
   };
 
@@ -311,34 +318,13 @@ const TeacherCreateQuiz = ({
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Subject
           </label>
-          <div className="relative">
-            <select
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none appearance-none bg-white text-sm text-gray-500"
-            >
-              <option value="">Select a subject</option>
-              <option value="mathematics">Mathematics</option>
-              <option value="science">Science</option>
-              <option value="english">English</option>
-              <option value="history">History</option>
-            </select>
-            <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
-              <svg
-                className="w-4 h-4 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
-          </div>
+          <input
+            type="text"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm placeholder-gray-400"
+            placeholder="Enter subject name"
+          />
         </div>
 
         {/* Grade Level and Due Date */}
@@ -609,20 +595,27 @@ const TeacherCreateQuiz = ({
               </div>
             )}
 
-            {/* Hint/Explanation */}
+            {/* Hints */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Hint/Explanation
+                Hints (up to 4)
               </label>
-              <textarea
-                value={question.hint}
-                onChange={(e) =>
-                  updateQuestionHint(question.id, e.target.value)
-                }
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm placeholder-gray-400 resize-none"
-                rows="2"
-                placeholder="Add a hint or explanation (optional)"
-              />
+              <div className="space-y-2">
+                {[0, 1, 2, 3].map((hintIndex) => (
+                  <input
+                    key={hintIndex}
+                    type="text"
+                    value={
+                      (question.hints || ["", "", "", ""])[hintIndex] || ""
+                    }
+                    onChange={(e) =>
+                      updateQuestionHint(question.id, hintIndex, e.target.value)
+                    }
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm placeholder-gray-400"
+                    placeholder={`Hint ${hintIndex + 1} (optional)`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         ))}
