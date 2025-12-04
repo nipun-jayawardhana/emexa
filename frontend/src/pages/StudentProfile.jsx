@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Camera, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/sidebarorigin';
@@ -172,7 +172,7 @@ const Profile = () => {
       setUserName(localStorage.getItem('userName') || 'Student');
 
       // Load profile image from localStorage
-      const savedImage = localStorage.getItem('profileImage');
+      const savedImage = localStorage.getItem('studentProfileImage');
       if (savedImage) {
         setProfileImage(savedImage);
       }
@@ -324,27 +324,128 @@ const Profile = () => {
   const handleSaveAccountInfo = async () => {
     try {
       const token = localStorage.getItem('token');
-      // Create a copy to avoid state mutation
-      const dataToSave = { ...formData };
+      
+      if (!token) {
+        // If no token, just update localStorage
+        console.warn('No token found, updating localStorage only');
+        
+        // Update localStorage
+        localStorage.setItem('userName', formData.name);
+        localStorage.setItem('userEmail', formData.email);
+        
+        // Update userName state to refresh header
+        setUserName(formData.name);
+        
+        // Save profile image
+        if (profileImage) {
+          const storedImage = localStorage.getItem('studentProfileImage');
+          if (profileImage !== storedImage) {
+            localStorage.setItem('studentProfileImage', profileImage);
+            window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: profileImage }));
+          }
+        }
+        
+        // Update user data
+        setUserData(prev => ({
+          ...prev,
+          name: formData.name,
+          email: formData.email
+        }));
+        
+        alert('Profile updated successfully (local only)!');
+        return;
+      }
+      
+      // Only send name and email to match backend expectations
+      const dataToSave = {
+        name: formData.name,
+        email: formData.email
+      };
+      
+      console.log('Saving profile data:', dataToSave);
+      console.log('Token:', token ? 'Present' : 'Missing');
+      
       const response = await axios.put(
         'http://localhost:5000/api/users/update-profile',
         dataToSave,
-        { headers: { Authorization: `Bearer ${token}` }}
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
       );
+      
+      console.log('Profile update response:', response.data);
+      
       if (response.data) {
-        alert('Profile updated successfully!');
+        // Save profile image to localStorage and dispatch event to update header
+        if (profileImage) {
+          const storedImage = localStorage.getItem('studentProfileImage');
+          // Only update if image has changed
+          if (profileImage !== storedImage) {
+            localStorage.setItem('studentProfileImage', profileImage);
+            window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: profileImage }));
+            console.log('Profile image updated in localStorage and header notified');
+          }
+        }
+        
         // Update localStorage with new values
         localStorage.setItem('userName', dataToSave.name);
         localStorage.setItem('userEmail', dataToSave.email);
+        
+        // Update userName state to refresh header
+        setUserName(dataToSave.name);
+        
         // Refresh user data without resetting form
         setUserData(prev => ({
           ...prev,
-          ...dataToSave
+          name: dataToSave.name,
+          email: dataToSave.email
         }));
+        
+        alert('Profile updated successfully!');
       }
     } catch (error) {
-      console.error('Error updating profile:', error);
-      alert(error.response?.data?.message || 'Failed to update profile');
+      console.error('Full error object:', error);
+      console.error('Error response:', error.response);
+      console.error('Error message:', error.message);
+      
+      // Fallback: Update localStorage even if API fails
+      console.warn('API failed, updating localStorage as fallback');
+      
+      localStorage.setItem('userName', formData.name);
+      localStorage.setItem('userEmail', formData.email);
+      setUserName(formData.name);
+      
+      if (profileImage) {
+        const storedImage = localStorage.getItem('studentProfileImage');
+        if (profileImage !== storedImage) {
+          localStorage.setItem('studentProfileImage', profileImage);
+          window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: profileImage }));
+        }
+      }
+      
+      setUserData(prev => ({
+        ...prev,
+        name: formData.name,
+        email: formData.email
+      }));
+      
+      if (error.response) {
+        // Server responded with error
+        console.error('Server error data:', error.response.data);
+        console.error('Server error status:', error.response.status);
+        alert(`Profile updated locally. Server error: ${error.response.data?.message || error.response.statusText}`);
+      } else if (error.request) {
+        // Request made but no response
+        console.error('No response received:', error.request);
+        alert('Profile updated locally. Could not reach server.');
+      } else {
+        // Error in request setup
+        console.error('Request setup error:', error.message);
+        alert(`Profile updated locally. Error: ${error.message}`);
+      }
     }
   };
 
@@ -431,7 +532,32 @@ const Profile = () => {
     }
   };
 
-  // Profile image is read-only for students - no change handlers needed
+  const handleProfileImageClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleProfileImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size should be less than 5MB');
+        return;
+      }
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result;
+        // Only preview the image, don't save yet
+        setProfileImage(base64String);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   if (loading) {
     return (
@@ -458,6 +584,13 @@ const Profile = () => {
           {/* Profile Info at the Exact Middle - Left Aligned */}
           <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 z-10">
             <div className="relative">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleProfileImageChange}
+                className="hidden"
+              />
               <div className="bg-white rounded-full p-1 shadow-lg">
                 <img
                   src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"}
@@ -465,6 +598,13 @@ const Profile = () => {
                   className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
                 />
               </div>
+              <button
+                onClick={handleProfileImageClick}
+                type="button"
+                className="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full hover:bg-teal-700 shadow-lg transition-colors"
+              >
+                <Camera size={18} />
+              </button>
             </div>
             
             <div>
