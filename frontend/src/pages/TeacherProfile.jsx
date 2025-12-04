@@ -48,7 +48,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
   // Load avatar from localStorage
   useEffect(() => {
     try {
-      const storedAvatar = localStorage.getItem('avatar');
+      const storedAvatar = localStorage.getItem('profileImage');
       if (storedAvatar) setAvatarUrl(storedAvatar);
     } catch (e) {
       // ignore
@@ -66,11 +66,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     reader.onload = (evt) => {
       const dataUrl = evt.target.result;
       setAvatarUrl(dataUrl);
-      try {
-        localStorage.setItem('avatar', dataUrl);
-      } catch (err) {
-        // ignore
-      }
+      // Don't save to localStorage yet - wait for Save Changes button
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -78,6 +74,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [changePwdData, setChangePwdData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
 
   // Settings toggles
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -178,6 +175,13 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       parsed.name = data.data.name;
       parsed.fullName = data.data.name;
       localStorage.setItem('user', JSON.stringify(parsed));
+    }
+
+    // Save avatar to localStorage and trigger header update
+    if (avatarUrl) {
+      localStorage.setItem('profileImage', avatarUrl);
+      window.dispatchEvent(new CustomEvent('profileImageChanged', { detail: avatarUrl }));
+      console.log('Profile image updated and event dispatched');
     }
 
     alert('Changes saved successfully!');
@@ -283,6 +287,49 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
   const handleCancelLogout = () => {
     setShowLogoutModal(false);
+  };
+
+  const handleExportData = () => {
+    try {
+      // Gather all user data
+      const userData = {
+        profile: {
+          fullName: formData.fullName,
+          email: formData.email,
+          role: formData.role
+        },
+        settings: {
+          emailNotifications,
+          smsNotifications,
+          inAppNotifications,
+          emotionConsent
+        },
+        avatar: avatarUrl,
+        exportDate: new Date().toISOString(),
+        exportedBy: formData.fullName || 'User'
+      };
+
+      // Create JSON blob
+      const dataStr = JSON.stringify(userData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      
+      // Create download link
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `profile-data-${new Date().toISOString().split('T')[0]}.json`;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      alert('Your data has been exported successfully!');
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export data. Please try again.');
+    }
   };
 
   const handleMenuClick = (itemId) => {
@@ -438,64 +485,96 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10000 p-6"
           onClick={handleCloseChangePassword}
         >
-          <div className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-[#bdf2d1] rounded-lg shadow-2xl overflow-hidden">
-              <div className="relative px-8 pt-6 pb-4 text-center">
-                <h3 className="text-lg font-semibold text-gray-900">Change Password</h3>
+          <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="rounded-lg shadow-2xl overflow-hidden" style={{ backgroundColor: '#BDF2D1' }}>
+              <div className="relative px-8 pt-6 pb-4 border-b border-gray-200">
+                <h3 className="text-xl font-semibold text-gray-900">Change Password</h3>
                 <button
                   onClick={handleCloseChangePassword}
-                  className="absolute right-4 top-4 text-gray-700 hover:text-gray-900 p-1 rounded"
+                  className="absolute right-6 top-6 text-gray-400 hover:text-gray-600 p-1 rounded"
                   aria-label="close-modal"
                 >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
               </div>
 
-              <div className="px-10 pb-8">
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
-                  <input
-                    type="password"
-                    name="currentPassword"
-                    value={changePwdData.currentPassword}
-                    onChange={handleChangePwdInput}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-6 mb-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+              <div className="px-8 py-6">
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">Current Password</label>
+                  <div className="relative">
                     <input
-                      type="password"
-                      name="newPassword"
-                      value={changePwdData.newPassword}
+                      type={showPasswords.current ? "text" : "password"}
+                      name="currentPassword"
+                      placeholder="Enter current password"
+                      value={changePwdData.currentPassword}
                       onChange={handleChangePwdInput}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
+                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      value={changePwdData.confirmPassword}
-                      onChange={handleChangePwdInput}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
-                    />
-                    {changePwdData.confirmPassword !== '' && changePwdData.newPassword !== changePwdData.confirmPassword && (
-                      <p className="text-xs text-red-600 mt-2">Passwords do not match</p>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPasswords.current ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPasswords.new ? "text" : "password"}
+                        name="newPassword"
+                        placeholder="Enter new password"
+                        value={changePwdData.newPassword}
+                        onChange={handleChangePwdInput}
+                        className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPasswords.new ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">Confirm New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPasswords.confirm ? "text" : "password"}
+                        name="confirmPassword"
+                        placeholder="Confirm new password"
+                        value={changePwdData.confirmPassword}
+                        onChange={handleChangePwdInput}
+                        className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPasswords.confirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
                   <button
                     onClick={handleSubmitChangePassword}
-                    className="flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                    className="px-6 py-2.5 rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition font-medium text-sm"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    <span className="text-sm">Save Changes</span>
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={handleCloseChangePassword}
+                    className="px-6 py-2.5 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition font-medium text-sm"
+                  >
+                    Cancel
                   </button>
                 </div>
               </div>
@@ -818,7 +897,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                       <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
 
                       <div className="mt-6 flex flex-col items-start gap-4">
-                        <button className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
+                        <button 
+                          onClick={handleExportData}
+                          className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                        >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
                           <span className="text-sm">Export All Data</span>
                         </button>
@@ -1149,7 +1231,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                           <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
 
                           <div className="mt-6 flex flex-col items-start gap-4">
-                            <button className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
+                            <button 
+                              onClick={handleExportData}
+                              className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                            >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
                               <span className="text-sm">Export All Data</span>
                             </button>
