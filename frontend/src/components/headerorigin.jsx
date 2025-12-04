@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import LogoIcon from '../assets/headerlogo.png';
 
 const Header = ({ userName, userRole }) => {
   const navigate = useNavigate();
+  const [profileImage, setProfileImage] = useState(null);
 
   const handleLogout = () => {
     // Show confirmation dialog
@@ -16,8 +17,31 @@ const Header = ({ userName, userRole }) => {
     }
   };
 
-  // Read profile image from localStorage so header updates when user changes it
-  const profileImage = typeof window !== 'undefined' ? localStorage.getItem('profileImage') : null;
+  // Load profile image from localStorage and listen for changes
+  useEffect(() => {
+    // Initial load
+    const storedImage = localStorage.getItem('profileImage');
+    setProfileImage(storedImage);
+
+    // Listen for profile image changes (same tab)
+    const handleProfileImageChange = (e) => {
+      console.log('Profile image change event received:', e.detail);
+      setProfileImage(e.detail);
+    };
+
+    // Listen for storage changes (cross-tab)
+    const handleStorageChange = () => {
+      const updatedImage = localStorage.getItem('profileImage');
+      setProfileImage(updatedImage);
+    };
+
+    window.addEventListener('profileImageChanged', handleProfileImageChange);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('profileImageChanged', handleProfileImageChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   return (
     <header className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 h-14 z-50">
