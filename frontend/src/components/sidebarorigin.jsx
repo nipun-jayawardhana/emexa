@@ -161,7 +161,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
 
   return (
     <>
-      <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-gradient-to-b from-green-50 via-green-50 to-white border-r border-gray-200 overflow-y-auto">
+      <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 border-r border-gray-200 overflow-y-auto" style={{ backgroundColor: '#BDF2D1' }}>
         {/* Menu Items */}
         <nav className="pt-4 px-3 space-y-2">
           {items.map((item) => (
@@ -184,7 +184,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
         <button
           type="button"
           onClick={handleLogoutClick}
-          className="absolute bottom-4 left-3 right-3 flex items-center gap-2.5 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition text-sm font-medium cursor-pointer"
+          className="absolute bottom-4 left-3 right-3 flex items-center gap-2.5 px-3 py-2.5 text-black hover:bg-gray-100 rounded-lg transition text-sm font-medium cursor-pointer"
         >
           <svg
             className="w-4 h-4 pointer-events-none"
