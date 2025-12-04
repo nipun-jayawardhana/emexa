@@ -19,8 +19,12 @@ const Header = ({ userName, userRole }) => {
 
   // Load profile image from localStorage and listen for changes
   useEffect(() => {
+    // Use role-specific localStorage key
+    const storageKey = userRole === 'teacher' ? 'teacherProfileImage' : 'studentProfileImage';
+    const eventName = userRole === 'teacher' ? 'teacherProfileImageChanged' : 'studentProfileImageChanged';
+    
     // Initial load
-    const storedImage = localStorage.getItem('profileImage');
+    const storedImage = localStorage.getItem(storageKey);
     setProfileImage(storedImage);
 
     // Listen for profile image changes (same tab)
@@ -31,17 +35,17 @@ const Header = ({ userName, userRole }) => {
 
     // Listen for storage changes (cross-tab)
     const handleStorageChange = () => {
-      const updatedImage = localStorage.getItem('profileImage');
+      const updatedImage = localStorage.getItem(storageKey);
       setProfileImage(updatedImage);
     };
 
-    window.addEventListener('profileImageChanged', handleProfileImageChange);
+    window.addEventListener(eventName, handleProfileImageChange);
     window.addEventListener('storage', handleStorageChange);
     return () => {
-      window.removeEventListener('profileImageChanged', handleProfileImageChange);
+      window.removeEventListener(eventName, handleProfileImageChange);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [userRole]);
 
   return (
     <header className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 h-14 z-50">
