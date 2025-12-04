@@ -11,12 +11,20 @@ import TeacherQuizDraft from "./TeacherQuizDraft";
 import TeacherProfile from "./TeacherProfile";
 
 const TeacherDashboard = () => {
-  const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
+  const [activeMenuItem, setActiveMenuItem] = useState(() => {
+    // Load from localStorage if available, otherwise default to "dashboard"
+    return localStorage.getItem("teacherActiveMenuItem") || "dashboard";
+  });
   const [userName, setUserName] = useState("");
   const [editingDraftId, setEditingDraftId] = useState(null);
 
   const adminToken = localStorage.getItem("adminToken");
   const isAdminViewing = localStorage.getItem("adminViewingAs");
+
+  // Save activeMenuItem to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem("teacherActiveMenuItem", activeMenuItem);
+  }, [activeMenuItem]);
 
   useEffect(() => {
     const storedUserName = localStorage.getItem("userName");

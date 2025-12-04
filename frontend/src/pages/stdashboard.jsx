@@ -10,11 +10,19 @@ const StudentDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("");
-  const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
+  const [activeMenuItem, setActiveMenuItem] = useState(() => {
+    // Load from localStorage if available, otherwise default to "dashboard"
+    return localStorage.getItem("studentActiveMenuItem") || "dashboard";
+  });
   const navigate = useNavigate();
   
   const adminToken = localStorage.getItem('adminToken');
   const isAdminViewing = localStorage.getItem('adminViewingAs');
+
+  // Save activeMenuItem to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem("studentActiveMenuItem", activeMenuItem);
+  }, [activeMenuItem]);
 
   useEffect(() => {
     fetchDashboardData();

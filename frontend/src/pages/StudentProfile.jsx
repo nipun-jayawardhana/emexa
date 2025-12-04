@@ -182,6 +182,15 @@ const Profile = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array ensures this only runs once on mount
 
+  // Sync profileImage from server data whenever userData changes
+  useEffect(() => {
+    if (userData?.profileImage) {
+      setProfileImage(userData.profileImage);
+      // also update localStorage so header picks it up
+      localStorage.setItem('studentProfileImage', userData.profileImage);
+    }
+  }, [userData?.profileImage]);
+
   const fetchUserData = async () => {
     setLoading(true);
     try {
@@ -538,33 +547,96 @@ const Profile = () => {
 
   const handleProfileImageChange = (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      // Check file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size should be less than 5MB');
-        return;
-      }
-      // Check file type
-      if (!file.type.startsWith('image/')) {
-        alert('Please select an image file');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result;
-        // Only preview the image, don't save yet
-        setProfileImage(base64String);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    // Basic validation
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size should be less than 5MB');
+      return;
     }
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    // Try uploading to backend; fallback to local preview if upload fails
+    const uploadToServer = async () => {
+      let uploadSucceeded = false;
+      try {
+        const formData = new FormData();
+        formData.append('profile', file);
+        const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+        const response = await axios.post('http://localhost:5000/api/users/upload-profile', formData, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : undefined,
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+
+        const imagePath = response.data?.profileImage;
+        if (imagePath) {
+          uploadSucceeded = true;
+          const fullUrl = imagePath.startsWith('http') ? imagePath : `http://localhost:5000${imagePath}`;
+          setProfileImage(fullUrl);
+          // persist under the student-specific key and notify header/listeners
+          localStorage.setItem('studentProfileImage', fullUrl);
+          window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: fullUrl }));
+          
+          alert('Profile picture updated successfully!');
+          return;
+        }
+      } catch (err) {
+        console.warn('Upload failed, falling back to local preview', err?.response?.data || err.message);
+      }
+
+      // Fallback: only use if upload truly failed
+      if (!uploadSucceeded) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result;
+          setProfileImage(base64String);
+          localStorage.setItem('studentProfileImage', base64String);
+          window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: base64String }));
+          alert('Profile picture updated locally (offline). Changes will sync when connection is restored.');
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    uploadToServer();
   };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading profile...</p>
+        <div className="w-full max-w-4xl mx-auto px-6 py-12">
+          {/* Skeleton Header */}
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
+            <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-24"></div>
+            <div className="p-6 -mt-12 relative z-10">
+              <div className="flex items-end gap-4">
+                {/* Avatar skeleton */}
+                <div className="w-24 h-24 bg-gray-300 rounded-full animate-pulse border-4 border-white shadow-lg"></div>
+                {/* Name/Email skeleton */}
+                <div className="flex-1 pb-2">
+                  <div className="h-6 bg-gray-300 rounded w-48 animate-pulse mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Skeleton Content */}
+          <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="space-y-3">
+                <div className="h-4 bg-gray-300 rounded w-32 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-6 text-center text-gray-500 text-sm">Loading profile...</p>
         </div>
       </div>
     );
