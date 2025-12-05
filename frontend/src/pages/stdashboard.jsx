@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import camera from "../lib/camera";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import AdminViewWrapper from "../components/AdminViewWrapper";
 import Sidebar from "../components/sidebarorigin";
@@ -10,19 +10,24 @@ const StudentDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("");
-  const [activeMenuItem, setActiveMenuItem] = useState(() => {
-    // Load from localStorage if available, otherwise default to "dashboard"
-    return localStorage.getItem("studentActiveMenuItem") || "dashboard";
-  });
+  const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
   const navigate = useNavigate();
+  const location = useLocation();
   
   const adminToken = localStorage.getItem('adminToken');
   const isAdminViewing = localStorage.getItem('adminViewingAs');
 
-  // Save activeMenuItem to localStorage whenever it changes
+  // Sync activeMenuItem with current location
   useEffect(() => {
-    localStorage.setItem("studentActiveMenuItem", activeMenuItem);
-  }, [activeMenuItem]);
+    const pathToMenuItem = {
+      "/dashboard": "dashboard",
+      "/wellness-centre": "wellness",
+      "/profile": "profile",
+    };
+    
+    const menuItem = pathToMenuItem[location.pathname] || "dashboard";
+    setActiveMenuItem(menuItem);
+  }, [location.pathname]);
 
   useEffect(() => {
     fetchDashboardData();
