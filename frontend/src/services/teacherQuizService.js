@@ -66,13 +66,13 @@ const teacherQuizService = {
   },
 
   /**
-   * Get quiz statistics
+   * Get quiz statistics (total, drafts, scheduled, active, closed)
    * @returns {Promise} Response with quiz stats (total, drafts, scheduled, active, closed)
    */
   async getQuizStats() {
     try {
       const response = await api.get(`${BASE_URL}/stats`);
-      return response.data;
+      return response.stats || response;
     } catch (error) {
       console.error('Error fetching quiz stats:', error);
       throw error;

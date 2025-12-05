@@ -20,10 +20,14 @@ router.get('/shared', async (req, res) => {
   try {
     const TeacherQuiz = (await import('../models/teacherQuiz.js')).default;
     const sharedQuizzes = await TeacherQuiz.find({ 
-      status: 'active',
-      isScheduled: true,
+      $or: [
+        { status: 'active', isScheduled: true },
+        { status: 'scheduled' }
+      ],
       isDeleted: false 
     }).select('-__v');
+    
+    console.log('📚 Fetched shared quizzes for students:', sharedQuizzes.length);
     
     res.status(200).json({
       success: true,

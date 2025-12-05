@@ -298,9 +298,11 @@ export const scheduleQuiz = async (req, res) => {
     quiz.scheduleDate = new Date(scheduleDate);
     quiz.startTime = startTime;
     quiz.endTime = endTime;
-    quiz.status = 'scheduled';
+    quiz.status = 'active'; // Set to active so students can see it
     
     await quiz.save();
+    
+    console.log('✅ Quiz scheduled and activated:', quiz._id);
     
     res.status(200).json({
       success: true,
@@ -403,34 +405,43 @@ export const getQuizStats = async (req, res) => {
     
     console.log('📊 Get Quiz Stats for teacher:', teacherId);
     
-    const stats = await TeacherQuiz.aggregate([
-      {
-        $match: {
-          teacherId: teacherId,
-          isDeleted: false
-        }
-      },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
+    // Get all quizzes for this teacher
+    const allQuizzes = await TeacherQuiz.find({
+      teacherId: teacherId,
+      isDeleted: false
+    });
     
-    // Format stats
+    console.log('📊 Total quizzes found:', allQuizzes.length);
+    
+    // Count by status with custom logic for scheduled
     const formattedStats = {
-      total: 0,
+      total: allQuizzes.length,
       drafts: 0,
       scheduled: 0,
       active: 0,
       closed: 0
     };
     
-    stats.forEach(stat => {
-      formattedStats[stat._id] = stat.count;
-      formattedStats.total += stat.count;
+    allQuizzes.forEach(quiz => {
+      // Scheduled = draft status but has schedule info
+      if (quiz.status === 'draft' && quiz.isScheduled) {
+        formattedStats.scheduled++;
+      }
+      // Draft = draft status and no schedule info
+      else if (quiz.status === 'draft' && !quiz.isScheduled) {
+        formattedStats.drafts++;
+      }
+      // Active = active status
+      else if (quiz.status === 'active') {
+        formattedStats.active++;
+      }
+      // Closed
+      else if (quiz.status === 'closed') {
+        formattedStats.closed++;
+      }
     });
+    
+    console.log('📊 Formatted stats:', formattedStats);
     
     res.status(200).json({
       success: true,

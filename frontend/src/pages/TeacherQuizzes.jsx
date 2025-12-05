@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import teacherQuizService from "../services/teacherQuizService";
 
 const TeacherQuizzes = ({ setActiveMenuItem }) => {
   const [quizStats, setQuizStats] = useState({
@@ -6,31 +7,25 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
     drafts: 0,
     scheduled: 0,
   });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadStats = () => {
-      // Load quiz data from localStorage
-      const savedDrafts = localStorage.getItem("quizDrafts");
-      if (savedDrafts) {
-        const drafts = JSON.parse(savedDrafts);
-
-        // Calculate stats
-        const scheduledCount = drafts.filter((q) => q.isScheduled).length;
-        const draftCount = drafts.filter((q) => !q.isScheduled).length;
-        const activeCount = 0; // Can be updated based on your business logic
+    const loadStats = async () => {
+      try {
+        setLoading(true);
+        const stats = await teacherQuizService.getQuizStats();
+        console.log("📊 Quiz stats received:", stats);
 
         setQuizStats({
-          active: activeCount,
-          drafts: draftCount,
-          scheduled: scheduledCount,
+          active: stats.active || 0,
+          drafts: stats.drafts || 0,
+          scheduled: stats.scheduled || 0,
         });
-      } else {
-        // If no drafts exist, set all to 0
-        setQuizStats({
-          active: 0,
-          drafts: 0,
-          scheduled: 0,
-        });
+      } catch (error) {
+        console.error("❌ Error loading quiz stats:", error);
+        // Keep zeros on error
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -38,11 +33,9 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
 
     // Listen for quiz draft updates to refresh stats
     window.addEventListener("quizDraftsUpdated", loadStats);
-    window.addEventListener("storage", loadStats);
 
     return () => {
       window.removeEventListener("quizDraftsUpdated", loadStats);
-      window.removeEventListener("storage", loadStats);
     };
   }, []);
 
@@ -82,7 +75,11 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
                 Active Quizzes
               </p>
               <p className="text-3xl font-bold text-gray-900">
-                {quizStats.active}
+                {loading ? (
+                  <span className="text-gray-400">...</span>
+                ) : (
+                  quizStats.active
+                )}
               </p>
             </div>
           </div>
@@ -112,7 +109,11 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
             <div>
               <p className="text-gray-500 text-xs font-medium mb-1">Drafts</p>
               <p className="text-3xl font-bold text-gray-900">
-                {quizStats.drafts}
+                {loading ? (
+                  <span className="text-gray-400">...</span>
+                ) : (
+                  quizStats.drafts
+                )}
               </p>
             </div>
           </div>
@@ -144,7 +145,11 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
                 Scheduled
               </p>
               <p className="text-3xl font-bold text-gray-900">
-                {quizStats.scheduled}
+                {loading ? (
+                  <span className="text-gray-400">...</span>
+                ) : (
+                  quizStats.scheduled
+                )}
               </p>
             </div>
           </div>
