@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from 'axios';
 import { Camera, Eye, EyeOff } from "lucide-react";
+import Header from "../components/headerorigin";
 import tProfile from "../assets/t-profile.png";
 import jsPDF from "jspdf";
 
@@ -14,6 +15,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     role: ""
   });
 
+  const [displayName, setDisplayName] = useState(""); // Track name for real-time header updates
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef(null);
@@ -184,7 +186,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     }
   }, []);
 
-  const userName = formData.fullName ? formData.fullName.split(" ")[0] : "";
+  const userName = displayName || formData.fullName ? (displayName || formData.fullName).split(" ")[0] : "";
   const userRole = (formData.role || "").toLowerCase();
   const tabs = ["Account Info", "Settings", "Activity", "Privacy & Data"];
 
@@ -228,6 +230,15 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       ...prev,
       [name]: newValue
     }));
+
+    // Update display name in real-time when name field changes
+    if (name === "fullName" && newValue.trim()) {
+      setDisplayName(newValue); // Update component display
+      localStorage.setItem('userName', newValue);
+      const event = new CustomEvent('userNameChanged', { detail: newValue });
+      window.dispatchEvent(event);
+      console.log('✅ Name change dispatched:', newValue, event);
+    }
   };
 
   const handleUpdateProfile = async () => {
@@ -562,48 +573,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         style={{ display: 'none' }}
       />
       {/* Header */}
-      {!isEmbedded && (
-        <header className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 h-14 z-50">
-          <div className="h-full flex items-center justify-between px-6">
-            {/* Logo */}
-            <div className="flex items-center space-x-2">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-yellow-100 rounded flex items-center justify-center">
-                  <svg className="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                  </svg>
-                </div>
-                <span className="font-semibold text-gray-800">EMEKA</span>
-              </div>
-            </div>
-
-            {/* Right side icons */}
-            <div className="flex items-center space-x-1">
-              {/* Notifications */}
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-              </button>
-
-              {/* Help */}
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-
-              {/* User Profile */}
-              <div className="flex items-center space-x-2 hover:bg-gray-100 px-2 py-1.5 rounded-lg transition ml-1">
-                <div className={`w-7 h-7 ${userRole === "teacher" ? "bg-purple-600" : "bg-blue-600"} rounded-full flex items-center justify-center text-white font-semibold text-xs`}>
-                  {userName ? userName.charAt(0).toUpperCase() : ""}
-                </div>
-                <span className="font-medium text-gray-900 text-sm">{userName || ""}</span>
-              </div>
-            </div>
-          </div>
-        </header>
-      )}
+      {!isEmbedded && <Header userName={formData.fullName || displayName} userRole="teacher" />}
 
       {/* Sidebar */}
       {!isEmbedded && (
@@ -789,7 +759,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
       {/* Main Content */}
       {!isEmbedded ? (
-        <div className="mt-4 p-6">
+        <div className="mt-16 p-6">
           <div className="w-full mx-auto">
           {/* Profile Header Card */}
           <div className="rounded-t-2xl p-8 relative" style={{ minHeight: 150, background: 'linear-gradient(90deg, #7FEBCB 0%, #19765A 100%)' }}>
