@@ -337,45 +337,64 @@ export const exportUserData = async (req, res) => {
   }
 };
 
-// Upload profile image (for future implementation)
+// Upload profile image
 export const uploadProfileImage = async (req, res) => {
   try {
+    console.log('📸 Profile image upload started for userId:', req.userId);
+    
     if (!req.file) {
+      console.error('❌ No file uploaded');
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    // Try all collections
+    console.log('📁 File uploaded:', req.file.filename);
+
+    // Try all collections to find the user
     let user = await User.findById(req.userId);
-    if (!user) user = await Student.findById(req.userId);
-    if (!user) user = await Teacher.findById(req.userId);
+    let collection = 'User';
     
     if (!user) {
+      user = await Student.findById(req.userId);
+      collection = 'Student';
+    }
+    
+    if (!user) {
+      user = await Teacher.findById(req.userId);
+      collection = 'Teacher';
+    }
+    
+    if (!user) {
+      console.error('❌ User not found in any collection for userId:', req.userId);
       return res.status(404).json({ message: 'User not found' });
     }
+
+    console.log(`✅ User found in ${collection} collection: ${user.email}`);
 
     // Build absolute URL to the uploaded file so clients can consume it directly
     const host = req.get('host');
     const protocol = req.protocol;
     const imageUrl = `${protocol}://${host}/uploads/profiles/${req.file.filename}`;
 
-    // Normalize role for legacy/incorrectly-cased values on User documents
-    try {
-      if (user && user.constructor && user.constructor.modelName === 'User' && user.role) {
-        user.role = String(user.role).toLowerCase();
-      }
-    } catch (normErr) {
-      console.warn('Could not normalize role before saving profile image:', normErr);
-    }
+    console.log('🔗 Generated image URL:', imageUrl);
 
+    // Save profile image URL to user document
     user.profileImage = imageUrl;
-    await user.save();
+    const savedUser = await user.save();
+
+    console.log(`✅ Profile image saved to ${collection} collection. New profileImage:`, savedUser.profileImage);
 
     res.json({ 
       message: 'Profile image uploaded successfully',
-      profileImage: user.profileImage
+      profileImage: savedUser.profileImage,
+      user: {
+        _id: savedUser._id,
+        name: savedUser.name,
+        email: savedUser.email,
+        profileImage: savedUser.profileImage
+      }
     });
   } catch (error) {
-    console.error('Error uploading profile image:', error);
+    console.error('❌ Error uploading profile image:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
