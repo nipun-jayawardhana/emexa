@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Eye, EyeOff } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/sidebarorigin';
 import Header from '../components/headerorigin';
@@ -134,6 +134,7 @@ const PasswordModal = ({ isOpen, onClose, onSave }) => {
 
 const Profile = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [activeTab, setActiveTab] = useState('account');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -141,6 +142,13 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [activeMenuItem, setActiveMenuItem] = useState('profile');
+
+  // Ensure activeMenuItem is always 'profile' when on profile page
+  useEffect(() => {
+    if (location.pathname === '/profile') {
+      setActiveMenuItem('profile');
+    }
+  }, [location.pathname]);
 
   // Read these once and store in state to prevent re-renders
   const [adminToken] = useState(() => localStorage.getItem('adminToken'));
@@ -527,14 +535,239 @@ const Profile = () => {
       const response = await axios.get('http://localhost:5000/api/users/export-data', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'user-data.json';
-      a.click();
-      window.URL.revokeObjectURL(url);
-      alert('Data exported successfully!');
+
+      const data = response.data;
+
+      // Create a printable HTML with all data and image
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Student Data Export - ${data.profile?.name || 'Student'}</title>
+          <style>
+            body { 
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+              padding: 40px; 
+              max-width: 900px; 
+              margin: 0 auto;
+              color: #333;
+              line-height: 1.6;
+            }
+            .header { 
+              background: linear-gradient(135deg, #0f766e 0%, #059669 100%);
+              color: white; 
+              padding: 30px; 
+              margin: -40px -40px 30px -40px;
+              border-radius: 8px 8px 0 0;
+              text-align: center;
+            }
+            .header h1 { 
+              margin: 0; 
+              font-size: 28px; 
+              font-weight: bold;
+            }
+            .header p {
+              margin: 5px 0 0 0;
+              font-size: 14px;
+              opacity: 0.9;
+            }
+            .profile-section {
+              display: flex;
+              gap: 30px;
+              margin-bottom: 40px;
+              background: #f8fafb;
+              padding: 25px;
+              border-radius: 8px;
+              border-left: 4px solid #0f766e;
+            }
+            .profile-image {
+              flex-shrink: 0;
+            }
+            .profile-image img {
+              width: 120px;
+              height: 120px;
+              border-radius: 12px;
+              border: 3px solid white;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+              object-fit: cover;
+            }
+            .profile-info {
+              flex: 1;
+            }
+            .profile-info h2 {
+              margin: 0 0 15px 0;
+              font-size: 22px;
+              color: #0f766e;
+            }
+            .info-row {
+              display: flex;
+              margin-bottom: 8px;
+              font-size: 14px;
+            }
+            .info-label {
+              font-weight: 600;
+              color: #555;
+              width: 120px;
+              flex-shrink: 0;
+            }
+            .info-value {
+              color: #333;
+            }
+            .section {
+              margin-bottom: 35px;
+              background: white;
+              padding: 25px;
+              border-radius: 8px;
+              border: 1px solid #e5e7eb;
+              page-break-inside: avoid;
+            }
+            .section h3 {
+              margin: 0 0 15px 0;
+              font-size: 18px;
+              color: #0f766e;
+              border-bottom: 2px solid #0f766e;
+              padding-bottom: 10px;
+            }
+            .settings-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 15px;
+            }
+            .setting-item {
+              padding: 12px;
+              background: #f8fafb;
+              border-radius: 6px;
+              border-left: 3px solid #059669;
+            }
+            .setting-label {
+              font-weight: 600;
+              color: #333;
+              font-size: 14px;
+            }
+            .setting-value {
+              color: #666;
+              font-size: 13px;
+              margin-top: 4px;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #e5e7eb;
+              color: #999;
+              font-size: 12px;
+            }
+            @media print {
+              body { padding: 20px; }
+              .header { margin: -20px -20px 20px -20px; }
+              .section { page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Student Data Export</h1>
+            <p>Export Date: ${new Date().toLocaleDateString('en-US', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}</p>
+          </div>
+
+          <!-- Profile Section with Image -->
+          <div class="profile-section">
+            ${profileImage ? `
+              <div class="profile-image">
+                <img src="${profileImage}" alt="Profile Picture" />
+              </div>
+            ` : ''}
+            <div class="profile-info">
+              <h2>${data.profile?.name || 'Student'}</h2>
+              <div class="info-row">
+                <span class="info-label">Email:</span>
+                <span class="info-value">${data.profile?.email || 'N/A'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Role:</span>
+                <span class="info-value">${data.profile?.role || 'Student'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Member Since:</span>
+                <span class="info-value">${data.profile?.createdAt ? new Date(data.profile.createdAt).toLocaleDateString() : 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Settings Section -->
+          <div class="section">
+            <h3>📋 Notification Settings</h3>
+            <div class="settings-grid">
+              <div class="setting-item">
+                <div class="setting-label">Email Notifications</div>
+                <div class="setting-value">${data.settings?.notifications?.emailNotifications ? '✓ Enabled' : '✗ Disabled'}</div>
+              </div>
+              <div class="setting-item">
+                <div class="setting-label">SMS Notifications</div>
+                <div class="setting-value">${data.settings?.notifications?.smsNotifications ? '✓ Enabled' : '✗ Disabled'}</div>
+              </div>
+              <div class="setting-item">
+                <div class="setting-label">In-App Notifications</div>
+                <div class="setting-value">${data.settings?.notifications?.inAppNotifications ? '✓ Enabled' : '✗ Disabled'}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Privacy Settings Section -->
+          <div class="section">
+            <h3>🔒 Privacy Settings</h3>
+            <div class="settings-grid">
+              <div class="setting-item">
+                <div class="setting-label">Emotion Detection Consent</div>
+                <div class="setting-value">${data.settings?.privacy?.emotionDataConsent ? '✓ Granted' : '✗ Not Granted'}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Statistics Section -->
+          <div class="section">
+            <h3>📊 Learning Statistics</h3>
+            <div class="settings-grid">
+              <div class="setting-item">
+                <div class="setting-label">Total Quizzes</div>
+                <div class="setting-value">${data.statistics?.totalQuizzes || 0}</div>
+              </div>
+              <div class="setting-item">
+                <div class="setting-label">Average Score</div>
+                <div class="setting-value">${data.statistics?.averageScore || 0}%</div>
+              </div>
+              <div class="setting-item">
+                <div class="setting-label">Study Time</div>
+                <div class="setting-value">${data.statistics?.studyTime || 0} hours</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>This is an official export of your EMEXA student profile. Generated on ${new Date().toLocaleString()}</p>
+            <p>For security, please keep this document private and do not share with others.</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Open print window and print to PDF
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+
+      // Trigger print dialog
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+
+      alert('Data export ready. Please select "Save as PDF" in the print dialog.');
     } catch (error) {
       console.error('Error exporting data:', error);
       alert('Failed to export data');

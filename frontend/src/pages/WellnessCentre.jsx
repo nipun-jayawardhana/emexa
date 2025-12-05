@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Header from "../components/headerorigin";
 import Sidebar from "../components/sidebarorigin";
 
 const WellnessCentre = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeMenuItem, setActiveMenuItem] = useState("wellness");
   const [selectedMood, setSelectedMood] = useState(null);
   const [showMessage, setShowMessage] = useState(false);
@@ -14,6 +15,13 @@ const WellnessCentre = () => {
     const storedUserName = localStorage.getItem("userName") || sessionStorage.getItem("userName");
     setUserName(storedUserName || "Student");
   }, []);
+
+  // Ensure activeMenuItem is always 'wellness' when on wellness page
+  useEffect(() => {
+    if (location.pathname === '/wellness-centre') {
+      setActiveMenuItem('wellness');
+    }
+  }, [location.pathname]);
 
   const menuItems = [
     {
