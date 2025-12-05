@@ -103,7 +103,7 @@ const teacherQuizService = {
   async updateQuiz(quizId, updateData) {
     try {
       const response = await api.put(`${BASE_URL}/${quizId}`, updateData);
-      return response.data;
+      return response;
     } catch (error) {
       console.error('Error updating quiz:', error);
       throw error;
@@ -119,7 +119,7 @@ const teacherQuizService = {
   async scheduleQuiz(quizId, scheduleData) {
     try {
       const response = await api.post(`${BASE_URL}/${quizId}/schedule`, scheduleData);
-      return response.data;
+      return response;
     } catch (error) {
       console.error('Error scheduling quiz:', error);
       throw error;
@@ -134,7 +134,7 @@ const teacherQuizService = {
   async deleteQuiz(quizId) {
     try {
       const response = await api.delete(`${BASE_URL}/${quizId}`);
-      return response.data;
+      return response;
     } catch (error) {
       console.error('Error deleting quiz:', error);
       throw error;
@@ -149,7 +149,7 @@ const teacherQuizService = {
   async permanentDeleteQuiz(quizId) {
     try {
       const response = await api.delete(`${BASE_URL}/${quizId}/permanent`);
-      return response.data;
+      return response;
     } catch (error) {
       console.error('Error permanently deleting quiz:', error);
       throw error;
@@ -163,7 +163,7 @@ const teacherQuizService = {
   async getSharedQuizzes() {
     try {
       const response = await api.get(`${BASE_URL}/shared`);
-      return response.data;
+      return response;
     } catch (error) {
       console.error('Error fetching shared quizzes:', error);
       throw error;

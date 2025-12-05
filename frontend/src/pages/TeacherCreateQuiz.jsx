@@ -15,28 +15,66 @@ const TeacherCreateQuiz = ({
 
   // Load draft data if editing
   useEffect(() => {
-    if (editingDraftId) {
-      const savedDrafts = localStorage.getItem("quizDrafts");
-      if (savedDrafts) {
-        const drafts = JSON.parse(savedDrafts);
-        const draftToEdit = drafts.find((d) => d.id === editingDraftId);
-        if (draftToEdit && draftToEdit.fullData) {
-          setAssignmentTitle(draftToEdit.fullData.assignmentTitle);
-          setSubject(draftToEdit.fullData.subject);
-          setSelectedGrades(draftToEdit.fullData.selectedGrades);
-          setDueDate(draftToEdit.fullData.dueDate);
-          setQuestions(draftToEdit.fullData.questions);
+    const loadDraftForEditing = async () => {
+      if (editingDraftId) {
+        try {
+          console.log("📝 Loading draft for editing:", editingDraftId);
+          const response = await teacherQuizService.getQuizById(editingDraftId);
+          console.log("✅ Loaded quiz data:", response);
+
+          const quiz = response.quiz || response.data || response;
+
+          if (quiz) {
+            setAssignmentTitle(quiz.title || "");
+            setSubject(quiz.subject || "");
+
+            // Convert gradeLevel array to selectedGrades format
+            if (Array.isArray(quiz.gradeLevel)) {
+              // Map grade labels back to IDs
+              const gradeMap = {
+                "1st Year 1st Sem": "1-1",
+                "1st Year 2nd Sem": "1-2",
+                "2nd Year 1st Sem": "2-1",
+                "2nd Year 2nd Sem": "2-2",
+                "3rd Year 1st Sem": "3-1",
+                "3rd Year 2nd Sem": "3-2",
+                "4th Year 1st Sem": "4-1",
+                "4th Year 2nd Sem": "4-2",
+              };
+              const gradeIds = quiz.gradeLevel.map(
+                (label) => gradeMap[label] || "1-1"
+              );
+              setSelectedGrades(gradeIds);
+            } else {
+              setSelectedGrades([]);
+            }
+
+            // Format dueDate for input field (YYYY-MM-DD)
+            if (quiz.dueDate) {
+              const date = new Date(quiz.dueDate);
+              const formattedDate = date.toISOString().split("T")[0];
+              setDueDate(formattedDate);
+            }
+
+            setQuestions(quiz.questions || []);
+            console.log("📋 Loaded questions:", quiz.questions?.length || 0);
+          }
+        } catch (error) {
+          console.error("❌ Error loading draft for editing:", error);
+          alert("Failed to load quiz data: " + error.message);
         }
+      } else {
+        // Reset form when not editing (editingDraftId is null/undefined)
+        setAssignmentTitle("");
+        setSubject("");
+        setDueDate("");
+        setSelectedGrades([]);
+        setQuestions([]);
+        setIsGradeLevelOpen(false);
       }
-    } else {
-      // Reset form when not editing (editingDraftId is null/undefined)
-      setAssignmentTitle("");
-      setSubject("");
-      setDueDate("");
-      setSelectedGrades([]);
-      setQuestions([]);
-      setIsGradeLevelOpen(false);
-    }
+    };
+
+    loadDraftForEditing();
   }, [editingDraftId]);
 
   const gradeOptions = [
