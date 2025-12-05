@@ -186,6 +186,20 @@ export default function Login() {
             console.warn('Error syncing profile image on login:', e);
           }
 
+          // --- Sync notification and privacy settings to localStorage ---
+          try {
+            if (res.user?.notificationSettings) {
+              localStorage.setItem('notificationSettings', JSON.stringify(res.user.notificationSettings));
+              console.log('✅ Notification settings saved:', res.user.notificationSettings);
+            }
+            if (res.user?.privacySettings) {
+              localStorage.setItem('privacySettings', JSON.stringify(res.user.privacySettings));
+              console.log('✅ Privacy settings saved:', res.user.privacySettings);
+            }
+          } catch (e) {
+            console.warn('Error syncing settings on login:', e);
+          }
+
           // VERIFICATION: Read back what we just saved
           console.log("📦 VERIFICATION - What's in localStorage:");
           console.log("  - userName:", localStorage.getItem("userName"));
