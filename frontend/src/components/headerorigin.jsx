@@ -48,6 +48,14 @@ const Header = ({ userName, userRole }) => {
     };
   }, [userRole]);
   
+  // Sync displayName with userName prop changes
+  useEffect(() => {
+    if (userName) {
+      console.log('🔄 Header: userName prop changed, syncing displayName:', userName);
+      setDisplayName(userName);
+    }
+  }, [userName]);
+
   // Listen for name changes
   useEffect(() => {
     const handleNameChange = (e) => {
@@ -58,6 +66,7 @@ const Header = ({ userName, userRole }) => {
     const handleStorageChange = () => {
       const updatedName = localStorage.getItem('userName');
       if (updatedName) {
+        console.log('Storage change detected, updating name to:', updatedName);
         setDisplayName(updatedName);
       }
     };
@@ -124,7 +133,7 @@ const Header = ({ userName, userRole }) => {
               {profileImage ? (
                 <img
                   src={profileImage}
-                  alt={userName || 'User'}
+                  alt={displayName || 'User'}
                   className="w-7 h-7 rounded-full object-cover shadow-sm"
                 />
               ) : (
@@ -133,11 +142,11 @@ const Header = ({ userName, userRole }) => {
                     userRole === "teacher" ? "bg-purple-600" : "bg-blue-600"
                   } rounded-full flex items-center justify-center text-white font-semibold text-xs`}
                 >
-                  {userName?.charAt(0).toUpperCase() || "A"}
+                  {displayName?.charAt(0).toUpperCase() || "A"}
                 </div>
               )}
               <span className="font-medium text-gray-900 text-sm">
-                {userName || "User"}
+                {displayName || "User"}
               </span>
             </div>
           </div>
