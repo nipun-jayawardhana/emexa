@@ -120,19 +120,28 @@ class UserService {
     // Generate token
     const token = user.generateAuthToken();
 
-    // CRITICAL: Create clean response object with name explicitly included
+    // CRITICAL: Create clean response object with name, profileImage, and settings explicitly included
     const userResponse = {
       _id: user._id,
       id: user._id,
-      name: user.name, // THIS IS THE KEY - explicitly include name
+      name: user.name || user.fullName || user.full_name || '',
       email: user.email,
-      role: user.role || userType,
+      role: user.role || userRole || 'student',
       isActive: user.isActive,
+      profileImage: user.profileImage || null,
+      notificationSettings: user.notificationSettings || {
+        emailNotifications: true,
+        smsNotifications: false,
+        inAppNotifications: true
+      },
+      privacySettings: user.privacySettings || {
+        emotionDataConsent: true
+      },
       ...(user.studentId && { studentId: user.studentId }),
       ...(user.teacherId && { teacherId: user.teacherId })
     };
 
-    return { user, token };
+    return { user: userResponse, token };
   }
 
   async getUserById(id) {
