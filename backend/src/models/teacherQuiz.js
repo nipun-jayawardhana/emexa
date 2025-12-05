@@ -90,6 +90,16 @@ const teacherQuizSchema = new mongoose.Schema({
     index: true
   },
   
+  // Student interaction tracking
+  studentsTaken: {
+    type: Number,
+    default: 0
+  },
+  hasStudentAttempts: {
+    type: Boolean,
+    default: false
+  },
+  
   // Progress tracking
   progress: {
     type: Number,

@@ -51,7 +51,10 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {/* Active Quizzes */}
         <div
-          onClick={() => setActiveMenuItem("quiz-drafts")}
+          onClick={() => {
+            localStorage.setItem("quizFilter", "active");
+            setActiveMenuItem("quiz-drafts");
+          }}
           className="bg-white rounded-xl p-5 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:shadow-[0_8px_16px_rgba(0,0,0,0.3)] transition"
         >
           <div className="flex items-start gap-3 mb-3">
@@ -87,7 +90,10 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
 
         {/* Drafts */}
         <div
-          onClick={() => setActiveMenuItem("quiz-drafts")}
+          onClick={() => {
+            localStorage.setItem("quizFilter", "draft");
+            setActiveMenuItem("quiz-drafts");
+          }}
           className="bg-white rounded-xl p-5 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:shadow-[0_8px_16px_rgba(0,0,0,0.3)] transition"
         >
           <div className="flex items-start gap-3 mb-3">
@@ -121,7 +127,10 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
 
         {/* Scheduled */}
         <div
-          onClick={() => setActiveMenuItem("quiz-drafts")}
+          onClick={() => {
+            localStorage.setItem("quizFilter", "scheduled");
+            setActiveMenuItem("quiz-drafts");
+          }}
           className="bg-white rounded-xl p-5 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)] cursor-pointer hover:shadow-[0_8px_16px_rgba(0,0,0,0.3)] transition"
         >
           <div className="flex items-start gap-3 mb-3">
