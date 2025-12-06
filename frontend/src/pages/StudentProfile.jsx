@@ -194,10 +194,26 @@ const Profile = () => {
   useEffect(() => {
     if (userData?.profileImage) {
       setProfileImage(userData.profileImage);
-      // also update localStorage so header picks it up
       localStorage.setItem('studentProfileImage', userData.profileImage);
     }
   }, [userData?.profileImage]);
+
+  // CRITICAL: Sync notification and privacy settings from userData
+  useEffect(() => {
+    if (userData) {
+      console.log('📥 Syncing settings from userData:', userData);
+      
+      if (userData.notificationSettings) {
+        console.log('Setting notifications:', userData.notificationSettings);
+        setNotificationSettings(userData.notificationSettings);
+      }
+      
+      if (userData.privacySettings) {
+        console.log('Setting privacy:', userData.privacySettings);
+        setPrivacySettings(userData.privacySettings);
+      }
+    }
+  }, [userData]);
 
   const fetchUserData = async () => {
     setLoading(true);
@@ -218,30 +234,40 @@ const Profile = () => {
           });
 
           const user = response.data;
-          console.log('Fetched user data:', user);
+          console.log('✅ Fetched user data from server:', user);
+          
+          // Set complete user data
           setUserData(user);
 
-          // FIXED: Direct assignment without prev
+          // Set form data
           setFormData({
             name: user.name || storedUserName || '',
             email: user.email || storedUserEmail || '',
             role: user.role || 'student'
           });
 
-          setNotificationSettings(user.notificationSettings || {
-            emailNotifications: true,
-            smsNotifications: false,
-            inAppNotifications: true
-          });
+          // CRITICAL: Set notification settings from server
+          if (user.notificationSettings) {
+            console.log('📋 Loading notification settings:', user.notificationSettings);
+            setNotificationSettings({
+              emailNotifications: user.notificationSettings.emailNotifications ?? true,
+              smsNotifications: user.notificationSettings.smsNotifications ?? false,
+              inAppNotifications: user.notificationSettings.inAppNotifications ?? true
+            });
+          }
 
-          setPrivacySettings(user.privacySettings || {
-            emotionDataConsent: true
-          });
+          // CRITICAL: Set privacy settings from server
+          if (user.privacySettings) {
+            console.log('🔒 Loading privacy settings:', user.privacySettings);
+            setPrivacySettings({
+              emotionDataConsent: user.privacySettings.emotionDataConsent ?? true
+            });
+          }
+
         } catch (apiError) {
-          console.error('API Error:', apiError);
-
-          // Fallback to localStorage data if API fails
+          console.error('❌ API Error:', apiError);
           console.log('Using fallback data from localStorage');
+          
           const fallbackData = {
             name: storedUserName || 'Student',
             email: storedUserEmail || 'student@school.edu',
@@ -259,7 +285,6 @@ const Profile = () => {
           };
 
           setUserData(fallbackData);
-          // FIXED: Direct assignment without prev
           setFormData({
             name: fallbackData.name,
             email: fallbackData.email,
@@ -286,7 +311,6 @@ const Profile = () => {
           }
         };
         setUserData(mockData);
-        // FIXED: Direct assignment without prev
         setFormData({
           name: mockData.name,
           email: mockData.email,
@@ -297,7 +321,6 @@ const Profile = () => {
       }
     } catch (error) {
       console.error('Critical error:', error);
-      // FIXED: Direct assignment without prev
       setFormData({
         name: localStorage.getItem('userName') || 'Student',
         email: 'student@school.edu',
@@ -325,17 +348,27 @@ const Profile = () => {
   };
 
   const handleNotificationToggle = (key) => {
-    setNotificationSettings(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+    setNotificationSettings(prev => {
+      const newSettings = {
+        ...prev,
+        [key]: !prev[key]
+      };
+      console.log('🔄 Toggled notification:', key, 'New value:', !prev[key]);
+      console.log('📝 New notification settings:', newSettings);
+      return newSettings;
+    });
   };
 
   const handlePrivacyToggle = (key) => {
-    setPrivacySettings(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+    setPrivacySettings(prev => {
+      const newSettings = {
+        ...prev,
+        [key]: !prev[key]
+      };
+      console.log('🔄 Toggled privacy:', key, 'New value:', !prev[key]);
+      console.log('📝 New privacy settings:', newSettings);
+      return newSettings;
+    });
   };
 
   const handleSaveAccountInfo = async () => {
@@ -343,17 +376,11 @@ const Profile = () => {
       const token = localStorage.getItem('token');
       
       if (!token) {
-        // If no token, just update localStorage
         console.warn('No token found, updating localStorage only');
-        
-        // Update localStorage
         localStorage.setItem('userName', formData.name);
         localStorage.setItem('userEmail', formData.email);
-        
-        // Update userName state to refresh header
         setUserName(formData.name);
         
-        // Save profile image
         if (profileImage) {
           const storedImage = localStorage.getItem('studentProfileImage');
           if (profileImage !== storedImage) {
@@ -362,7 +389,6 @@ const Profile = () => {
           }
         }
         
-        // Update user data
         setUserData(prev => ({
           ...prev,
           name: formData.name,
@@ -373,14 +399,12 @@ const Profile = () => {
         return;
       }
       
-      // Only send name and email to match backend expectations
       const dataToSave = {
         name: formData.name,
         email: formData.email
       };
       
-      console.log('Saving profile data:', dataToSave);
-      console.log('Token:', token ? 'Present' : 'Missing');
+      console.log('💾 Saving profile data:', dataToSave);
       
       const response = await axios.put(
         'http://localhost:5000/api/users/update-profile',
@@ -393,28 +417,21 @@ const Profile = () => {
         }
       );
       
-      console.log('Profile update response:', response.data);
+      console.log('✅ Profile update response:', response.data);
       
       if (response.data) {
-        // Save profile image to localStorage and dispatch event to update header
         if (profileImage) {
           const storedImage = localStorage.getItem('studentProfileImage');
-          // Only update if image has changed
           if (profileImage !== storedImage) {
             localStorage.setItem('studentProfileImage', profileImage);
             window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: profileImage }));
-            console.log('Profile image updated in localStorage and header notified');
           }
         }
         
-        // Update localStorage with new values
         localStorage.setItem('userName', dataToSave.name);
         localStorage.setItem('userEmail', dataToSave.email);
-        
-        // Update userName state to refresh header
         setUserName(dataToSave.name);
         
-        // Refresh user data without resetting form
         setUserData(prev => ({
           ...prev,
           name: dataToSave.name,
@@ -424,12 +441,7 @@ const Profile = () => {
         alert('Profile updated successfully!');
       }
     } catch (error) {
-      console.error('Full error object:', error);
-      console.error('Error response:', error.response);
-      console.error('Error message:', error.message);
-      
-      // Fallback: Update localStorage even if API fails
-      console.warn('API failed, updating localStorage as fallback');
+      console.error('❌ Error saving profile:', error);
       
       localStorage.setItem('userName', formData.name);
       localStorage.setItem('userEmail', formData.email);
@@ -449,20 +461,7 @@ const Profile = () => {
         email: formData.email
       }));
       
-      if (error.response) {
-        // Server responded with error
-        console.error('Server error data:', error.response.data);
-        console.error('Server error status:', error.response.status);
-        alert(`Profile updated locally. Server error: ${error.response.data?.message || error.response.statusText}`);
-      } else if (error.request) {
-        // Request made but no response
-        console.error('No response received:', error.request);
-        alert('Profile updated locally. Could not reach server.');
-      } else {
-        // Error in request setup
-        console.error('Request setup error:', error.message);
-        alert(`Profile updated locally. Error: ${error.message}`);
-      }
+      alert(error.response?.data?.message || 'Profile updated locally. Server sync failed.');
     }
   };
 
@@ -498,34 +497,56 @@ const Profile = () => {
   const handleSaveNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
+      
+      console.log('💾 Saving notification settings:', notificationSettings);
+      console.log('🔑 Token:', token ? 'Present' : 'Missing');
+      
       const response = await axios.put(
         'http://localhost:5000/api/users/notification-settings',
         notificationSettings,
         { headers: { Authorization: `Bearer ${token}` }}
       );
+      
+      console.log('✅ Server response:', response.data);
+      
       if (response.data) {
         alert('Notification settings saved successfully!');
+        
+        // Refresh from server to confirm
+        await fetchUserData();
       }
     } catch (error) {
-      console.error('Error saving notifications:', error);
-      alert('Failed to save notification settings');
+      console.error('❌ Error saving notifications:', error);
+      console.error('Error details:', error.response?.data);
+      alert(error.response?.data?.message || 'Failed to save notification settings');
     }
   };
 
   const handleSavePrivacy = async () => {
     try {
       const token = localStorage.getItem('token');
+      
+      console.log('💾 Saving privacy settings:', privacySettings);
+      console.log('🔑 Token:', token ? 'Present' : 'Missing');
+      
       const response = await axios.put(
         'http://localhost:5000/api/users/privacy-settings',
         privacySettings,
         { headers: { Authorization: `Bearer ${token}` }}
       );
+      
+      console.log('✅ Server response:', response.data);
+      
       if (response.data) {
         alert('Privacy settings saved successfully!');
+        
+        // Refresh from server to confirm
+        await fetchUserData();
       }
     } catch (error) {
-      console.error('Error saving privacy settings:', error);
-      alert('Failed to save privacy settings');
+      console.error('❌ Error saving privacy settings:', error);
+      console.error('Error details:', error.response?.data);
+      alert(error.response?.data?.message || 'Failed to save privacy settings');
     }
   };
 
@@ -538,7 +559,6 @@ const Profile = () => {
 
       const data = response.data;
 
-      // Create a printable HTML with all data and image
       const htmlContent = `
         <!DOCTYPE html>
         <html>
@@ -676,7 +696,6 @@ const Profile = () => {
             })}</p>
           </div>
 
-          <!-- Profile Section with Image -->
           <div class="profile-section">
             ${profileImage ? `
               <div class="profile-image">
@@ -700,7 +719,6 @@ const Profile = () => {
             </div>
           </div>
 
-          <!-- Settings Section -->
           <div class="section">
             <h3>📋 Notification Settings</h3>
             <div class="settings-grid">
@@ -719,7 +737,6 @@ const Profile = () => {
             </div>
           </div>
 
-          <!-- Privacy Settings Section -->
           <div class="section">
             <h3>🔒 Privacy Settings</h3>
             <div class="settings-grid">
@@ -730,7 +747,6 @@ const Profile = () => {
             </div>
           </div>
 
-          <!-- Statistics Section -->
           <div class="section">
             <h3>📊 Learning Statistics</h3>
             <div class="settings-grid">
@@ -757,12 +773,10 @@ const Profile = () => {
         </html>
       `;
 
-      // Open print window and print to PDF
       const printWindow = window.open('', '_blank');
       printWindow.document.write(htmlContent);
       printWindow.document.close();
 
-      // Trigger print dialog
       setTimeout(() => {
         printWindow.print();
       }, 250);
@@ -782,7 +796,6 @@ const Profile = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Basic validation
     if (file.size > 5 * 1024 * 1024) {
       alert('File size should be less than 5MB');
       return;
@@ -792,7 +805,6 @@ const Profile = () => {
       return;
     }
 
-    // Try uploading to backend; fallback to local preview if upload fails
     const uploadToServer = async () => {
       let uploadSucceeded = false;
       try {
@@ -811,7 +823,6 @@ const Profile = () => {
           uploadSucceeded = true;
           const fullUrl = imagePath.startsWith('http') ? imagePath : `http://localhost:5000${imagePath}`;
           setProfileImage(fullUrl);
-          // persist under the student-specific key and notify header/listeners
           localStorage.setItem('studentProfileImage', fullUrl);
           window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: fullUrl }));
           
@@ -822,7 +833,6 @@ const Profile = () => {
         console.warn('Upload failed, falling back to local preview', err?.response?.data || err.message);
       }
 
-      // Fallback: only use if upload truly failed
       if (!uploadSucceeded) {
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -843,423 +853,430 @@ const Profile = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="w-full max-w-4xl mx-auto px-6 py-12">
-          {/* Skeleton Header */}
           <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
             <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-24"></div>
             <div className="p-6 -mt-12 relative z-10">
               <div className="flex items-end gap-4">
-                {/* Avatar skeleton */}
-                <div className="w-24 h-24 bg-gray-300 rounded-full animate-pulse border-4 border-white shadow-lg"></div>
-                {/* Name/Email skeleton */}
-                <div className="flex-1 pb-2">
-                  <div className="h-6 bg-gray-300 rounded w-48 animate-pulse mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
-                </div>
-              </div>
-            </div>
+<div className="w-24 h-24 bg-gray-300 rounded-full animate-pulse border-4 border-white shadow-lg"></div>
+<div className="flex-1 pb-2">
+<div className="h-6 bg-gray-300 rounded w-48 animate-pulse mb-2"></div>
+<div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
+</div>
+</div>
+</div>
+</div>
+<div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="space-y-3">
+            <div className="h-4 bg-gray-300 rounded w-32 animate-pulse"></div>
+            <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
           </div>
-
-          {/* Skeleton Content */}
-          <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="space-y-3">
-                <div className="h-4 bg-gray-300 rounded w-32 animate-pulse"></div>
-                <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
-              </div>
-            ))}
-          </div>
-
-          <p className="mt-6 text-center text-gray-500 text-sm">Loading profile...</p>
-        </div>
+        ))}
       </div>
-    );
-  }
 
-  const profileContent = (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Profile Header - Equal Green and White Bar with Profile at Middle */}
+      <p className="mt-6 text-center text-gray-500 text-sm">Loading profile...</p>
+    </div>
+  </div>
+);
+}
+const profileContent = (
+<div className="min-h-screen bg-gray-50 p-6">
+<div className="max-w-7xl mx-auto">
+<div className="relative">
+<div className="bg-gradient-to-r from-teal-400 to-teal-600 h-24 rounded-t-lg"></div>
+<div className="bg-white h-24"></div>
+<div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 z-10">
         <div className="relative">
-          {/* Green Bar */}
-          <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-24 rounded-t-lg"></div>
-          
-          {/* White Bar */}
-          <div className="bg-white h-24"></div>
-          
-          {/* Profile Info at the Exact Middle - Left Aligned */}
-          <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 z-10">
-            <div className="relative">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleProfileImageChange}
-                className="hidden"
-              />
-              <div className="bg-white rounded-full p-1 shadow-lg">
-                <img
-                  src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"}
-                  alt="Profile"
-                  className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
-                />
-              </div>
-              <button
-                onClick={handleProfileImageClick}
-                type="button"
-                className="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full hover:bg-teal-700 shadow-lg transition-colors"
-              >
-                <Camera size={18} />
-              </button>
-            </div>
-            
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleProfileImageChange}
+            className="hidden"
+          />
+          <div className="bg-white rounded-full p-1 shadow-lg">
+            <img
+              src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"}
+              alt="Profile"
+              className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
+            />
+          </div>
+          <button
+            onClick={handleProfileImageClick}
+            type="button"
+            className="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full hover:bg-teal-700 shadow-lg transition-colors"
+          >
+            <Camera size={18} />
+          </button>
+        </div>
+        
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">{userData?.name || 'Student'}</h1>
+          <p className="text-gray-600 text-sm">{userData?.email || ''}</p>
+        </div>
+      </div>
+    </div>
+
+    <div className="bg-white rounded-b-lg shadow-sm p-8">
+      <div className="mb-8">
+        <div className="flex gap-8 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('account')}
+            className={`pb-4 px-2 transition relative ${
+              activeTab === 'account'
+                ? 'text-teal-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Account Info
+            {activeTab === 'account' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`pb-4 px-2 transition relative ${
+              activeTab === 'settings'
+                ? 'text-teal-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Settings
+            {activeTab === 'settings' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('activity')}
+            className={`pb-4 px-2 transition relative ${
+              activeTab === 'activity'
+                ? 'text-teal-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Recent Activity
+            {activeTab === 'activity' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('privacy')}
+            className={`pb-4 px-2 transition relative ${
+              activeTab === 'privacy'
+                ? 'text-teal-600 font-medium'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Privacy & Data
+            {activeTab === 'privacy' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'account' && (
+        <div className="space-y-6">
+          <h2 className="text-xl font-bold text-gray-900">Account Information</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">{userData?.name || 'Student'}</h1>
-              <p className="text-gray-600 text-sm">{userData?.email || ''}</p>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                autoComplete="off"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
+                placeholder="Enter your full name"
+              />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                disabled
+                autoComplete="off"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
+                placeholder="Enter your email"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+            <input
+              type="text"
+              value={formData.role}
+              disabled
+              className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 capitalize cursor-not-allowed"
+            />
+          </div>
+
+          <div className="pt-4">
+            <h3 className="font-semibold text-gray-900 mb-4">Change Password</h3>
+            <button
+              onClick={() => setShowPasswordModal(true)}
+              className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium"
+            >
+              Do you want change the password
+            </button>
+          </div>
+
+          <div className="pt-6">
+            <button
+              onClick={handleSaveAccountInfo}
+              className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors font-medium"
+            >
+              <span>Save Changes</span>
+            </button>
           </div>
         </div>
+      )}
 
-        <div className="bg-white rounded-b-lg shadow-sm p-8">
+      {activeTab === 'settings' && (
+        <div className="space-y-6">
+          <h2 className="text-xl font-bold text-gray-900">Notification Preferences</h2>
 
-          {/* Tabs */}
-          <div className="mb-8">
-            <div className="flex gap-8 border-b border-gray-200">
-              <button
-                onClick={() => setActiveTab('account')}
-                className={`pb-4 px-2 transition relative ${
-                  activeTab === 'account'
-                    ? 'text-teal-600 font-medium'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Account Info
-                {activeTab === 'account' && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
-                )}
-              </button>
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`pb-4 px-2 transition relative ${
-                  activeTab === 'settings'
-                    ? 'text-teal-600 font-medium'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Settings
-                {activeTab === 'settings' && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
-                )}
-              </button>
-              <button
-                onClick={() => setActiveTab('activity')}
-                className={`pb-4 px-2 transition relative ${
-                  activeTab === 'activity'
-                    ? 'text-teal-600 font-medium'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Recent Activity
-                {activeTab === 'activity' && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
-                )}
-              </button>
-              <button
-                onClick={() => setActiveTab('privacy')}
-                className={`pb-4 px-2 transition relative ${
-                  activeTab === 'privacy'
-                    ? 'text-teal-600 font-medium'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Privacy & Data
-                {activeTab === 'privacy' && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Tab Content */}
-          {activeTab === 'account' && (
-            <div className="space-y-6">
-              <h2 className="text-xl font-bold text-gray-900">Account Information</h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    autoComplete="off"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
-                    placeholder="Enter your full name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    disabled
-                    autoComplete="off"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
-                    placeholder="Enter your email"
-                  />
-                </div>
-              </div>
-
+          <div className="space-y-6">
+            <div className="flex items-center justify-between py-4 border-b border-gray-100">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                <h3 className="font-medium text-gray-900">Email Notifications</h3>
+                <p className="text-sm text-gray-600">Receive notifications via email</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer ml-4">
                 <input
-                  type="text"
-                  value={formData.role}
-                  disabled
-                  className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 capitalize cursor-not-allowed"
+                  type="checkbox"
+                  checked={notificationSettings.emailNotifications}
+                  onChange={() => handleNotificationToggle('emailNotifications')}
+                  className="sr-only peer"
                 />
-              </div>
-
-              <div className="pt-4">
-                <h3 className="font-semibold text-gray-900 mb-4">Change Password</h3>
-                <button
-                  onClick={() => setShowPasswordModal(true)}
-                  className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium"
-                >
-                  Do you want change the password
-                </button>
-              </div>
-
-              <div className="pt-6">
-                <button
-                  onClick={handleSaveAccountInfo}
-                  className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors font-medium"
-                >
-                  <span>Save Changes</span>
-                </button>
-              </div>
+                <div className={`w-14 h-7 rounded-full peer-focus:ring-4 peer-focus:ring-teal-300 relative transition-all duration-300 ${
+                  notificationSettings.emailNotifications 
+                    ? 'bg-teal-600' 
+                    : 'bg-gray-300'
+                }`}>
+                  <div className={`absolute top-1 bg-white w-5 h-5 rounded-full shadow-md transition-all duration-300 ${
+                    notificationSettings.emailNotifications ? 'translate-x-7 left-1' : 'left-1'
+                  }`}></div>
+                </div>
+                <span className={`ml-3 text-sm font-medium ${
+                  notificationSettings.emailNotifications ? 'text-teal-600' : 'text-gray-500'
+                }`}>
+                  {notificationSettings.emailNotifications ? 'ON' : 'OFF'}
+                </span>
+              </label>
             </div>
-          )}
 
-          {activeTab === 'settings' && (
-            <div className="space-y-6">
-              <h2 className="text-xl font-bold text-gray-900">Notification Preferences</h2>
-
-              <div className="space-y-6">
-                <div className="flex items-center justify-between py-4">
-                  <div>
-                    <h3 className="font-medium text-gray-900">Email Notifications</h3>
-                    <p className="text-sm text-gray-600">Receive notifications via email</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer ml-4">
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings.emailNotifications}
-                      onChange={() => handleNotificationToggle('emailNotifications')}
-                      className="sr-only peer"
-                    />
-                    <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
-                      notificationSettings.emailNotifications ? 'bg-teal-600' : 'bg-gray-200'
-                    }`}>
-                      <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
-                        notificationSettings.emailNotifications ? 'translate-x-6 left-0.5' : 'left-0.5'
-                      }`}></div>
-                    </div>
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-between py-4">
-                  <div>
-                    <h3 className="font-medium text-gray-900">SMS Notifications</h3>
-                    <p className="text-sm text-gray-600">Receive notifications via text message</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer ml-4">
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings.smsNotifications}
-                      onChange={() => handleNotificationToggle('smsNotifications')}
-                      className="sr-only peer"
-                    />
-                    <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
-                      notificationSettings.smsNotifications ? 'bg-teal-600' : 'bg-gray-200'
-                    }`}>
-                      <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
-                        notificationSettings.smsNotifications ? 'translate-x-6 left-0.5' : 'left-0.5'
-                      }`}></div>
-                    </div>
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-between py-4">
-                  <div>
-                    <h3 className="font-medium text-gray-900">In-App Notifications</h3>
-                    <p className="text-sm text-gray-600">Receive notifications in the application</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer ml-4">
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings.inAppNotifications}
-                      onChange={() => handleNotificationToggle('inAppNotifications')}
-                      className="sr-only peer"
-                    />
-                    <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
-                      notificationSettings.inAppNotifications ? 'bg-teal-600' : 'bg-gray-200'
-                    }`}>
-                      <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
-                        notificationSettings.inAppNotifications ? 'translate-x-6 left-0.5' : 'left-0.5'
-                      }`}></div>
-                    </div>
-                  </label>
-                </div>
+            <div className="flex items-center justify-between py-4 border-b border-gray-100">
+              <div>
+                <h3 className="font-medium text-gray-900">SMS Notifications</h3>
+                <p className="text-sm text-gray-600">Receive notifications via text message</p>
               </div>
-
-              <div className="pt-4">
-                <button
-                  onClick={handleSaveNotifications}
-                  className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
-                >
-                  <span>Save Changes</span>
-                </button>
-              </div>
+              <label className="relative inline-flex items-center cursor-pointer ml-4">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.smsNotifications}
+                  onChange={() => handleNotificationToggle('smsNotifications')}
+                  className="sr-only peer"
+                />
+                <div className={`w-14 h-7 rounded-full peer-focus:ring-4 peer-focus:ring-teal-300 relative transition-all duration-300 ${
+                  notificationSettings.smsNotifications 
+                    ? 'bg-teal-600' 
+                    : 'bg-gray-300'
+                }`}>
+                  <div className={`absolute top-1 bg-white w-5 h-5 rounded-full shadow-md transition-all duration-300 ${
+                    notificationSettings.smsNotifications ? 'translate-x-7 left-1' : 'left-1'
+                  }`}></div>
+                </div>
+                <span className={`ml-3 text-sm font-medium ${
+                  notificationSettings.smsNotifications ? 'text-teal-600' : 'text-gray-500'
+                }`}>
+                  {notificationSettings.smsNotifications ? 'ON' : 'OFF'}
+                </span>
+              </label>
             </div>
-          )}
 
-          {activeTab === 'activity' && (
-            <div className="space-y-6">
-              <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
-
-              {userData?.recentActivity && userData.recentActivity.length > 0 ? (
-                <div className="space-y-4">
-                  {userData.recentActivity.map((activity, index) => (
-                    <div key={index} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                      <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center shrink-0">
-                        <svg className="w-6 h-6 text-teal-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                        </svg>
-                      </div>
-
-                      <div className="flex-1">
-                        <h3 className="font-medium text-teal-600">{activity.title}</h3>
-                        <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
-                          <span>Calendar {new Date(activity.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                          <span>Attempts: {activity.attempts || 1}</span>
-                        </div>
-                      </div>
-
-                      {activity.score && (
-                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          activity.score >= 90 ? 'bg-green-100 text-green-800' :
-                          activity.score >= 80 ? 'bg-blue-100 text-blue-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          Score: {activity.score}%
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                  <p className="text-gray-500 font-medium">No recent activity yet</p>
-                  <p className="text-sm text-gray-400 mt-2">Your quiz attempts will appear here</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'privacy' && (
-            <div className="space-y-6">
-              <h2 className="text-xl font-bold text-gray-900">Privacy & Data</h2>
-
-              <div className="space-y-4">
-                <h3 className="font-semibold text-gray-900">Emotion Data Consent</h3>
-
-                <div className="bg-gray-50 p-6 rounded-lg">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-700 mb-3">
-                        Allow the application to collect and analyze emotional data during quiz sessions to improve learning experience.
-                      </p>
-                      <a href="#" className="text-sm text-teal-600 hover:underline">Read our privacy policy</a>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
-                      <input
-                        type="checkbox"
-                        checked={privacySettings.emotionDataConsent}
-                        onChange={() => handlePrivacyToggle('emotionDataConsent')}
-                        className="sr-only peer"
-                      />
-                      <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
-                        privacySettings.emotionDataConsent ? 'bg-teal-600' : 'bg-gray-200'
-                      }`}>
-                        <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
-                          privacySettings.emotionDataConsent ? 'translate-x-6 left-0.5' : 'left-0.5'
-                        }`}></div>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="pt-6">
-                  <h3 className="font-semibold text-gray-900 mb-2">Export Your Data</h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Download a copy of your personal data and activity history. The export includes your profile information, quiz history, and performance data.
-                  </p>
-                  <button
-                    onClick={handleExportData}
-                    className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
-                  >
-                    <span>Export All Data</span>
-                  </button>
-                </div>
-
-                <div className="pt-6">
-                  <button
-                    onClick={handleSavePrivacy}
-                    className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
-                  >
-                    <span>Save Privacy Settings</span>
-                  </button>
-                </div>
+            <div className="flex items-center justify-between py-4 border-b border-gray-100">
+              <div>
+                <h3 className="font-medium text-gray-900">In-App Notifications</h3>
+                <p className="text-sm text-gray-600">Receive notifications in the application</p>
               </div>
+              <label className="relative inline-flex items-center cursor-pointer ml-4">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.inAppNotifications}
+                  onChange={() => handleNotificationToggle('inAppNotifications')}
+                  className="sr-only peer"
+                />
+                <div className={`w-14 h-7 rounded-full peer-focus:ring-4 peer-focus:ring-teal-300 relative transition-all duration-300 ${
+                  notificationSettings.inAppNotifications 
+                    ? 'bg-teal-600' 
+                    : 'bg-gray-300'
+                }`}>
+                  <div className={`absolute top-1 bg-white w-5 h-5 rounded-full shadow-md transition-all duration-300 ${
+                    notificationSettings.inAppNotifications ? 'translate-x-7 left-1' : 'left-1'
+                  }`}></div>
+                </div>
+                <span className={`ml-3 text-sm font-medium ${
+                  notificationSettings.inAppNotifications ? 'text-teal-600' : 'text-gray-500'
+                }`}>
+                  {notificationSettings.inAppNotifications ? 'ON' : 'OFF'}
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div className="pt-4">
+            <button
+              onClick={handleSaveNotifications}
+              className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors font-medium"
+            >
+              <span>Save Changes</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'activity' && (
+        <div className="space-y-6">
+          <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
+
+          {userData?.recentActivity && userData.recentActivity.length > 0 ? (
+            <div className="space-y-4">
+              {userData.recentActivity.map((activity, index) => (
+                <div key={index} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                  <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center shrink-0">
+                    <svg className="w-6 h-6 text-teal-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                    </svg>
+                  </div>
+
+                  <div className="flex-1">
+                    <h3 className="font-medium text-teal-600">{activity.title}</h3>
+                    <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
+                      <span>Calendar {new Date(activity.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      <span>Attempts: {activity.attempts || 1}</span>
+                    </div>
+                  </div>
+
+                  {activity.score && (
+                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      activity.score >= 90 ? 'bg-green-100 text-green-800' :
+                      activity.score >= 80 ? 'bg-blue-100 text-blue-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      Score: {activity.score}%
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <p className="text-gray-500 font-medium">No recent activity yet</p>
+              <p className="text-sm text-gray-400 mt-2">Your quiz attempts will appear here</p>
             </div>
           )}
         </div>
-      </div>
+      )}
 
-      {/* Password Change Modal */}
-      <PasswordModal
-        isOpen={showPasswordModal}
-        onClose={() => setShowPasswordModal(false)}
-        onSave={handleChangePassword}
-      />
+      {activeTab === 'privacy' && (
+        <div className="space-y-6">
+          <h2 className="text-xl font-bold text-gray-900">Privacy & Data</h2>
+
+          <div className="space-y-4">
+            <h3 className="font-semibold text-gray-900">Emotion Data Consent</h3>
+
+            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-sm text-gray-700 mb-3">
+                    Allow the application to collect and analyze emotional data during quiz sessions to improve learning experience.
+                  </p>
+                  <a href="#" className="text-sm text-teal-600 hover:underline">Read our privacy policy</a>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+                  <input
+                    type="checkbox"
+                    checked={privacySettings.emotionDataConsent}
+                    onChange={() => handlePrivacyToggle('emotionDataConsent')}
+                    className="sr-only peer"
+                  />
+                  <div className={`w-14 h-7 rounded-full peer-focus:ring-4 peer-focus:ring-teal-300 relative transition-all duration-300 ${
+                    privacySettings.emotionDataConsent 
+                      ? 'bg-teal-600' 
+                      : 'bg-gray-300'
+                  }`}>
+                    <div className={`absolute top-1 bg-white w-5 h-5 rounded-full shadow-md transition-all duration-300 ${
+                      privacySettings.emotionDataConsent ? 'translate-x-7 left-1' : 'left-1'
+                    }`}></div>
+                  </div>
+                  <span className={`ml-3 text-sm font-medium ${
+                    privacySettings.emotionDataConsent ? 'text-teal-600' : 'text-gray-500'
+                  }`}>
+                    {privacySettings.emotionDataConsent ? 'GRANTED' : 'NOT GRANTED'}
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="pt-6">
+              <h3 className="font-semibold text-gray-900 mb-2">Export Your Data</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Download a copy of your personal data and activity history. The export includes your profile information, quiz history, and performance data.
+              </p>
+              <button
+                onClick={handleExportData}
+                className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
+              >
+                <span>Export All Data</span>
+              </button>
+            </div>
+
+            <div className="pt-6">
+              <button
+                onClick={handleSavePrivacy}
+                className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors font-medium"
+              >
+                <span>Save Privacy Settings</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  );
+  </div>
 
-  // Admin viewing check
-  if (isAdminViewing && adminToken) {
-    return (
-      <AdminViewWrapper dashboardType="student">
-        {profileContent}
-      </AdminViewWrapper>
-    );
-  }
-
-  // Regular student view
-  return (
-    <div className="min-h-screen bg-white">
-      <Header userName={userName} userRole="student" />
-      <Sidebar activeMenuItem={activeMenuItem} setActiveMenuItem={setActiveMenuItem} />
-      <div className="ml-52 pt-14">
-        {profileContent}
-      </div>
-    </div>
-  );
+  <PasswordModal
+    isOpen={showPasswordModal}
+    onClose={() => setShowPasswordModal(false)}
+    onSave={handleChangePassword}
+  />
+</div>
+);
+if (isAdminViewing && adminToken) {
+return (
+<AdminViewWrapper dashboardType="student">
+{profileContent}
+</AdminViewWrapper>
+);
+}
+return (
+<div className="min-h-screen bg-white">
+<Header userName={userName} userRole="student" />
+<Sidebar activeMenuItem={activeMenuItem} setActiveMenuItem={setActiveMenuItem} />
+<div className="ml-52 pt-14">
+{profileContent}
+</div>
+</div>
+);
 };
-
 export default Profile;
