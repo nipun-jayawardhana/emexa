@@ -1,26 +1,48 @@
 // frontend/src/services/apiClient.js
 const API_BASE_URL = 'http://localhost:5000/api';
 
+// Helper to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
+};
+
 const apiClient = {
   get: async (endpoint) => {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`);
+    console.log('🌐 API GET:', `${API_BASE_URL}${endpoint}`);
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      headers: getAuthHeaders()
+    });
     const data = await response.json();
+    console.log('📥 API Response:', response.status, data);
 
     if (!response.ok) {
+      console.error('❌ API Error:', response.status, data);
       throw new Error(data.message || `API Error: ${response.status}`);
     }
     return data;
   },
 
   post: async (endpoint, body) => {
+    console.log('🌐 API POST:', `${API_BASE_URL}${endpoint}`, body);
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(body),
     });
     const data = await response.json();
+    console.log('📥 API Response:', response.status, data);
 
     if (!response.ok) {
+      console.error('❌ API Error:', response.status, data);
       throw new Error(data.message || `API Error: ${response.status}`);
     }
     return data;
@@ -29,7 +51,7 @@ const apiClient = {
   put: async (endpoint, body) => {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(body),
     });
     const data = await response.json();
@@ -41,7 +63,10 @@ const apiClient = {
   },
 
   delete: async (endpoint) => {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, { method: 'DELETE' });
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, { 
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
     const data = await response.json();
 
     if (!response.ok) {
