@@ -338,6 +338,7 @@ export const exportUserData = async (req, res) => {
 };
 
 // Upload profile image
+// Upload profile image - FIXED for multi-device support
 export const uploadProfileImage = async (req, res) => {
   try {
     console.log('📸 Profile image upload started for userId:', req.userId);
@@ -370,19 +371,19 @@ export const uploadProfileImage = async (req, res) => {
 
     console.log(`✅ User found in ${collection} collection: ${user.email}`);
 
-    // Build absolute URL to the uploaded file so clients can consume it directly
-    const host = req.get('host');
-    const protocol = req.protocol;
-    const imageUrl = `${protocol}://${host}/uploads/profiles/${req.file.filename}`;
+    // FIXED: Store RELATIVE path instead of absolute URL
+    // This way it works across different domains/devices
+    const relativePath = `/uploads/profiles/${req.file.filename}`;
 
-    console.log('🔗 Generated image URL:', imageUrl);
+    console.log('🔗 Storing relative path:', relativePath);
 
-    // Save profile image URL to user document
-    user.profileImage = imageUrl;
+    // Save profile image path to user document
+    user.profileImage = relativePath;
     const savedUser = await user.save();
 
     console.log(`✅ Profile image saved to ${collection} collection. New profileImage:`, savedUser.profileImage);
 
+    // Return the relative path (frontend will construct full URL if needed)
     res.json({ 
       message: 'Profile image uploaded successfully',
       profileImage: savedUser.profileImage,
