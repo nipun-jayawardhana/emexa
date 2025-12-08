@@ -20,7 +20,7 @@ const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'emexa/profiles',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp','avif'],
     public_id: (req, file) => `profile_${Date.now()}`,
     transformation: [{ width: 500, height: 500, crop: 'limit' }]
   }
