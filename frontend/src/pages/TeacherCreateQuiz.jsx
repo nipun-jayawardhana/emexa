@@ -266,12 +266,16 @@ const TeacherCreateQuiz = ({
       if (editingDraftId) {
         // Update existing quiz
         await teacherQuizService.updateQuiz(editingDraftId, quizData);
-        alert("✅ Quiz updated successfully!");
+        alert(
+          "✅ Assignment Updated Successfully!\n\nYour quiz has been updated and saved as a draft."
+        );
       } else {
         // Create new quiz
         const response = await teacherQuizService.createQuiz(quizData);
         console.log("Quiz created:", response);
-        alert("✅ Quiz saved successfully!");
+        alert(
+          "✅ Assignment Created Successfully!\n\nYour quiz has been saved as a draft. You can schedule and share it with students from the My Quizzes page."
+        );
       }
 
       // Clear editing draft ID
@@ -378,7 +382,17 @@ const TeacherCreateQuiz = ({
               onClick={() => setIsGradeLevelOpen(!isGradeLevelOpen)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-left text-sm text-gray-500 hover:border-gray-400 focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none flex items-center justify-between"
             >
-              <span>Select grade level</span>
+              <span
+                className={
+                  selectedGrades.length > 0 ? "text-gray-900" : "text-gray-500"
+                }
+              >
+                {selectedGrades.length > 0
+                  ? `${selectedGrades.length} grade${
+                      selectedGrades.length > 1 ? "s" : ""
+                    } selected`
+                  : "Select grade level"}
+              </span>
               <svg
                 className={`w-4 h-4 text-gray-400 transition-transform ${
                   isGradeLevelOpen ? "rotate-180" : ""
@@ -398,19 +412,36 @@ const TeacherCreateQuiz = ({
 
             {/* Dropdown Menu */}
             {isGradeLevelOpen && (
-              <div className="w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+              <div className="w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto z-10 absolute">
                 <div className="p-2">
                   {gradeOptions.map((grade) => (
                     <label
                       key={grade.id}
                       className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 rounded cursor-pointer"
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedGrades.includes(grade.id)}
-                        onChange={() => toggleGrade(grade.id)}
-                        className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
-                      />
+                      <div className="relative flex items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedGrades.includes(grade.id)}
+                          onChange={() => toggleGrade(grade.id)}
+                          className="w-5 h-5 border-2 border-gray-300 rounded cursor-pointer appearance-none checked:bg-teal-600 checked:border-teal-600 transition-colors"
+                        />
+                        {selectedGrades.includes(grade.id) && (
+                          <svg
+                            className="w-3.5 h-3.5 text-white absolute pointer-events-none"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        )}
+                      </div>
                       <span className="text-sm text-gray-700">
                         {grade.label}
                       </span>

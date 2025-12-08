@@ -43,8 +43,8 @@ router.get('/shared', async (req, res) => {
   }
 });
 
-// Temporarily public for testing - TODO: Add protect middleware back
-// router.use(protect); // Commented out for testing
+// Protected routes - require authentication
+router.use(protect);
 
 // Quiz CRUD operations
 router.post('/create', createQuiz);                    // Create new quiz

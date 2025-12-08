@@ -22,22 +22,14 @@ export const createQuiz = async (req, res) => {
       });
     }
 
-    // Get teacher ID from authenticated user or use a default for testing
-    let teacherId = req.user?.id || req.user?._id;
+    // Get teacher ID from authenticated user
+    const teacherId = req.user?.id || req.user?._id;
     
-    // If no authenticated user, create a temporary teacher ID for testing
     if (!teacherId) {
-      console.warn('⚠️  No authenticated user found. Using test teacher ID.');
-      // Try to find any teacher in the database
-      const anyTeacher = await Teacher.findOne();
-      if (anyTeacher) {
-        teacherId = anyTeacher._id;
-      } else {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required. Please login as a teacher.'
-        });
-      }
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required. Please login as a teacher.'
+      });
     }
 
     console.log('👤 Teacher ID:', teacherId);
@@ -80,18 +72,13 @@ export const createQuiz = async (req, res) => {
 // Get all quizzes for a teacher
 export const getTeacherQuizzes = async (req, res) => {
   try {
-    let teacherId = req.user?.id || req.user?._id;
+    const teacherId = req.user?.id || req.user?._id;
     
     if (!teacherId) {
-      const anyTeacher = await Teacher.findOne();
-      if (anyTeacher) {
-        teacherId = anyTeacher._id;
-      } else {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
     }
     
     const quizzes = await TeacherQuiz.findByTeacher(teacherId);
@@ -114,18 +101,13 @@ export const getTeacherQuizzes = async (req, res) => {
 // Get all draft quizzes
 export const getDrafts = async (req, res) => {
   try {
-    let teacherId = req.user?.id || req.user?._id;
+    const teacherId = req.user?.id || req.user?._id;
     
     if (!teacherId) {
-      const anyTeacher = await Teacher.findOne();
-      if (anyTeacher) {
-        teacherId = anyTeacher._id;
-      } else {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
     }
     
     const drafts = await TeacherQuiz.findDrafts(teacherId);
@@ -150,18 +132,13 @@ export const getDrafts = async (req, res) => {
 // Get all scheduled quizzes
 export const getScheduledQuizzes = async (req, res) => {
   try {
-    let teacherId = req.user?.id || req.user?._id;
+    const teacherId = req.user?.id || req.user?._id;
     
     if (!teacherId) {
-      const anyTeacher = await Teacher.findOne();
-      if (anyTeacher) {
-        teacherId = anyTeacher._id;
-      } else {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
     }
     
     const scheduled = await TeacherQuiz.findScheduled(teacherId);
@@ -389,18 +366,13 @@ export const permanentDeleteQuiz = async (req, res) => {
 // Get quiz statistics for teacher
 export const getQuizStats = async (req, res) => {
   try {
-    let teacherId = req.user?.id || req.user?._id;
+    const teacherId = req.user?.id || req.user?._id;
     
     if (!teacherId) {
-      const anyTeacher = await Teacher.findOne();
-      if (anyTeacher) {
-        teacherId = anyTeacher._id;
-      } else {
-        return res.status(401).json({
-          success: false,
-          message: 'Authentication required'
-        });
-      }
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
     }
     
     console.log('📊 Get Quiz Stats for teacher:', teacherId);

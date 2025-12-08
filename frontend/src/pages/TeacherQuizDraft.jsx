@@ -350,10 +350,12 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
         endTime: quizToShare.endTime,
       });
 
-      alert(`✅ Quiz "${quizToShare.title}" shared with students!`);
-
       // Reload drafts to reflect changes
       await loadDrafts();
+
+      alert(
+        `✅ Quiz Shared Successfully!\n\nThe quiz "${quizToShare.title}" is now active and visible to students.`
+      );
 
       // Close modal
       setShowShareModal(false);
@@ -411,7 +413,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
       setEndTime("");
 
       alert(
-        "✅ Quiz scheduled successfully! Click 'Share' to make it visible to students."
+        "✅ Quiz Scheduled Successfully!\n\nYour quiz has been scheduled. Click the 'Share' button to make it active and visible to students."
       );
     } catch (error) {
       console.error("Error scheduling quiz:", error);
