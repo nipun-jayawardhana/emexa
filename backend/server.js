@@ -8,7 +8,8 @@ import authRoutes from './src/routes/authRoutes.js';
 import quizRoutes from './src/routes/quizroutes.js';
 import cameraRoutes from './src/routes/cameraRoutes.js';
 import teacherRoutes from './src/routes/teacherRoutes.js';
-import wellnessRoutes from './src/routes/wellnessRoutes.js'; 
+import wellnessRoutes from './src/routes/wellnessRoutes.js';
+import teacherQuizRoutes from './src/routes/teacherQuizRoutes.js'; 
 
 dotenv.config();
 const app = express();
@@ -40,7 +41,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/quiz', quizRoutes);
 app.use('/api/camera', cameraRoutes);
 app.use('/api/teacher', teacherRoutes);
-app.use('/api/wellness', wellnessRoutes); 
+app.use('/api/wellness', wellnessRoutes);
+app.use('/api/teacher-quizzes', teacherQuizRoutes); // New teacher quiz routes 
 
 // Health check endpoints
 app.get('/', (req, res) => {

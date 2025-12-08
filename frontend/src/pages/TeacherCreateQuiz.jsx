@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import teacherQuizService from "../services/teacherQuizService";
 
 const TeacherCreateQuiz = ({
   setActiveMenuItem,
@@ -14,28 +15,66 @@ const TeacherCreateQuiz = ({
 
   // Load draft data if editing
   useEffect(() => {
-    if (editingDraftId) {
-      const savedDrafts = localStorage.getItem("quizDrafts");
-      if (savedDrafts) {
-        const drafts = JSON.parse(savedDrafts);
-        const draftToEdit = drafts.find((d) => d.id === editingDraftId);
-        if (draftToEdit && draftToEdit.fullData) {
-          setAssignmentTitle(draftToEdit.fullData.assignmentTitle);
-          setSubject(draftToEdit.fullData.subject);
-          setSelectedGrades(draftToEdit.fullData.selectedGrades);
-          setDueDate(draftToEdit.fullData.dueDate);
-          setQuestions(draftToEdit.fullData.questions);
+    const loadDraftForEditing = async () => {
+      if (editingDraftId) {
+        try {
+          console.log("📝 Loading draft for editing:", editingDraftId);
+          const response = await teacherQuizService.getQuizById(editingDraftId);
+          console.log("✅ Loaded quiz data:", response);
+
+          const quiz = response.quiz || response.data || response;
+
+          if (quiz) {
+            setAssignmentTitle(quiz.title || "");
+            setSubject(quiz.subject || "");
+
+            // Convert gradeLevel array to selectedGrades format
+            if (Array.isArray(quiz.gradeLevel)) {
+              // Map grade labels back to IDs
+              const gradeMap = {
+                "1st Year 1st Sem": "1-1",
+                "1st Year 2nd Sem": "1-2",
+                "2nd Year 1st Sem": "2-1",
+                "2nd Year 2nd Sem": "2-2",
+                "3rd Year 1st Sem": "3-1",
+                "3rd Year 2nd Sem": "3-2",
+                "4th Year 1st Sem": "4-1",
+                "4th Year 2nd Sem": "4-2",
+              };
+              const gradeIds = quiz.gradeLevel.map(
+                (label) => gradeMap[label] || "1-1"
+              );
+              setSelectedGrades(gradeIds);
+            } else {
+              setSelectedGrades([]);
+            }
+
+            // Format dueDate for input field (YYYY-MM-DD)
+            if (quiz.dueDate) {
+              const date = new Date(quiz.dueDate);
+              const formattedDate = date.toISOString().split("T")[0];
+              setDueDate(formattedDate);
+            }
+
+            setQuestions(quiz.questions || []);
+            console.log("📋 Loaded questions:", quiz.questions?.length || 0);
+          }
+        } catch (error) {
+          console.error("❌ Error loading draft for editing:", error);
+          alert("Failed to load quiz data: " + error.message);
         }
+      } else {
+        // Reset form when not editing (editingDraftId is null/undefined)
+        setAssignmentTitle("");
+        setSubject("");
+        setDueDate("");
+        setSelectedGrades([]);
+        setQuestions([]);
+        setIsGradeLevelOpen(false);
       }
-    } else {
-      // Reset form when not editing (editingDraftId is null/undefined)
-      setAssignmentTitle("");
-      setSubject("");
-      setDueDate("");
-      setSelectedGrades([]);
-      setQuestions([]);
-      setIsGradeLevelOpen(false);
-    }
+    };
+
+    loadDraftForEditing();
   }, [editingDraftId]);
 
   const gradeOptions = [
@@ -177,7 +216,7 @@ const TeacherCreateQuiz = ({
     );
   };
 
-  const handleCreateAssignment = () => {
+  const handleCreateAssignment = async () => {
     // Validate that required fields are filled
     if (
       !assignmentTitle ||
@@ -196,59 +235,63 @@ const TeacherCreateQuiz = ({
       return;
     }
 
-    // Get existing drafts from localStorage
-    const savedDrafts = localStorage.getItem("quizDrafts");
-    const existingDrafts = savedDrafts ? JSON.parse(savedDrafts) : [];
+    try {
+      // Format grade levels for display
+      const gradeLabels = gradeOptions
+        .filter((g) => selectedGrades.includes(g.id))
+        .map((g) => g.label);
+      const firstGrade = gradeLabels[0] || "";
 
-    // Calculate progress based on filled questions
-    const totalQuestions = questions.length;
-    const filledQuestions = questions.filter(
-      (q) =>
-        q.questionText && q.options.some((opt) => opt.text && opt.isCorrect)
-    ).length;
-    const progress = Math.round((filledQuestions / totalQuestions) * 100);
+      // Prepare quiz data for backend
+      const quizData = {
+        title: assignmentTitle,
+        subject: subject.charAt(0).toUpperCase() + subject.slice(1),
+        gradeLevel: [firstGrade], // Send as array to match backend schema
+        dueDate: new Date(dueDate).toISOString(),
+        questions: questions.map((q) => ({
+          id: q.id,
+          type: q.type,
+          questionText: q.questionText,
+          options: q.type === "mcq" ? q.options : [],
+          shortAnswer: q.type === "short" ? q.shortAnswer : "",
+          hints: q.hints || ["", "", "", ""],
+        })),
+        status: "draft",
+        isScheduled: false,
+      };
 
-    // Format grade levels for display
-    const gradeLabels = gradeOptions
-      .filter((g) => selectedGrades.includes(g.id))
-      .map((g) => g.label);
-    const firstGrade = gradeLabels[0] || "";
+      console.log("Saving quiz to database:", quizData);
 
-    // Create or update draft object
-    const draftData = {
-      id: editingDraftId || Date.now(), // Use existing ID if editing, otherwise new timestamp
-      title: assignmentTitle,
-      subject: subject.charAt(0).toUpperCase() + subject.slice(1),
-      grade: firstGrade.split(" ")[0] + " " + firstGrade.split(" ")[1], // e.g., "1st Y"
-      semester: firstGrade.includes("1st Sem") ? "1st sem" : "2nd sem",
-      progress: progress,
-      questions: totalQuestions,
-      lastEdited: "Just now",
-      fullData: {
-        assignmentTitle,
-        subject,
-        selectedGrades,
-        dueDate,
-        questions,
-      },
-    };
+      // Save to backend
+      if (editingDraftId) {
+        // Update existing quiz
+        await teacherQuizService.updateQuiz(editingDraftId, quizData);
+        alert(
+          "✅ Assignment Updated Successfully!\n\nYour quiz has been updated and saved as a draft."
+        );
+      } else {
+        // Create new quiz
+        const response = await teacherQuizService.createQuiz(quizData);
+        console.log("Quiz created:", response);
+        alert(
+          "✅ Assignment Created Successfully!\n\nYour quiz has been saved as a draft. You can schedule and share it with students from the My Quizzes page."
+        );
+      }
 
-    let updatedDrafts;
-    if (editingDraftId) {
-      // Update existing draft
-      updatedDrafts = existingDrafts.map((draft) =>
-        draft.id === editingDraftId ? draftData : draft
+      // Clear editing draft ID
+      if (setEditingDraftId) {
+        setEditingDraftId(null);
+      }
+
+      // Navigate to quiz drafts
+      setActiveMenuItem("quiz-drafts");
+    } catch (error) {
+      console.error("Error saving quiz:", error);
+      alert(
+        "❌ Failed to save quiz: " +
+          (error.response?.data?.message || error.message)
       );
-    } else {
-      // Add new draft to beginning of array
-      updatedDrafts = [draftData, ...existingDrafts];
     }
-
-    // Save to localStorage
-    localStorage.setItem("quizDrafts", JSON.stringify(updatedDrafts));
-
-    // Navigate to quiz drafts
-    setActiveMenuItem("quiz-drafts");
   };
 
   return (
@@ -339,7 +382,17 @@ const TeacherCreateQuiz = ({
               onClick={() => setIsGradeLevelOpen(!isGradeLevelOpen)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-left text-sm text-gray-500 hover:border-gray-400 focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none flex items-center justify-between"
             >
-              <span>Select grade level</span>
+              <span
+                className={
+                  selectedGrades.length > 0 ? "text-gray-900" : "text-gray-500"
+                }
+              >
+                {selectedGrades.length > 0
+                  ? `${selectedGrades.length} grade${
+                      selectedGrades.length > 1 ? "s" : ""
+                    } selected`
+                  : "Select grade level"}
+              </span>
               <svg
                 className={`w-4 h-4 text-gray-400 transition-transform ${
                   isGradeLevelOpen ? "rotate-180" : ""
@@ -359,19 +412,36 @@ const TeacherCreateQuiz = ({
 
             {/* Dropdown Menu */}
             {isGradeLevelOpen && (
-              <div className="w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+              <div className="w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto z-10 absolute">
                 <div className="p-2">
                   {gradeOptions.map((grade) => (
                     <label
                       key={grade.id}
                       className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 rounded cursor-pointer"
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedGrades.includes(grade.id)}
-                        onChange={() => toggleGrade(grade.id)}
-                        className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
-                      />
+                      <div className="relative flex items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedGrades.includes(grade.id)}
+                          onChange={() => toggleGrade(grade.id)}
+                          className="w-5 h-5 border-2 border-gray-300 rounded cursor-pointer appearance-none checked:bg-teal-600 checked:border-teal-600 transition-colors"
+                        />
+                        {selectedGrades.includes(grade.id) && (
+                          <svg
+                            className="w-3.5 h-3.5 text-white absolute pointer-events-none"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        )}
+                      </div>
                       <span className="text-sm text-gray-700">
                         {grade.label}
                       </span>
