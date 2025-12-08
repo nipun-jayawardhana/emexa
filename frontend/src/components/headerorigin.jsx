@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import LogoIcon from '../assets/headerlogo.png';
 
 const Header = ({ userName, userRole }) => {
   const navigate = useNavigate();
+  const [profileImage, setProfileImage] = useState(null);
 
   const handleLogout = () => {
     // Show confirmation dialog
@@ -16,8 +17,37 @@ const Header = ({ userName, userRole }) => {
     }
   };
 
+  // Load profile image from localStorage and listen for changes
+  useEffect(() => {
+    // Use role-specific localStorage key
+    const storageKey = userRole === 'teacher' ? 'teacherProfileImage' : 'studentProfileImage';
+    const eventName = userRole === 'teacher' ? 'teacherProfileImageChanged' : 'studentProfileImageChanged';
+    
+    // Initial load
+    const storedImage = localStorage.getItem(storageKey);
+    setProfileImage(storedImage);
+
+    // Listen for profile image changes (same tab)
+    const handleProfileImageChange = (e) => {
+      console.log('Profile image change event received:', e.detail);
+      setProfileImage(e.detail);
+    };
+
+    // Listen for storage changes (cross-tab)
+    const handleStorageChange = () => {
+      const updatedImage = localStorage.getItem(storageKey);
+      setProfileImage(updatedImage);
+    };
+
+    window.addEventListener(eventName, handleProfileImageChange);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener(eventName, handleProfileImageChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
   // Read profile image from localStorage so header updates when user changes it
-  const profileImage = typeof window !== 'undefined' ? 
+    typeof window !== 'undefined' ? 
     (userRole === 'admin' ? localStorage.getItem('adminProfileImage') : localStorage.getItem('profileImage')) 
     : null;
 

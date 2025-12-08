@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Camera, Eye, EyeOff } from "lucide-react";
 import tProfile from "../assets/t-profile.png";
+import jsPDF from "jspdf";
 
 const TeacherProfile = ({ embedded = false, frame = null }) => {
   const [activeMenuItem, setActiveMenuItem] = useState("profile");
@@ -45,10 +46,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     }
   }, []);
 
-  // Load avatar from localStorage
+  // Load avatar from localStorage (teacher-specific key)
   useEffect(() => {
     try {
-      const storedAvatar = localStorage.getItem('avatar');
+      const storedAvatar = localStorage.getItem('teacherProfileImage');
       if (storedAvatar) setAvatarUrl(storedAvatar);
     } catch (e) {
       // ignore
@@ -66,11 +67,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     reader.onload = (evt) => {
       const dataUrl = evt.target.result;
       setAvatarUrl(dataUrl);
-      try {
-        localStorage.setItem('avatar', dataUrl);
-      } catch (err) {
-        // ignore
-      }
+      // Don't save to localStorage yet - wait for Save Changes button
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -78,6 +75,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [changePwdData, setChangePwdData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
 
   // Settings toggles
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -178,6 +176,13 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       parsed.name = data.data.name;
       parsed.fullName = data.data.name;
       localStorage.setItem('user', JSON.stringify(parsed));
+    }
+
+    // Save avatar to localStorage and trigger header update
+    if (avatarUrl) {
+      localStorage.setItem('teacherProfileImage', avatarUrl);
+      window.dispatchEvent(new CustomEvent('teacherProfileImageChanged', { detail: avatarUrl }));
+      console.log('Teacher profile image updated and event dispatched');
     }
 
     alert('Changes saved successfully!');
@@ -283,6 +288,124 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
   const handleCancelLogout = () => {
     setShowLogoutModal(false);
+  };
+
+  const handleExportData = () => {
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 20;
+
+      // Header with background
+      doc.setFillColor(189, 242, 209); // #BDF2D1
+      doc.rect(0, 0, pageWidth, 40, 'F');
+      
+      // Title
+      doc.setFontSize(22);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Personal Data Export', pageWidth / 2, 25, { align: 'center' });
+      
+      yPosition = 50;
+
+      // Export Information
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      const exportDate = new Date().toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      doc.text(`Export Date: ${exportDate}`, 20, yPosition);
+      yPosition += 15;
+
+      // Profile Information Section
+      doc.setFillColor(240, 240, 240);
+      doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Profile Information', 20, yPosition + 7);
+      yPosition += 18;
+
+      doc.setFontSize(11);
+      doc.setTextColor(60, 60, 60);
+      doc.text(`Full Name: ${formData.fullName || 'Not provided'}`, 20, yPosition);
+      yPosition += 8;
+      doc.text(`Email: ${formData.email || 'Not provided'}`, 20, yPosition);
+      yPosition += 8;
+      doc.text(`Role: ${formData.role || 'Not provided'}`, 20, yPosition);
+      yPosition += 15;
+
+      // Notification Settings Section
+      doc.setFillColor(240, 240, 240);
+      doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Notification Settings', 20, yPosition + 7);
+      yPosition += 18;
+
+      doc.setFontSize(11);
+      doc.setTextColor(60, 60, 60);
+      doc.text(`Email Notifications: ${emailNotifications ? 'Enabled' : 'Disabled'}`, 20, yPosition);
+      yPosition += 8;
+      doc.text(`SMS Notifications: ${smsNotifications ? 'Enabled' : 'Disabled'}`, 20, yPosition);
+      yPosition += 8;
+      doc.text(`In-App Notifications: ${inAppNotifications ? 'Enabled' : 'Disabled'}`, 20, yPosition);
+      yPosition += 15;
+
+      // Privacy Settings Section
+      doc.setFillColor(240, 240, 240);
+      doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Privacy Settings', 20, yPosition + 7);
+      yPosition += 18;
+
+      doc.setFontSize(11);
+      doc.setTextColor(60, 60, 60);
+      doc.text(`Emotion Detection Consent: ${emotionConsent ? 'Granted' : 'Not Granted'}`, 20, yPosition);
+      yPosition += 15;
+
+      // Activity History Section
+      if (yPosition > pageHeight - 40) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.setFillColor(240, 240, 240);
+      doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Activity History', 20, yPosition + 7);
+      yPosition += 18;
+
+      doc.setFontSize(11);
+      doc.setTextColor(60, 60, 60);
+      doc.text('Account Created: ' + (formData.createdAt || 'Information not available'), 20, yPosition);
+      yPosition += 8;
+      doc.text('Last Profile Update: ' + new Date().toLocaleDateString(), 20, yPosition);
+      yPosition += 8;
+      doc.text('Total Logins: Information not available', 20, yPosition);
+      yPosition += 8;
+      doc.text('Last Login: ' + new Date().toLocaleString(), 20, yPosition);
+
+      // Footer
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      doc.text('This document contains your personal data as stored in our system.', pageWidth / 2, pageHeight - 15, { align: 'center' });
+      doc.text('Generated by Emexa Platform', pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+      // Save PDF
+      const fileName = `personal-data-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+      
+      alert('Your data has been exported successfully as a PDF!');
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export data. Please try again.');
+    }
   };
 
   const handleMenuClick = (itemId) => {
@@ -438,64 +561,96 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10000 p-6"
           onClick={handleCloseChangePassword}
         >
-          <div className="w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-[#bdf2d1] rounded-lg shadow-2xl overflow-hidden">
-              <div className="relative px-8 pt-6 pb-4 text-center">
-                <h3 className="text-lg font-semibold text-gray-900">Change Password</h3>
+          <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="rounded-lg shadow-2xl overflow-hidden" style={{ backgroundColor: '#BDF2D1' }}>
+              <div className="relative px-8 pt-6 pb-4 border-b border-gray-200">
+                <h3 className="text-xl font-semibold text-gray-900">Change Password</h3>
                 <button
                   onClick={handleCloseChangePassword}
-                  className="absolute right-4 top-4 text-gray-700 hover:text-gray-900 p-1 rounded"
+                  className="absolute right-6 top-6 text-gray-400 hover:text-gray-600 p-1 rounded"
                   aria-label="close-modal"
                 >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
               </div>
 
-              <div className="px-10 pb-8">
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
-                  <input
-                    type="password"
-                    name="currentPassword"
-                    value={changePwdData.currentPassword}
-                    onChange={handleChangePwdInput}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-6 mb-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+              <div className="px-8 py-6">
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">Current Password</label>
+                  <div className="relative">
                     <input
-                      type="password"
-                      name="newPassword"
-                      value={changePwdData.newPassword}
+                      type={showPasswords.current ? "text" : "password"}
+                      name="currentPassword"
+                      placeholder="Enter current password"
+                      value={changePwdData.currentPassword}
                       onChange={handleChangePwdInput}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
+                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      value={changePwdData.confirmPassword}
-                      onChange={handleChangePwdInput}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-md bg-white shadow-sm"
-                    />
-                    {changePwdData.confirmPassword !== '' && changePwdData.newPassword !== changePwdData.confirmPassword && (
-                      <p className="text-xs text-red-600 mt-2">Passwords do not match</p>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPasswords.current ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPasswords.new ? "text" : "password"}
+                        name="newPassword"
+                        placeholder="Enter new password"
+                        value={changePwdData.newPassword}
+                        onChange={handleChangePwdInput}
+                        className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPasswords.new ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">Confirm New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPasswords.confirm ? "text" : "password"}
+                        name="confirmPassword"
+                        placeholder="Confirm new password"
+                        value={changePwdData.confirmPassword}
+                        onChange={handleChangePwdInput}
+                        className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPasswords.confirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
                   <button
                     onClick={handleSubmitChangePassword}
-                    className="flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                    className="px-6 py-2.5 rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition font-medium text-sm"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    <span className="text-sm">Save Changes</span>
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={handleCloseChangePassword}
+                    className="px-6 py-2.5 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition font-medium text-sm"
+                  >
+                    Cancel
                   </button>
                 </div>
               </div>
@@ -818,7 +973,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                       <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
 
                       <div className="mt-6 flex flex-col items-start gap-4">
-                        <button className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
+                        <button 
+                          onClick={handleExportData}
+                          className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                        >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
                           <span className="text-sm">Export All Data</span>
                         </button>
@@ -1149,7 +1307,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                           <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
 
                           <div className="mt-6 flex flex-col items-start gap-4">
-                            <button className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow">
+                            <button 
+                              onClick={handleExportData}
+                              className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                            >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
                               <span className="text-sm">Export All Data</span>
                             </button>
