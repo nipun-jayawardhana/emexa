@@ -6,6 +6,7 @@ import Sidebar from '../components/sidebarorigin';
 import Header from '../components/headerorigin';
 import AdminViewWrapper from '../components/AdminViewWrapper';
 
+
 // Helper function to get full image URL - ADDED for multi-device support
 const getImageUrl = (imagePath) => {
   if (!imagePath) return "https://via.placeholder.com/120";
@@ -191,36 +192,24 @@ const Profile = () => {
   const [profileImage, setProfileImage] = useState(null);
   const fileInputRef = useRef(null);
 
-  // FIXED: Load initial data - prioritize database over localStorage
   useEffect(() => {
     const loadInitialData = async () => {
       await fetchUserData(); // This loads everything from database including profileImage
       setUserName(localStorage.getItem('userName') || 'Student');
       
-      // DON'T load profile image from localStorage on initial mount
-      // Let fetchUserData handle it from the database for multi-device consistency
     };
 
     loadInitialData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array ensures this only runs once on mount
+    
+  }, []); 
 
-  // FIXED: Sync profileImage from server data whenever userData changes
-  useEffect(() => {
-    if (userData?.profileImage) {
-      console.log('🖼️ Loading profile image from database:', userData.profileImage);
-      
-      // Construct full URL from relative path
-      const fullUrl = userData.profileImage.startsWith('http') 
-        ? userData.profileImage 
-        : `http://localhost:5000${userData.profileImage}`;
-      
-      setProfileImage(fullUrl);
-      
-      // Cache in localStorage
-      localStorage.setItem('studentProfileImage', fullUrl);
-    }
-  }, [userData?.profileImage]);
+useEffect(() => {
+  if (userData?.profileImage) {
+    console.log('🖼️ Loading profile image from database:', userData.profileImage);
+    setProfileImage(userData.profileImage);
+    localStorage.setItem('studentProfileImage', userData.profileImage);
+  }
+}, [userData?.profileImage]);
 
   // CRITICAL: Sync notification and privacy settings from userData
   useEffect(() => {
@@ -794,66 +783,110 @@ const Profile = () => {
   };
 
   // FIXED: handleProfileImageChange for multi-device support
-  const handleProfileImageChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // FIXED: Profile image upload with better error handling
+const handleProfileImageChange = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File size should be less than 5MB');
+  // Validate file
+  if (file.size > 5 * 1024 * 1024) {
+    alert('File size should be less than 5MB');
+    return;
+  }
+  if (!file.type.startsWith('image/')) {
+    alert('Please select an image file');
+    return;
+  }
+
+  console.log('📤 Starting profile image upload...');
+  console.log('File:', file.name, 'Size:', file.size, 'Type:', file.type);
+
+  try {
+    // Create FormData
+    const formData = new FormData();
+    formData.append('profile', file);
+
+    // Get token
+    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+    
+    if (!token) {
+      alert('Authentication required. Please log in again.');
       return;
     }
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      return;
-    }
 
-    const uploadToServer = async () => {
-      try {
-        const formData = new FormData();
-        formData.append('profile', file);
-        const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-        
-        console.log('📤 Uploading profile image to server...');
-        
-        const response = await axios.post('http://localhost:5000/api/users/upload-profile', formData, {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : undefined,
-            'Content-Type': 'multipart/form-data'
-          }
-        });
+    console.log('🔑 Token found, uploading...');
 
-        const relativePath = response.data?.profileImage;
-        if (relativePath) {
-          console.log('✅ Upload successful! Relative path:', relativePath);
-          
-          // FIXED: Construct full URL using current server
-          const fullUrl = `http://localhost:5000${relativePath}`;
-          
-          // Update state with the full URL
-          setProfileImage(fullUrl);
-          
-          // Update userData to trigger re-sync
-          setUserData(prev => ({
-            ...prev,
-            profileImage: relativePath  // Store relative path in userData
-          }));
-          
-          // Cache in localStorage
-          localStorage.setItem('studentProfileImage', fullUrl);
-          
-          // Notify header component
-          window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: fullUrl }));
-          
-          alert('Profile picture updated successfully!');
+    // Upload to server
+    const response = await axios.post(
+      'http://localhost:5000/api/users/upload-profile',
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          console.log(`Upload Progress: ${percentCompleted}%`);
         }
-      } catch (err) {
-        console.error('❌ Upload failed:', err?.response?.data || err.message);
-        alert('Failed to upload profile picture. Please try again.');
       }
-    };
+    );
 
-    uploadToServer();
-  };
+    console.log('✅ Upload response:', response.data);
+
+    if (response.data.success && response.data.profileImage) {
+      const cloudinaryUrl = response.data.profileImage;
+      
+      console.log('✅ Profile image URL:', cloudinaryUrl);
+
+      // Update UI immediately
+      setProfileImage(cloudinaryUrl);
+      
+      // Update userData
+      setUserData(prev => ({
+        ...prev,
+        profileImage: cloudinaryUrl
+      }));
+      
+      // Cache in localStorage
+      localStorage.setItem('studentProfileImage', cloudinaryUrl);
+      
+      // Notify header component
+      window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { 
+        detail: cloudinaryUrl 
+      }));
+      
+      alert('✅ Profile picture updated successfully!');
+      
+      // Refresh user data to ensure everything is in sync
+      await fetchUserData();
+    } else {
+      console.error('❌ Invalid response:', response.data);
+      alert('Upload completed but no image URL received');
+    }
+  } catch (error) {
+    console.error('❌ Upload failed:', error);
+    
+    if (error.response) {
+      // Server responded with error
+      console.error('Server error:', error.response.data);
+      alert(`Upload failed: ${error.response.data.message || error.response.data.error || 'Server error'}`);
+    } else if (error.request) {
+      // Request made but no response
+      console.error('No response from server');
+      alert('Upload failed: No response from server. Please check your connection.');
+    } else {
+      // Error setting up request
+      console.error('Request error:', error.message);
+      alert(`Upload failed: ${error.message}`);
+    }
+  } finally {
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+};
 
   if (loading) {
     return (
@@ -904,7 +937,7 @@ const Profile = () => {
               />
               <div className="bg-white rounded-full p-1 shadow-lg">
                 <img
-                  src={getImageUrl(profileImage || userData?.profileImage)}
+                  src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"}
                   alt="Profile"
                   className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
                 />

@@ -8,32 +8,25 @@ import {
   changePassword,
   updateNotificationSettings,
   updatePrivacySettings,
-  exportUserData
+  exportUserData,
+  uploadProfileImage 
 } from '../controllers/userController.js';
-import { uploadProfileImage } from '../controllers/userController.js';
 import { protect } from '../middleware/auth.js';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import User from '../models/user.js';
 import Student from '../models/student.js';
 import Teacher from '../models/teacher.js';
 
 const router = express.Router();
 
-// Multer setup for profile uploads
-const profilesDir = path.resolve(process.cwd(), 'backend', 'uploads', 'profiles');
-fs.mkdirSync(profilesDir, { recursive: true });
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, profilesDir);
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname) || '';
-    cb(null, `${Date.now()}-${Math.round(Math.random()*1e9)}${ext}`);
+import { storage } from '../config/cloudinary.js';
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5 MB file size limit
   }
 });
-const upload = multer({ storage });
 
 // === PROFILE ROUTES - MUST BE BEFORE GENERAL ROUTES ===
 // These specific routes must come first to avoid conflicts
