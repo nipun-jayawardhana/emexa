@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import teacherQuizService from "../services/teacherQuizService";
 
 const TeacherCreateQuiz = ({
@@ -12,6 +12,10 @@ const TeacherCreateQuiz = ({
   const [isGradeLevelOpen, setIsGradeLevelOpen] = useState(false);
   const [selectedGrades, setSelectedGrades] = useState([]);
   const [questions, setQuestions] = useState([]);
+
+  // Use refs to track next available IDs
+  const nextQuestionId = useRef(1);
+  const nextOptionIds = useRef({});
 
   // Load draft data if editing
   useEffect(() => {
@@ -58,6 +62,24 @@ const TeacherCreateQuiz = ({
 
             setQuestions(quiz.questions || []);
             console.log("📋 Loaded questions:", quiz.questions?.length || 0);
+
+            // Reset ID counters based on loaded questions
+            if (quiz.questions && quiz.questions.length > 0) {
+              const maxQuestionId = Math.max(
+                ...quiz.questions.map((q) => q.id)
+              );
+              nextQuestionId.current = maxQuestionId + 1;
+
+              // Reset option ID counters for each question
+              quiz.questions.forEach((q) => {
+                if (q.options && q.options.length > 0) {
+                  const maxOptionId = Math.max(
+                    ...q.options.map((opt) => opt.id)
+                  );
+                  nextOptionIds.current[q.id] = maxOptionId + 1;
+                }
+              });
+            }
           }
         } catch (error) {
           console.error("❌ Error loading draft for editing:", error);
@@ -71,6 +93,10 @@ const TeacherCreateQuiz = ({
         setSelectedGrades([]);
         setQuestions([]);
         setIsGradeLevelOpen(false);
+
+        // Reset ID counters
+        nextQuestionId.current = 1;
+        nextOptionIds.current = {};
       }
     };
 
@@ -88,12 +114,9 @@ const TeacherCreateQuiz = ({
     { id: "4-2", label: "4th Year 2nd Sem" },
   ];
 
-  const toggleGrade = (gradeId) => {
-    setSelectedGrades((prev) =>
-      prev.includes(gradeId)
-        ? prev.filter((id) => id !== gradeId)
-        : [...prev, gradeId]
-    );
+  const selectGrade = (gradeId) => {
+    setSelectedGrades([gradeId]); // Single selection
+    setIsGradeLevelOpen(false); // Close dropdown after selection
   };
 
   const handleBackToDashboard = () => {
@@ -106,8 +129,11 @@ const TeacherCreateQuiz = ({
   };
 
   const addQuestion = () => {
+    const questionId = nextQuestionId.current++;
+    nextOptionIds.current[questionId] = 3; // Start option IDs from 3 (after initial 2)
+
     const newQuestion = {
-      id: questions.length + 1,
+      id: questionId,
       type: "mcq", // Default to MCQ
       questionText: "",
       options: [
@@ -155,7 +181,12 @@ const TeacherCreateQuiz = ({
     setQuestions(
       questions.map((q) => {
         if (q.id === questionId) {
-          const newOptionId = q.options.length + 1;
+          // Initialize counter for this question if not exists
+          if (!nextOptionIds.current[questionId]) {
+            nextOptionIds.current[questionId] = q.options.length + 1;
+          }
+          const newOptionId = nextOptionIds.current[questionId]++;
+
           return {
             ...q,
             options: [
@@ -388,9 +419,8 @@ const TeacherCreateQuiz = ({
                 }
               >
                 {selectedGrades.length > 0
-                  ? `${selectedGrades.length} grade${
-                      selectedGrades.length > 1 ? "s" : ""
-                    } selected`
+                  ? gradeOptions.find((g) => g.id === selectedGrades[0])
+                      ?.label || "Select grade level"
                   : "Select grade level"}
               </span>
               <svg
@@ -418,12 +448,13 @@ const TeacherCreateQuiz = ({
                     <label
                       key={grade.id}
                       className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 rounded cursor-pointer"
+                      onClick={() => selectGrade(grade.id)}
                     >
                       <div className="relative flex items-center justify-center">
                         <input
                           type="checkbox"
                           checked={selectedGrades.includes(grade.id)}
-                          onChange={() => toggleGrade(grade.id)}
+                          onChange={() => selectGrade(grade.id)}
                           className="w-5 h-5 border-2 border-gray-300 rounded cursor-pointer appearance-none checked:bg-teal-600 checked:border-teal-600 transition-colors"
                         />
                         {selectedGrades.includes(grade.id) && (
@@ -519,88 +550,29 @@ const TeacherCreateQuiz = ({
               />
             </div>
 
-            {/* Question Type Selector */}
+            {/* MCQ Answer Options */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Answer Type
+                Answer Options (click to mark as correct)
               </label>
-              <select
-                value={question.type || "mcq"}
-                onChange={(e) =>
-                  updateQuestionType(question.id, e.target.value)
-                }
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none appearance-none bg-white text-sm"
-              >
-                <option value="mcq">Multiple Choice (MCQ)</option>
-                <option value="short">Short Answer</option>
-              </select>
-            </div>
-
-            {/* Conditional rendering based on question type */}
-            {question.type === "mcq" ? (
-              /* MCQ Answer Options */
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Answer Options (click to mark as correct)
-                </label>
-                <div className="space-y-2">
-                  {question.options.map((option) => (
-                    <div
-                      key={option.id}
-                      className="flex items-center gap-2 group"
+              <div className="space-y-2">
+                {question.options.map((option) => (
+                  <div
+                    key={option.id}
+                    className="flex items-center gap-2 group"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => markAsCorrect(question.id, option.id)}
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${
+                        option.isCorrect
+                          ? "border-green-600 bg-green-600"
+                          : "border-gray-300 hover:border-teal-500"
+                      }`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => markAsCorrect(question.id, option.id)}
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${
-                          option.isCorrect
-                            ? "border-green-600 bg-green-600"
-                            : "border-gray-300 hover:border-teal-500"
-                        }`}
-                      >
-                        {option.isCorrect && (
-                          <svg
-                            className="w-3 h-3 text-white"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={3}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                        )}
-                      </button>
-                      <input
-                        type="text"
-                        value={option.text}
-                        onChange={(e) =>
-                          updateAnswerOption(
-                            question.id,
-                            option.id,
-                            e.target.value
-                          )
-                        }
-                        className={`flex-1 px-4 py-2.5 border rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm placeholder-gray-400 transition ${
-                          option.isCorrect
-                            ? "border-green-500 bg-green-50"
-                            : "border-gray-300"
-                        }`}
-                        placeholder="Enter answer option"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          removeAnswerOption(question.id, option.id)
-                        }
-                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
-                        disabled={question.options.length <= 2}
-                      >
+                      {option.isCorrect && (
                         <svg
-                          className="w-5 h-5"
+                          className="w-3 h-3 text-white"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -608,62 +580,73 @@ const TeacherCreateQuiz = ({
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            strokeWidth={3}
+                            d="M5 13l4 4L19 7"
                           />
                         </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => addAnswerOption(question.id)}
-                  className="flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-sm mt-3"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
+                      )}
+                    </button>
+                    <input
+                      type="text"
+                      value={option.text}
+                      onChange={(e) =>
+                        updateAnswerOption(
+                          question.id,
+                          option.id,
+                          e.target.value
+                        )
+                      }
+                      className={`flex-1 px-4 py-2.5 border rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm placeholder-gray-400 transition ${
+                        option.isCorrect
+                          ? "border-green-500 bg-green-50"
+                          : "border-gray-300"
+                      }`}
+                      placeholder="Enter answer option"
                     />
-                  </svg>
-                  Add Answer Option
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => removeAnswerOption(question.id, option.id)}
+                      className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+                      disabled={question.options.length <= 2}
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
               </div>
-            ) : (
-              /* Short Answer */
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Expected Answer (for reference)
-                </label>
-                <textarea
-                  value={question.shortAnswer || ""}
-                  onChange={(e) =>
-                    setQuestions(
-                      questions.map((q) =>
-                        q.id === question.id
-                          ? { ...q, shortAnswer: e.target.value }
-                          : q
-                      )
-                    )
-                  }
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm placeholder-gray-400 resize-none"
-                  rows="3"
-                  placeholder="Enter the expected answer or key points (optional)"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  This is for your reference. Students will type their own
-                  answer.
-                </p>
-              </div>
-            )}
+              <button
+                type="button"
+                onClick={() => addAnswerOption(question.id)}
+                className="flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-sm mt-3"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+                Add Answer Option
+              </button>
+            </div>
 
             {/* Hints */}
             <div>
@@ -690,7 +673,7 @@ const TeacherCreateQuiz = ({
           </div>
         ))}
 
-        {/* Add Another Question Button */}
+        {/* Add Question Button */}
         <button
           onClick={addQuestion}
           className="flex items-center gap-2 text-teal-600 hover:text-teal-700 font-medium text-sm mb-6"
@@ -708,7 +691,7 @@ const TeacherCreateQuiz = ({
               d="M12 4v16m8-8H4"
             />
           </svg>
-          Add Another Question
+          Add Question
         </button>
 
         {/* Action Buttons */}
