@@ -15,7 +15,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     role: ""
   });
 
-  const [displayName, setDisplayName] = useState(""); // Track name for real-time header updates
+  const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef(null);
@@ -60,7 +60,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     }
   }, []);
 
-  // Fetch teacher profile from server and sync profileImage
+  // Fetch teacher profile from server and sync profileImage from Cloudinary
   useEffect(() => {
     const fetchTeacherProfile = async () => {
       try {
@@ -70,13 +70,20 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
           return;
         }
 
-        const response = await axios.get('http://localhost:5000/api/users/profile', {
+        // Use relative URL for multi-device compatibility
+        const response = await axios.get('/api/users/profile', {
           headers: { Authorization: `Bearer ${token}` }
         });
 
         if (response.data?.profileImage) {
-          setAvatarUrl(response.data.profileImage);
-          localStorage.setItem('teacherProfileImage', response.data.profileImage);
+          // Cloudinary URL is already a full HTTPS URL
+          const cloudinaryUrl = response.data.profileImage;
+          setAvatarUrl(cloudinaryUrl);
+          
+          // Update localStorage with Cloudinary URL
+          localStorage.setItem('teacherProfileImage', cloudinaryUrl);
+          
+          console.log('✅ Loaded profile image from Cloudinary:', cloudinaryUrl);
         }
       } catch (err) {
         console.warn('Failed to fetch teacher profile image:', err?.response?.data || err.message);
@@ -109,7 +116,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       return;
     }
 
-    // Optimistically show preview
+    // Optimistically show preview using FileReader
     const reader = new FileReader();
     reader.onload = (evt) => {
       const dataUrl = evt.target.result;
@@ -117,43 +124,57 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     };
     reader.readAsDataURL(file);
 
-    // Upload to backend and persist URL
+    // Upload to Cloudinary via backend
     const upload = async () => {
       try {
         const formData = new FormData();
         formData.append('profile', file);
         const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-        const res = await axios.post('http://localhost:5000/api/users/upload-profile', formData, {
-          headers: {
-            Authorization: token ? `Bearer ${token}` : undefined,
-            'Content-Type': 'multipart/form-data'
-          }
-        });
-
-        const imageUrl = res.data?.profileImage;
-        if (imageUrl) {
-          const fullUrl = imageUrl.startsWith('http') ? imageUrl : `http://localhost:5000${imageUrl}`;
-          setAvatarUrl(fullUrl);
-          localStorage.setItem('teacherProfileImage', fullUrl);
-          window.dispatchEvent(new CustomEvent('teacherProfileImageChanged', { detail: fullUrl }));
+        
+        // Use relative URL instead of hardcoded localhost
+            const res = await axios.post('/api/teacher/upload-profile', formData, {
+              headers: {
+                 Authorization: token ? `Bearer ${token}` : undefined,
+                 'Content-Type': 'multipart/form-data'
+                }
+           });
+         
+        // Cloudinary returns full HTTPS URL
+        const cloudinaryUrl = res.data?.profileImage;
+        if (cloudinaryUrl) {
+          // Set the Cloudinary URL (already a full HTTPS URL)
+          setAvatarUrl(cloudinaryUrl);
+          
+          // Store in localStorage for immediate access
+          localStorage.setItem('teacherProfileImage', cloudinaryUrl);
+          
+          // Dispatch event for header update
+          window.dispatchEvent(new CustomEvent('teacherProfileImageChanged', { detail: cloudinaryUrl }));
+          
           alert('Profile picture updated successfully!');
           
-          // Refetch to ensure UI is in sync
+          // Refetch profile to ensure sync
           try {
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/users/profile', {
+            const response = await axios.get('/api/users/profile', {
               headers: { Authorization: `Bearer ${token}` }
             });
             if (response.data?.profileImage) {
               setAvatarUrl(response.data.profileImage);
+              localStorage.setItem('teacherProfileImage', response.data.profileImage);
             }
           } catch (refetchErr) {
             console.warn('Refetch failed:', refetchErr.message);
           }
         }
       } catch (err) {
-        console.warn('Upload failed, keeping local preview', err?.response?.data || err.message);
-        // keep local preview (already set) - do not overwrite localStorage so server is single source of truth
+        console.error('Upload failed:', err?.response?.data || err.message);
+        alert('Failed to upload profile picture. Please try again.');
+        // Revert to previous image on failure
+        const storedImage = localStorage.getItem('teacherProfileImage');
+        if (storedImage) {
+          setAvatarUrl(storedImage);
+        }
       }
     };
 
@@ -233,7 +254,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
     // Update display name in real-time when name field changes
     if (name === "fullName" && newValue.trim()) {
-      setDisplayName(newValue); // Update component display
+      setDisplayName(newValue);
       localStorage.setItem('userName', newValue);
       const event = new CustomEvent('userNameChanged', { detail: newValue });
       window.dispatchEvent(event);
@@ -243,56 +264,56 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
   const handleUpdateProfile = async () => {
     if (!formData.fullName || formData.fullName.trim() === '') {
-    alert('Name cannot be empty');
-    return;
-  }
-
-  try {
-    const token = localStorage.getItem('token');
-    
-    const response = await fetch('http://localhost:5000/api/teacher/update-name', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ name: formData.fullName })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      alert(data.message || 'Failed to update profile');
+      alert('Name cannot be empty');
       return;
     }
 
-    // Update localStorage with new name
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const parsed = JSON.parse(storedUser);
-      parsed.name = data.data.name;
-      parsed.fullName = data.data.name;
-      localStorage.setItem('user', JSON.stringify(parsed));
-    }
-    
-    // Update userName in localStorage for header
-    localStorage.setItem('userName', formData.fullName);
-    
-    // Dispatch event for header to update name
-    window.dispatchEvent(new CustomEvent('userNameChanged', { detail: formData.fullName }));
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Use relative URL for multi-device compatibility
+      const response = await fetch('/api/teacher/update-name', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: formData.fullName })
+      });
 
-    // Save avatar to localStorage and trigger header update
-    if (avatarUrl) {
-      localStorage.setItem('teacherProfileImage', avatarUrl);
-      window.dispatchEvent(new CustomEvent('teacherProfileImageChanged', { detail: avatarUrl }));
-      console.log('Teacher profile image updated and event dispatched');
-    }
+      const data = await response.json();
 
-    alert('Changes saved successfully!');
-  } catch (error) {
-    console.error('Save changes error:', error);
-    alert('Failed to save changes. Please try again.');
-  }
+      if (!response.ok) {
+        alert(data.message || 'Failed to update profile');
+        return;
+      }
+
+      // Update localStorage with new name
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        parsed.name = data.data.name;
+        parsed.fullName = data.data.name;
+        localStorage.setItem('user', JSON.stringify(parsed));
+      }
+      
+      // Update userName in localStorage for header
+      localStorage.setItem('userName', formData.fullName);
+      
+      // Dispatch event for header to update name
+      window.dispatchEvent(new CustomEvent('userNameChanged', { detail: formData.fullName }));
+
+      // Avatar is already saved to Cloudinary - just dispatch event
+      if (avatarUrl) {
+        window.dispatchEvent(new CustomEvent('teacherProfileImageChanged', { detail: avatarUrl }));
+        console.log('✅ Teacher profile updated with Cloudinary image:', avatarUrl);
+      }
+
+      alert('Changes saved successfully!');
+    } catch (error) {
+      console.error('Save changes error:', error);
+      alert('Failed to save changes. Please try again.');
+    }
   }
 
   const handleSubmitChangePassword = async () => {
@@ -316,7 +337,8 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     try {
       const token = localStorage.getItem('token');
       
-      const response = await fetch('http://localhost:5000/api/teacher/change-password', {
+      // Use relative URL for multi-device compatibility
+      const response = await fetch('/api/teacher/change-password', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -400,18 +422,15 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       const pageHeight = doc.internal.pageSize.getHeight();
       let yPosition = 20;
 
-      // Header with background
-      doc.setFillColor(189, 242, 209); // #BDF2D1
+      doc.setFillColor(189, 242, 209);
       doc.rect(0, 0, pageWidth, 40, 'F');
       
-      // Title
       doc.setFontSize(22);
       doc.setTextColor(0, 0, 0);
       doc.text('Personal Data Export', pageWidth / 2, 25, { align: 'center' });
       
       yPosition = 50;
 
-      // Export Information
       doc.setFontSize(10);
       doc.setTextColor(100, 100, 100);
       const exportDate = new Date().toLocaleString('en-US', {
@@ -424,7 +443,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       doc.text(`Export Date: ${exportDate}`, 20, yPosition);
       yPosition += 15;
 
-      // Profile Information Section
       doc.setFillColor(240, 240, 240);
       doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
       doc.setFontSize(14);
@@ -441,7 +459,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       doc.text(`Role: ${formData.role || 'Not provided'}`, 20, yPosition);
       yPosition += 15;
 
-      // Notification Settings Section
       doc.setFillColor(240, 240, 240);
       doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
       doc.setFontSize(14);
@@ -458,7 +475,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       doc.text(`In-App Notifications: ${inAppNotifications ? 'Enabled' : 'Disabled'}`, 20, yPosition);
       yPosition += 15;
 
-      // Privacy Settings Section
       doc.setFillColor(240, 240, 240);
       doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
       doc.setFontSize(14);
@@ -471,7 +487,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       doc.text(`Emotion Detection Consent: ${emotionConsent ? 'Granted' : 'Not Granted'}`, 20, yPosition);
       yPosition += 15;
 
-      // Activity History Section
       if (yPosition > pageHeight - 40) {
         doc.addPage();
         yPosition = 20;
@@ -494,13 +509,11 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       yPosition += 8;
       doc.text('Last Login: ' + new Date().toLocaleString(), 20, yPosition);
 
-      // Footer
       doc.setFontSize(9);
       doc.setTextColor(150, 150, 150);
       doc.text('This document contains your personal data as stored in our system.', pageWidth / 2, pageHeight - 15, { align: 'center' });
       doc.text('Generated by Emexa Platform', pageWidth / 2, pageHeight - 10, { align: 'center' });
 
-      // Save PDF
       const fileName = `personal-data-${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
       
@@ -530,14 +543,11 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="w-full max-w-4xl mx-auto px-6 py-12">
-          {/* Skeleton Header */}
           <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
             <div className="bg-gradient-to-r from-blue-400 to-blue-600 h-24"></div>
             <div className="p-6 -mt-12 relative z-10">
               <div className="flex items-end gap-4">
-                {/* Avatar skeleton */}
                 <div className="w-24 h-24 bg-gray-300 rounded-full animate-pulse border-4 border-white shadow-lg"></div>
-                {/* Name/Email skeleton */}
                 <div className="flex-1 pb-2">
                   <div className="h-6 bg-gray-300 rounded w-48 animate-pulse mb-2"></div>
                   <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
@@ -546,7 +556,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
             </div>
           </div>
 
-          {/* Skeleton Content */}
           <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="space-y-3">
@@ -564,7 +573,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
   return (
     <div className="min-h-screen bg-gray-50" style={frame ? { display: "flex", alignItems: "center", justifyContent: "center", background: "transparent" } : undefined}>
-      {/* Hidden file input for avatar upload */}
       <input
         ref={fileInputRef}
         type="file"
@@ -572,13 +580,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         onChange={handleAvatarChange}
         style={{ display: 'none' }}
       />
-      {/* Header */}
       {!isEmbedded && <Header userName={formData.fullName || displayName} userRole="teacher" />}
 
-      {/* Sidebar */}
       {!isEmbedded && (
         <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-[#bdf2d1] border-r border-gray-200 overflow-y-auto">
-        {/* Menu Items */}
         <nav className="pt-4 px-3 space-y-2">
           {menuItems.map((item) => (
             <button
@@ -596,7 +601,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
           ))}
         </nav>
 
-        {/* Logout Button */}
         <button
           onClick={handleLogoutClick}
           className="absolute bottom-4 left-3 right-3 flex items-center space-x-2.5 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition text-sm"
@@ -609,7 +613,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         </div>
       )}
 
-      {/* Logout Confirmation Modal (only when not embedded) */}
       {!isEmbedded && showLogoutModal && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-9999 p-4"
@@ -653,7 +656,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         </div>
       )}
 
-      {/* Change Password Modal */}
       {showChangePassword && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10000 p-6"
@@ -757,13 +759,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         </div>
       )}
 
-      {/* Main Content */}
       {!isEmbedded ? (
         <div className="mt-16 p-6">
           <div className="w-full mx-auto">
-          {/* Profile Header Card */}
           <div className="rounded-t-2xl p-8 relative" style={{ minHeight: 150, background: 'linear-gradient(90deg, #7FEBCB 0%, #19765A 100%)' }}>
-            {/* Combined centered block: avatar + text, split 50% across header divider */}
             <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 16, padding: '8px 12px' }}>
               <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
                 <img
@@ -785,10 +784,8 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
             </div>
           </div>
 
-          {/* White spacer matching green header height (separates gradient and tabs) */}
           <div className="bg-white" style={{ height: 48 }} />
 
-          {/* Form Content */}
           <div className="bg-white rounded-b-2xl p-8 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">Account Information</h2>
 
@@ -797,9 +794,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                 <>
                   <div className="max-w-4xl mx-auto">
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible flex flex-col justify-between" style={{ width: 612.44, minHeight: 220, position: 'relative' }}>
-                      {/* main container: fixed 803x216 */}
                       <div className="bg-linear-to-r from-emerald-400 to-teal-500 px-6 py-3 relative" style={{ height: 88 }}>
-                        {/* Combined centered block inside inner account container */}
                         <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px' }}>
                           <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
                             <img
@@ -820,7 +815,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                         </div>
                       </div>
 
-                      {/* Replace fixed spacer + absolute tabs with flex-based footer */}
                       <div className="flex-1 flex items-end">
                         <div className="w-full px-4" style={{ paddingBottom: 50 }}>
                           <div className="flex justify-start gap-16">
@@ -843,7 +837,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                     </div>
                   </div>
 
-                  {/* Role */}
                   <div className="max-w-[calc(50%-12px)]">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Role
@@ -857,7 +850,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                     />
                   </div>
 
-                  {/* Change Password Section */}
                   <div className="pt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
                       Change Password
@@ -871,7 +863,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                     </button>
                   </div>
 
-                  {/* Save Button */}
                   <div className="pt-6">
                     <button
                       onClick={handleUpdateProfile}
@@ -1116,9 +1107,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         <div className="p-6" style={frameStyle ? { width: frameStyle.width, height: frameStyle.height, transform: frameStyle.transform, opacity: frameStyle.opacity } : undefined}>
           <div className="max-w-4xl mx-auto" style={frame ? { height: '100%', overflow: 'auto' } : undefined}>
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              {/* large gradient header area */}
               <div className="relative bg-linear-to-r from-emerald-400 to-teal-500 rounded-t-2xl" style={{ height: 120 }}>
-                    {/* Combined centered block for embedded/frame header (text stays white here) */}
                     <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px' }}>
                           <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent' }}>
                             <img
@@ -1138,7 +1127,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                 </div>
               </div>
 
-              {/* Tabs below header */}
               <div className="px-6 pt-25" style={{ height: 88, paddingBottom: 50 }}>
                 <div className="flex items-center space-x-16 border-b border-gray-100">
                   {tabs.map((tab) => (
@@ -1157,7 +1145,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                 </div>
               </div>
 
-              {/* Form Content: render according to active tab */}
               <div className="p-6" style={{ minHeight: 220 }}>
                 {activeTab === "Account Info" ? (
                   <div className="space-y-6">
