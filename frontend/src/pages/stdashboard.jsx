@@ -7,6 +7,17 @@ import AdminViewWrapper from "../components/AdminViewWrapper";
 import Sidebar from "../components/sidebarorigin";
 import Header from "../components/headerorigin";
 
+// Helper function to convert 24-hour time to 12-hour AM/PM format
+const formatTime12Hour = (time24) => {
+  if (!time24) return "";
+  const [hours, minutes] = time24.split(":");
+  const hourNum = parseInt(hours);
+  const displayHour =
+    hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
+  const period = hourNum >= 12 ? "PM" : "AM";
+  return `${displayHour}:${minutes} ${period}`;
+};
+
 const StudentDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -259,22 +270,38 @@ const StudentDashboard = () => {
                           {quiz.subject} •{" "}
                         </span>
                       )}
-                      {(() => {
-                        const dateToShow =
-                          quiz.dueDate || quiz.scheduleDate || quiz.date;
-                        if (!dateToShow) return "No date set";
-                        try {
-                          return new Date(dateToShow).toLocaleDateString(
-                            "en-US",
-                            { month: "short", day: "numeric", year: "numeric" }
-                          );
-                        } catch {
-                          return "Invalid date";
-                        }
-                      })()}
+                      <span className="text-blue-600 font-medium">
+                        {(() => {
+                          const dateToShow =
+                            quiz.scheduleDate || quiz.dueDate || quiz.date;
+                          if (!dateToShow) return "No date set";
+                          try {
+                            return new Date(dateToShow).toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              }
+                            );
+                          } catch {
+                            return "Invalid date";
+                          }
+                        })()}
+                      </span>
                       {quiz.scheduleDate && quiz.startTime && quiz.endTime && (
-                        <span className="ml-2 text-teal-700">
-                          ⏰ {quiz.startTime} - {quiz.endTime}
+                        <span className="ml-1 text-gray-600">
+                          ({formatTime12Hour(quiz.startTime)} -{" "}
+                          {formatTime12Hour(quiz.endTime)})
+                        </span>
+                      )}
+                      {quiz.dueDate && (
+                        <span className="ml-2 text-orange-600 font-medium">
+                          📅 Due:{" "}
+                          {new Date(quiz.dueDate).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })}
                         </span>
                       )}
                     </p>

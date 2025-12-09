@@ -198,6 +198,9 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
   const [quizToDelete, setQuizToDelete] = useState(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [quizToShare, setQuizToShare] = useState(null);
+  const [showDueDateModal, setShowDueDateModal] = useState(false);
+  const [selectedQuizForDueDate, setSelectedQuizForDueDate] = useState(null);
+  const [dueDate, setDueDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState(() => {
     // Read filter from localStorage on initial load
@@ -297,6 +300,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
         scheduleDate: quiz.scheduleDate,
         startTime: quiz.startTime,
         endTime: quiz.endTime,
+        dueDate: quiz.dueDate,
         fullData: {
           assignmentTitle: quiz.title,
           subject: quiz.subject,
@@ -418,6 +422,33 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
     } catch (error) {
       console.error("Error scheduling quiz:", error);
       alert("Failed to schedule quiz");
+    }
+  };
+
+  const handleDueDateUpdate = async () => {
+    if (!dueDate) {
+      alert("Please select a due date");
+      return;
+    }
+
+    try {
+      console.log("📅 Updating due date for quiz:", selectedQuizForDueDate.id);
+      await teacherQuizService.updateQuiz(selectedQuizForDueDate.id, {
+        dueDate: new Date(dueDate).toISOString(),
+      });
+
+      // Reload drafts to show updated data
+      await loadDrafts();
+
+      // Close modal and reset
+      setShowDueDateModal(false);
+      setSelectedQuizForDueDate(null);
+      setDueDate("");
+
+      alert("✅ Due Date Updated Successfully!");
+    } catch (error) {
+      console.error("Error updating due date:", error);
+      alert("Failed to update due date: " + error.message);
     }
   };
 
@@ -624,27 +655,92 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                   </div>
                 </div>
 
-                {/* Scheduled Date/Time Badge - Top Right */}
-                {quiz.isScheduled && quiz.scheduleDate && (
-                  <div className="bg-teal-50 border-2 border-teal-500 rounded-lg px-3 py-2 text-right">
-                    <div className="text-xs font-semibold text-teal-700 uppercase mb-1">
-                      Scheduled
-                    </div>
-                    <div className="text-sm font-bold text-teal-900">
-                      {new Date(quiz.scheduleDate).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </div>
-                    {quiz.startTime && quiz.endTime && (
-                      <div className="text-xs text-teal-700 font-medium mt-1">
-                        {formatTime12Hour(quiz.startTime)} -{" "}
-                        {formatTime12Hour(quiz.endTime)}
+                {/* Scheduled Date/Time Badge and Due Date Badge - Top Right */}
+                <div className="flex flex-col gap-2 items-end">
+                  {quiz.isScheduled && quiz.scheduleDate && (
+                    <button
+                      onClick={() => {
+                        setSelectedQuizForSchedule(quiz);
+                        const date = new Date(quiz.scheduleDate);
+                        const formattedDate = date.toISOString().split("T")[0];
+                        setScheduleDate(formattedDate);
+                        setStartTime(quiz.startTime || "");
+                        setEndTime(quiz.endTime || "");
+                        setShowScheduleModal(true);
+                      }}
+                      className="bg-teal-50 border-2 border-teal-500 rounded-lg px-3 py-2 text-right hover:bg-teal-100 transition cursor-pointer relative group"
+                    >
+                      <div className="text-xs font-semibold text-teal-700 uppercase mb-1 flex items-center justify-end gap-1">
+                        Scheduled
+                        <svg
+                          className="w-3 h-3 opacity-0 group-hover:opacity-100 transition"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                          />
+                        </svg>
                       </div>
-                    )}
-                  </div>
-                )}
+                      <div className="text-sm font-bold text-teal-900">
+                        {new Date(quiz.scheduleDate).toLocaleDateString(
+                          "en-US",
+                          {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          }
+                        )}
+                      </div>
+                      {quiz.startTime && quiz.endTime && (
+                        <div className="text-xs text-teal-700 font-medium mt-1">
+                          {formatTime12Hour(quiz.startTime)} -{" "}
+                          {formatTime12Hour(quiz.endTime)}
+                        </div>
+                      )}
+                    </button>
+                  )}
+                  {quiz.dueDate && (
+                    <button
+                      onClick={() => {
+                        setSelectedQuizForDueDate(quiz);
+                        const date = new Date(quiz.dueDate);
+                        const formattedDate = date.toISOString().split("T")[0];
+                        setDueDate(formattedDate);
+                        setShowDueDateModal(true);
+                      }}
+                      className="bg-orange-50 border-2 border-orange-500 rounded-lg px-3 py-2 text-right hover:bg-orange-100 transition cursor-pointer relative group"
+                    >
+                      <div className="text-xs font-semibold text-orange-700 uppercase mb-1 flex items-center justify-end gap-1">
+                        Due Date
+                        <svg
+                          className="w-3 h-3 opacity-0 group-hover:opacity-100 transition"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                          />
+                        </svg>
+                      </div>
+                      <div className="text-sm font-bold text-orange-900">
+                        {new Date(quiz.dueDate).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </div>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Progress */}
@@ -1009,6 +1105,63 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                 className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
               >
                 Share Quiz
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Due Date Modal */}
+      {showDueDateModal && selectedQuizForDueDate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              {selectedQuizForDueDate.dueDate
+                ? "Change Due Date"
+                : "Set Due Date"}
+            </h2>
+
+            {selectedQuizForDueDate && (
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm font-medium text-gray-700">
+                  {selectedQuizForDueDate.title}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {selectedQuizForDueDate.grade} •{" "}
+                  {selectedQuizForDueDate.questions} questions
+                </p>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Due Date
+              </label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                min={new Date().toISOString().split("T")[0]}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setShowDueDateModal(false);
+                  setSelectedQuizForDueDate(null);
+                  setDueDate("");
+                }}
+                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDueDateUpdate}
+                className="flex-1 px-4 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium text-sm"
+              >
+                Save Due Date
               </button>
             </div>
           </div>
