@@ -234,6 +234,44 @@ const getRecentQuizzes = async (req, res) => {
 };
 
 /**
+ * Get teacher profile
+ */
+const getProfile = async (req, res) => {
+  try {
+    const teacherId = req.userId || req.user._id;
+    const teacher = await Teacher.findById(teacherId).select('-password');
+    
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        name: teacher.name,
+        email: teacher.email,
+        teacherId: teacher.teacherId,
+        department: teacher.department,
+        specialization: teacher.specialization,
+        role: teacher.role,
+        profileImage: teacher.profileImage || null
+      },
+      profileImage: teacher.profileImage || null
+    });
+  } catch (error) {
+    console.error('❌ Error fetching profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch profile',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Update teacher profile (name)
  */
 const updateProfile = async (req, res) => {
@@ -341,93 +379,6 @@ const changePassword = async (req, res) => {
 };
 
 /**
- * Get teacher settings (notifications & privacy)
- */
-export const getSettings = async (req, res) => {
-  try {
-    const teacherId = req.userId || req.user._id;
-    
-    const teacher = await Teacher.findById(teacherId).select('settings');
-    
-    if (!teacher) {
-      return res.status(404).json({
-        success: false,
-        message: 'Teacher not found'
-      });
-    }
-
-    // Default settings if none exist
-    const settings = teacher.settings || {
-      emailNotifications: true,
-      smsNotifications: false,
-      inAppNotifications: true,
-      emotionConsent: true
-    };
-
-    res.json({
-      success: true,
-      data: settings
-    });
-  } catch (error) {
-    console.error('❌ Error fetching settings:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch settings',
-      error: error.message
-    });
-  }
-};
-
-/**
- * Update teacher settings (notifications & privacy)
- */
-export const updateSettings = async (req, res) => {
-  try {
-    const teacherId = req.userId || req.user._id;
-    const { 
-      emailNotifications, 
-      smsNotifications, 
-      inAppNotifications, 
-      emotionConsent 
-    } = req.body;
-
-    const settings = {
-      emailNotifications: emailNotifications !== undefined ? emailNotifications : true,
-      smsNotifications: smsNotifications !== undefined ? smsNotifications : false,
-      inAppNotifications: inAppNotifications !== undefined ? inAppNotifications : true,
-      emotionConsent: emotionConsent !== undefined ? emotionConsent : true
-    };
-
-    const teacher = await Teacher.findByIdAndUpdate(
-      teacherId,
-      { settings },
-      { new: true, runValidators: true }
-    ).select('-password');
-
-    if (!teacher) {
-      return res.status(404).json({
-        success: false,
-        message: 'Teacher not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: settings,
-      message: 'Settings updated successfully'
-    });
-  } catch (error) {
-    console.error('❌ Error updating settings:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update settings',
-      error: error.message
-    });
-  }
-};
-
-
-/**
  * Upload teacher profile image to Cloudinary
  */
 const uploadProfileImage = async (req, res) => {
@@ -484,6 +435,92 @@ const uploadProfileImage = async (req, res) => {
   }
 };
 
+/**
+ * Get teacher settings (notifications & privacy)
+ */
+const getSettings = async (req, res) => {
+  try {
+    const teacherId = req.userId || req.user._id;
+    
+    const teacher = await Teacher.findById(teacherId).select('settings');
+    
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    // Default settings if none exist
+    const settings = teacher.settings || {
+      emailNotifications: true,
+      smsNotifications: false,
+      inAppNotifications: true,
+      emotionConsent: true
+    };
+
+    res.json({
+      success: true,
+      data: settings
+    });
+  } catch (error) {
+    console.error('❌ Error fetching settings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch settings',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Update teacher settings (notifications & privacy)
+ */
+const updateSettings = async (req, res) => {
+  try {
+    const teacherId = req.userId || req.user._id;
+    const { 
+      emailNotifications, 
+      smsNotifications, 
+      inAppNotifications, 
+      emotionConsent 
+    } = req.body;
+
+    const settings = {
+      emailNotifications: emailNotifications !== undefined ? emailNotifications : true,
+      smsNotifications: smsNotifications !== undefined ? smsNotifications : false,
+      inAppNotifications: inAppNotifications !== undefined ? inAppNotifications : true,
+      emotionConsent: emotionConsent !== undefined ? emotionConsent : true
+    };
+
+    const teacher = await Teacher.findByIdAndUpdate(
+      teacherId,
+      { settings },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: settings,
+      message: 'Settings updated successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error updating settings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update settings',
+      error: error.message
+    });
+  }
+};
+
 export default {
   getDashboardStats,
   getClassProgress,
@@ -491,8 +528,10 @@ export default {
   getEmotionalState,
   getStudentOverview,
   getRecentQuizzes,
-  changePassword,
   getProfile,
   updateProfile,
-  uploadProfileImage
+  changePassword,
+  uploadProfileImage,
+  getSettings,
+  updateSettings
 };
