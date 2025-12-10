@@ -81,4 +81,8 @@ router.post(
   teacherController.uploadProfileImage
 );
 
+// Settings routes - NEW
+router.get('/settings', protect, authorize('teacher'), teacherController.getSettings);
+router.put('/settings', protect, authorize('teacher'), teacherController.updateSettings);
+
 export default router;

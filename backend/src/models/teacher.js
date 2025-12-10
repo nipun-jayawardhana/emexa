@@ -8,14 +8,23 @@ const teacherSchema = new mongoose.Schema({
   password: { type: String, required: true, select: false },
   role: { type: String, default: 'teacher', immutable: true },
   isActive: { type: Boolean, default: true },
-  // Profile image stored as relative path (e.g. /uploads/profiles/xxx.jpg)
+  // Profile image stored as Cloudinary URL or relative path
   profileImage: { type: String, default: null },
   // Teacher-specific fields
   teacherId: { type: String, unique: true, sparse: true },
   department: { type: String },
   specialization: { type: String },
   courses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
+  
+  // NEW: Settings field for cross-device sync
+  settings: {
+    emailNotifications: { type: Boolean, default: true },
+    smsNotifications: { type: Boolean, default: false },
+    inAppNotifications: { type: Boolean, default: true },
+    emotionConsent: { type: Boolean, default: true }
+  }
 }, { timestamps: true });
+
 
 // Hash password before saving
 teacherSchema.pre('save', async function(next) {
