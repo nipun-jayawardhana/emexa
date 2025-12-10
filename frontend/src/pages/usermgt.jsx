@@ -61,65 +61,82 @@ const UserManagement = () => {
     fileInputRef.current?.click();
   };
 
-  const handleProfileImageChange = (e) => {
+  const handleProfileImageChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validation
     if (file.size > 5 * 1024 * 1024) {
       alert('File size should be less than 5MB');
+      e.target.value = '';
       return;
     }
     if (!file.type.startsWith('image/')) {
       alert('Please select an image file');
+      e.target.value = '';
       return;
     }
 
-    const upload = async () => {
-      let uploadSucceeded = false;
-      try {
-        const formData = new FormData();
-        formData.append('profile', file);
-        const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
-        
-        // Build headers only when values exist. Do NOT set Content-Type manually for FormData
-        const headers = {};
-        if (token) headers.Authorization = `Bearer ${token}`;
-
-        console.debug('[usermgt] uploading profile image, token present:', !!token);
-        const res = await axios.post('http://localhost:5000/api/users/upload-profile', formData, { headers });
-
-        console.debug('[usermgt] upload response status:', res.status, 'data:', res.data);
-        const imagePath = res?.data?.profileImage;
-        if (imagePath) {
-          uploadSucceeded = true;
-          // Check if it's already a full URL
-          const fullUrl = imagePath.startsWith('http') ? imagePath : `http://localhost:5000${imagePath}`;
-          setAdminProfileImage(fullUrl);
-          localStorage.setItem('adminProfileImage', fullUrl);
-          window.dispatchEvent(new CustomEvent('adminProfileImageChanged', { detail: fullUrl }));
-          console.info('[usermgt] profile image updated, saved URL:', fullUrl);
-          alert('Profile picture updated successfully!');
-          return;
-        }
-      } catch (err) {
-        console.warn('Upload failed, falling back to local preview', err?.response?.data || err.message);
-      }
-
-      // Only use fallback if upload truly failed
-      if (!uploadSucceeded) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64String = reader.result;
-          setAdminProfileImage(base64String);
-          localStorage.setItem('adminProfileImage', base64String);
-          window.dispatchEvent(new CustomEvent('adminProfileImageChanged', { detail: base64String }));
-          alert('Profile picture updated locally (offline). Changes will sync when connection is restored.');
-        };
-        reader.readAsDataURL(file);
-      }
+    // Optimistic preview
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      setAdminProfileImage(evt.target.result);
     };
+    reader.readAsDataURL(file);
 
-    upload();
+    // Upload to Cloudinary via backend
+    try {
+      const formData = new FormData();
+      formData.append('profile', file);
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+      
+      console.log('📤 Uploading admin profile image...');
+      
+      const res = await axios.post('/api/users/upload-profile', formData, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : undefined,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      console.log('✅ Upload response:', res.data);
+
+      // Get Cloudinary URL from response
+      const cloudinaryUrl = res.data?.profileImage;
+      if (cloudinaryUrl) {
+        setAdminProfileImage(cloudinaryUrl);
+        localStorage.setItem('adminProfileImage', cloudinaryUrl);
+        
+        // Dispatch event for header update
+        window.dispatchEvent(new CustomEvent('adminProfileImageChanged', { detail: cloudinaryUrl }));
+        
+        alert('Profile picture updated successfully!');
+        
+        // Refetch profile to ensure sync
+        try {
+          const profileRes = await axios.get('/api/users/profile', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (profileRes.data?.profileImage) {
+            setAdminProfileImage(profileRes.data.profileImage);
+            localStorage.setItem('adminProfileImage', profileRes.data.profileImage);
+          }
+        } catch (refetchErr) {
+          console.warn('Refetch failed:', refetchErr.message);
+        }
+      }
+    } catch (err) {
+      console.error('❌ Upload failed:', err?.response?.data || err.message);
+      alert('Failed to upload profile picture. Please try again.');
+      
+      // Revert to previous image on failure
+      const storedImage = localStorage.getItem('adminProfileImage');
+      if (storedImage) {
+        setAdminProfileImage(storedImage);
+      }
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const navigateToDashboard = (type) => {
@@ -127,7 +144,6 @@ const UserManagement = () => {
     navigate(type === "student" ? "/dashboard" : "/teacher-dashboard");
   };
 
-  // Updated menu items with clean icons and labels to match your design
   const adminMenuItems = [
     {
       id: "userManagement",
@@ -170,17 +186,20 @@ const UserManagement = () => {
     const fetchAdminProfile = async () => {
       try {
         const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
-        const res = await axios.get('http://localhost:5000/api/users/profile', {
+        const res = await axios.get('/api/users/profile', {
           headers: {
             Authorization: token ? `Bearer ${token}` : undefined
           }
         });
+        
+        console.log('📥 Admin profile fetched:', res.data);
+        
         if (res.data?.profileImage) {
           setAdminProfileImage(res.data.profileImage);
           localStorage.setItem('adminProfileImage', res.data.profileImage);
         }
       } catch (err) {
-        console.warn('Failed to fetch admin profile image', err);
+        console.warn('Failed to fetch admin profile image:', err?.response?.data || err.message);
       }
     };
     fetchAdminProfile();
@@ -212,7 +231,7 @@ const UserManagement = () => {
         const [usersRes, teacherRes, studentRes] = await Promise.allSettled([
           getUsers(),
           getTeacherApprovals(),
-          fetch("http://localhost:5000/api/auth/student-approvals", { credentials: "include" }).then(r => r.ok ? r.json() : [])
+          fetch("/api/auth/student-approvals", { credentials: "include" }).then(r => r.ok ? r.json() : [])
         ]);
 
         setUsers(usersRes.status === "fulfilled" ? usersRes.value || [] : []);
@@ -239,14 +258,14 @@ const UserManagement = () => {
 
   const handleApproveStudent = async (id) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/auth/student-approvals/${id}/approve`, { method: "PUT", credentials: "include" });
+      const res = await fetch(`/api/auth/student-approvals/${id}/approve`, { method: "PUT", credentials: "include" });
       if (res.ok) setStudentApprovals(prev => prev.map(a => a._id === id ? { ...a, status: "Approved" } : a));
     } catch (err) { console.error(err); }
   };
 
   const handleRejectStudent = async (id) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/auth/student-approvals/${id}/reject`, { method: "PUT", credentials: "include" });
+      const res = await fetch(`/api/auth/student-approvals/${id}/reject`, { method: "PUT", credentials: "include" });
       if (res.ok) setStudentApprovals(prev => prev.map(a => a._id === id ? { ...a, status: "Rejected" } : a));
     } catch (err) { console.error(err); }
   };
@@ -263,14 +282,11 @@ const UserManagement = () => {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="w-full max-w-4xl mx-auto px-6 py-12">
-          {/* Skeleton Header */}
           <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
             <div className="bg-gradient-to-r from-purple-400 to-purple-600 h-24"></div>
             <div className="p-6 -mt-12 relative z-10">
               <div className="flex items-end gap-4">
-                {/* Avatar skeleton */}
                 <div className="w-24 h-24 bg-gray-300 rounded-full animate-pulse border-4 border-white shadow-lg"></div>
-                {/* Name/Email skeleton */}
                 <div className="flex-1 pb-2">
                   <div className="h-6 bg-gray-300 rounded w-48 animate-pulse mb-2"></div>
                   <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
@@ -279,7 +295,6 @@ const UserManagement = () => {
             </div>
           </div>
 
-          {/* Skeleton Content */}
           <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="space-y-3">
@@ -297,32 +312,27 @@ const UserManagement = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleProfileImageChange}
+        style={{ display: 'none' }}
+      />
+      
       <Header userName={adminUser?.name || "Admin"} userRole="admin" />
 
       <div className="flex">
-        {/* Your existing sidebarorigin.jsx will now show green active state beautifully */}
         <Sidebar activeMenuItem="userManagement" menuItems={adminMenuItems} />
 
-        {/* Main content - pushed down perfectly */}
         <main className="flex-1 ml-64 pt-20 px-8">
           {/* Admin Profile Header Section */}
           <div className="relative mb-12">
-            {/* Green Bar */}
             <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-24 rounded-t-lg"></div>
-            
-            {/* White Bar */}
             <div className="bg-white h-24"></div>
             
-            {/* Profile Info at the Exact Middle - Left Aligned */}
             <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 z-10">
               <div className="relative">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleProfileImageChange}
-                  className="hidden"
-                />
                 <div className="bg-white rounded-full p-1 shadow-lg">
                   <img
                     src={adminProfileImage || "https://via.placeholder.com/120"}
@@ -347,13 +357,11 @@ const UserManagement = () => {
           </div>
 
           <div className="max-w-7xl mx-auto">
-            {/* Title */}
             <div className="mb-12">
               <h1 className="text-4xl font-bold text-gray-900">User Management Dashboard</h1>
               <p className="text-gray-600 mt-3 text-lg">Manage all users, approvals, and system access</p>
             </div>
 
-            {/* Tabs */}
             <div className="bg-white rounded-t-lg shadow-sm border-b border-gray-200">
               <div className="flex gap-10 px-8 pt-5">
                 <button onClick={() => setTab("users")} className={`pb-4 text-base font-medium border-b-3 transition-all ${tab === "users" ? "text-emerald-600 border-emerald-600" : "text-gray-500 border-transparent hover:text-gray-700"}`}>
@@ -370,7 +378,6 @@ const UserManagement = () => {
               </div>
             </div>
 
-            {/* Content Card */}
             <div className="bg-white rounded-b-lg shadow-sm border border-gray-200 border-t-0">
               {tab === "users" && (
                 <>
@@ -475,7 +482,6 @@ const UserManagement = () => {
   );
 };
 
-// Beautiful Approval Tab
 const ApprovalTab = ({ approvals = [], title, onApprove, onReject }) => (
   <div>
     <h2 className="text-3xl font-bold mb-4 text-gray-900">{title}</h2>
