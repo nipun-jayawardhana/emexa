@@ -257,7 +257,13 @@ const getProfile = async (req, res) => {
         department: teacher.department,
         specialization: teacher.specialization,
         role: teacher.role,
-        profileImage: teacher.profileImage || null
+        profileImage: teacher.profileImage || null,
+        settings: teacher.settings || {
+          emailNotifications: true,
+          smsNotifications: false,
+          inAppNotifications: true,
+          emotionConsent: true
+        }
       },
       profileImage: teacher.profileImage || null
     });
@@ -436,7 +442,7 @@ const uploadProfileImage = async (req, res) => {
 };
 
 /**
- * Get teacher settings (notifications & privacy)
+ * Get teacher settings (notifications & privacy) - FIXED
  */
 const getSettings = async (req, res) => {
   try {
@@ -459,6 +465,8 @@ const getSettings = async (req, res) => {
       emotionConsent: true
     };
 
+    console.log('✅ Settings retrieved from database:', settings);
+
     res.json({
       success: true,
       data: settings
@@ -474,7 +482,7 @@ const getSettings = async (req, res) => {
 };
 
 /**
- * Update teacher settings (notifications & privacy)
+ * Update teacher settings (notifications & privacy) - FIXED
  */
 const updateSettings = async (req, res) => {
   try {
@@ -485,6 +493,9 @@ const updateSettings = async (req, res) => {
       inAppNotifications, 
       emotionConsent 
     } = req.body;
+
+    console.log('📝 Updating settings for teacher:', teacherId);
+    console.log('Received settings:', req.body);
 
     const settings = {
       emailNotifications: emailNotifications !== undefined ? emailNotifications : true,
@@ -505,6 +516,8 @@ const updateSettings = async (req, res) => {
         message: 'Teacher not found'
       });
     }
+
+    console.log('✅ Settings saved to database:', teacher.settings);
 
     res.json({
       success: true,
