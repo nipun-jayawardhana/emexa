@@ -7,85 +7,56 @@ export default function Permission() {
   const [webcamPermission, setWebcamPermission] = useState(null);
   const [cancelled, setCancelled] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [showPlaceholder, setShowPlaceholder] = useState(true);
 
-  const handleAllow = async () => {
-    // update state and start camera immediately without blocking UI.
-    // We start the stream non-blocking and then repeatedly try to attach the
-    // preview element so it appears as soon as possible.
+  const handleAllow = () => {
+    // Hide placeholder immediately and start camera
+    setShowPlaceholder(false);
     setWebcamPermission('allowed');
     setCancelled(false);
-    setStarting(true);
-    try {
-      // If the preview ref exists, pass it so the camera attaches directly
-      // to the preview container and becomes visible immediately.
-      if (previewRef.current) {
-        camera.start({ previewElement: previewRef.current, capture: false }).then((ok) => {
-          if (!ok) {
-            setWebcamPermission('denied');
-            setStarting(false);
-          }
-        }).catch((err) => {
-          console.error('camera.start failed', err);
-          setWebcamPermission('denied');
-          setStarting(false);
-        });
+    
+    // Start camera without waiting (non-blocking for instant UI response)
+    camera.start({ 
+      previewElement: previewRef.current, 
+      capture: false 
+    }).then((ok) => {
+      if (!ok) {
+        console.error('Failed to start camera');
+        setWebcamPermission('denied');
+        setShowPlaceholder(true);
       } else {
-        // fallback: start without previewElement and attach later
-        camera.start({ capture: false }).then((ok) => {
-          if (!ok) {
-            setWebcamPermission('denied');
-            setStarting(false);
-          }
-        }).catch((err) => {
-          console.error('camera.start failed', err);
-          setWebcamPermission('denied');
-          setStarting(false);
-        });
+        console.log('Camera started successfully');
       }
-
-      // Try to attach the preview repeatedly for up to 1.5s so we catch the moment
-      // videoMain becomes available and attachPreview succeeds.
-      if (camera && camera.attachPreview) {
-        let tries = 0;
-        const attachInterval = setInterval(() => {
-          tries += 1;
-          try {
-            if (previewRef.current && camera.attachPreview(previewRef.current)) {
-              clearInterval(attachInterval);
-              setStarting(false);
-            } else if (tries > 60) { // ~3s timeout
-              clearInterval(attachInterval);
-              setStarting(false);
-            }
-          } catch (e) {
-            // ignore and retry
-            if (tries > 60) {
-              clearInterval(attachInterval);
-              setStarting(false);
-            }
-          }
-        }, 50); // faster retry frequency
-      }
-    } catch (err) {
+    }).catch((err) => {
       console.error('Error starting camera on allow', err);
       setWebcamPermission('denied');
-    }
+      setShowPlaceholder(true);
+    });
   };
 
   const handleDeny = () => {
     // Mark denied, stop persistent camera if it was running, and allow proceeding without webcam
     setWebcamPermission('denied');
+    setStarting(false);
     try {
       // ensure persistent camera is stopped when user explicitly denies
       if (camera && camera.isActive && camera.isActive()) {
         camera.stop();
-                  {starting && (
-                    <div className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none">
-                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
-                    </div>
-                  )}
         console.log('Camera stopped due to user deny');
       }
+      // Stop all camera tracks
+      camera.stopCapture();
+      
+      // Additional cleanup: stop all video elements
+      document.querySelectorAll('video').forEach(v => {
+        try {
+          const s = v.srcObject;
+          if (s && s.getTracks) s.getTracks().forEach(t => t.stop());
+          v.srcObject = null;
+        } catch (e) {
+          console.error('Error stopping video track', e);
+        }
+      });
     } catch (err) {
       console.error('Error stopping camera on deny', err);
     }
@@ -98,14 +69,22 @@ export default function Permission() {
       // determine target quiz id from URL query param (set by dashboard when clicking Take Quiz)
       const params = new URLSearchParams(location.search);
       const quizId = params.get('quizId') || 'active-quiz';
-      // If allowed, enable periodic capture every 1 minute using the quiz id
+      
+      // If allowed, the camera is already running from Permission page
+      // We need to hide the preview but keep the stream for periodic captures
       if (webcamPermission === 'allowed') {
         try {
+          // Remove the video preview element but keep the stream active for captures
+          if (previewRef.current) {
+            previewRef.current.innerHTML = '';
+          }
+          // Start periodic capture (the camera stream is already active)
           camera.startCapture({ intervalMs: 60000, quality: 0.6, quizId });
         } catch (err) {
           console.error('startCapture failed', err);
         }
       }
+      
       // navigate to the quiz page for the selected quiz
       navigate(`/quiz/${encodeURIComponent(quizId)}`);
     } else {
@@ -118,35 +97,20 @@ export default function Permission() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Cleanup effect - only stop camera when component unmounts or when deny is clicked
   useEffect(() => {
-    let mounted = true;
-    const startCamera = async () => {
-      if (!mounted) return;
-      try {
-        // if the previewRef exists attach the already-started stream preview
-        if (previewRef.current && camera && camera.attachPreview) {
-          camera.attachPreview(previewRef.current);
-        } else {
-          // fallback: attempt to start preview directly
-          const ok = await camera.start({ previewElement: previewRef.current, capture: false });
-          if (!ok) setWebcamPermission('denied');
+    return () => {
+      // Only cleanup when unmounting, not when permission state changes
+      if (webcamPermission === 'denied') {
+        try { 
+          camera.stop();
+          camera.stopCapture();
+        } catch (e) {
+          console.error('Cleanup error:', e);
         }
-      } catch (err) {
-        console.error('camera.start/attachPreview error', err);
-        setWebcamPermission('denied');
       }
     };
-
-    if (webcamPermission === 'allowed') {
-      // schedule after render to ensure previewRef is attached
-      setTimeout(startCamera, 0);
-    }
-
-    return () => {
-      mounted = false;
-      try { camera.stop(); } catch (e) {}
-    };
-  }, [webcamPermission]);
+  }, []); // Empty dependency array - only run on mount/unmount
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-8">
@@ -184,19 +148,19 @@ export default function Permission() {
               Webcam Permission
             </h3>
             
-            <div className={`rounded-lg mb-6 shadow-sm ${webcamPermission === 'allowed' ? 'bg-transparent p-0 border-none overflow-visible relative' : 'bg-white p-4 border-2 border-dashed border-gray-300'}`}>
+            <div className={`rounded-lg mb-6 shadow-sm relative ${webcamPermission === 'allowed' ? 'bg-black border-none' : 'bg-white p-4 border-2 border-dashed border-gray-300'}`}>
               <div className="flex items-center justify-center text-center">
                   <div
                     ref={previewRef}
                     style={
                       webcamPermission === 'allowed'
-                        ? { width: '100%', height: 0, paddingTop: '56.25%', position: 'relative' }
+                        ? { width: '100%', height: '400px', position: 'relative', backgroundColor: '#000', borderRadius: '12px', overflow: 'hidden' }
                         : { width: '547.56px', height: '351.56px' }
                     }
-                    className={`flex items-center justify-center overflow-hidden rounded-lg relative ${webcamPermission === 'allowed' ? 'bg-transparent' : 'bg-white'}`}
+                    className={`flex items-center justify-center rounded-lg ${webcamPermission === 'allowed' ? '' : 'bg-white overflow-hidden'}`}
                   >
-                  {/* placeholder shown when no camera preview is active */}
-                  {webcamPermission !== 'allowed' && (
+                  {/* placeholder shown when no camera preview is active - controlled by showPlaceholder state */}
+                  {showPlaceholder && (
                     <div className="flex flex-col items-center">
                       <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mb-3">
                         <Camera className="w-7 h-7 text-gray-400" />
@@ -206,9 +170,7 @@ export default function Permission() {
                       </p>
                     </div>
                   )}
-
-                  {/* When allowed, the cancel button is rendered outside the preview box (sibling) */}
-                </div>
+                  </div>
               </div>
               {/* centered cancel circle below the white box when camera is active (outside the preview) */}
               {webcamPermission === 'allowed' && (
@@ -227,7 +189,13 @@ export default function Permission() {
                           try { if (v.parentNode) v.parentNode.removeChild(v); } catch (e) {}
                         });
                       } catch (e) {}
+                      // Clear the preview container
+                      if (previewRef.current) {
+                        previewRef.current.innerHTML = '';
+                      }
+                      // Reset states to show placeholder again
                       setWebcamPermission(null);
+                      setShowPlaceholder(true);
                     }}
                     aria-label="Cancel camera"
                     title="Cancel camera"
@@ -242,12 +210,6 @@ export default function Permission() {
               {webcamPermission !== 'allowed' && (
                 <div className="flex items-center justify-center gap-4 mt-4">
                   <button
-                    onPointerDown={() => {
-                      // start requesting camera immediately on press to reduce latency
-                      try {
-                        if (camera && camera.isActive && !camera.isActive()) camera.start({ capture: false }).catch(() => {});
-                      } catch (e) {}
-                    }}
                     onClick={handleAllow}
                     className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm ${
                       webcamPermission === 'allowed'

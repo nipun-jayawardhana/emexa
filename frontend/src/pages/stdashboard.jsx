@@ -330,11 +330,6 @@ const StudentDashboard = () => {
                   <button
                     onClick={() => {
                       const targetId = quiz.id || `quiz-${index}`;
-                      try {
-                        if (camera && camera.isActive && !camera.isActive()) {
-                          camera.start({ capture: false }).catch(() => {});
-                        }
-                      } catch (e) {}
                       navigate(
                         `/permission?quizId=${encodeURIComponent(targetId)}`
                       );
