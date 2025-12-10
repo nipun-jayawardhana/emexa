@@ -93,7 +93,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
           console.log('✅ Loaded profile image from Cloudinary:', cloudinaryUrl);
         }
 
-        // 🆕 Sync settings from server
+        // 🆕 Sync settings from server - FIXED
         if (response.data?.data?.settings) {
           const serverSettings = response.data.data.settings;
           console.log('✅ Loaded settings from server:', serverSettings);
@@ -105,6 +105,23 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
           
           // Update localStorage
           localStorage.setItem('profileSettings', JSON.stringify(serverSettings));
+        } else {
+          // If no settings in response, fetch them separately
+          const settingsResponse = await axios.get('/api/teacher/settings', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (settingsResponse.data?.success && settingsResponse.data?.data) {
+            const serverSettings = settingsResponse.data.data;
+            console.log('✅ Loaded settings from /settings endpoint:', serverSettings);
+            
+            setEmailNotifications(serverSettings.emailNotifications ?? true);
+            setSmsNotifications(serverSettings.smsNotifications ?? false);
+            setInAppNotifications(serverSettings.inAppNotifications ?? true);
+            setEmotionConsent(serverSettings.emotionConsent ?? true);
+            
+            localStorage.setItem('profileSettings', JSON.stringify(serverSettings));
+          }
         }
       } catch (err) {
         console.warn('Failed to fetch teacher profile:', err?.response?.data || err.message);
@@ -382,9 +399,15 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     }
   };
 
-  // 🆕 FIXED: Save privacy settings to server
+  // 🆕 FIXED: Combined save function for all settings
   const handleSavePrivacySettings = async () => {
-    const payload = { emotionConsent };
+    // Save ALL settings including emotionConsent
+    const payload = { 
+      emailNotifications,
+      smsNotifications,
+      inAppNotifications,
+      emotionConsent 
+    };
     
     setSettingsLoading(true);
     
@@ -399,14 +422,15 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       });
 
       if (response.data?.success) {
-        localStorage.setItem('privacySettings', JSON.stringify(payload));
-        console.log('✅ Privacy settings saved to server and localStorage:', payload);
+        // Update localStorage with complete settings
+        localStorage.setItem('profileSettings', JSON.stringify(payload));
+        console.log('✅ All settings saved to server and localStorage:', payload);
         alert('Privacy settings saved successfully!');
       }
     } catch (err) {
       console.error('❌ Failed to save privacy settings:', err?.response?.data || err.message);
       
-      localStorage.setItem('privacySettings', JSON.stringify(payload));
+      localStorage.setItem('profileSettings', JSON.stringify(payload));
       alert('Saved locally. Server error: ' + (err?.response?.data?.message || err.message));
     } finally {
       setSettingsLoading(false);
