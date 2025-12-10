@@ -1,7 +1,18 @@
-import express from 'express';
 import dotenv from 'dotenv';
+dotenv.config(); // MUST BE FIRST!
+
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
 import cors from 'cors';
 import os from 'os';
+import { fileURLToPath } from 'url';
+import { cloudinary } from './src/config/cloudinary.js'; 
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Import routes
 import { connectDB } from './src/services/dbService.js';
 import userRoutes from './src/routes/userRoutes.js';
 import authRoutes from './src/routes/authRoutes.js';
@@ -11,11 +22,9 @@ import teacherRoutes from './src/routes/teacherRoutes.js';
 import wellnessRoutes from './src/routes/wellnessRoutes.js';
 import teacherQuizRoutes from './src/routes/teacherQuizRoutes.js'; 
 
-dotenv.config();
 const app = express();
 
 // Connect to DB
-// Initialize DB connection (service will skip if MONGO_URI is not set)
 connectDB();
 
 // Middleware
@@ -29,7 +38,17 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request logging middleware (for debugging)
+// Serve uploaded files
+try {
+  const uploadsPath = path.resolve(__dirname, 'uploads');
+  fs.mkdirSync(uploadsPath, { recursive: true });
+  app.use('/uploads', express.static(uploadsPath));
+  console.log('📁 Uploads directory:', uploadsPath);
+} catch (err) {
+  console.error('Failed to create uploads folder:', err);
+}
+
+// Request logging
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
@@ -44,13 +63,16 @@ app.use('/api/teacher', teacherRoutes);
 app.use('/api/wellness', wellnessRoutes);
 app.use('/api/teacher-quizzes', teacherQuizRoutes); // New teacher quiz routes 
 
-// Health check endpoints
+// Health check
 app.get('/', (req, res) => {
   res.json({ 
     ok: true, 
     message: 'EMEXA API is running',
     version: '1.0.0',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    cloudinary: {
+      configured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY)
+    }
   });
 });
 
@@ -59,18 +81,16 @@ app.get('/health', (req, res) => {
   return res.json({ 
     ok: true, 
     host: req.hostname, 
-    interfaces: Object.keys(ifaces),
     uptime: process.uptime(),
     memory: {
       total: os.totalmem(),
       free: os.freemem(),
       used: os.totalmem() - os.freemem()
-    },
-    database: 'connected' // You can add actual DB check here
+    }
   });
 });
 
-// 404 handler - Must be after all routes
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({ 
     ok: false, 
@@ -79,10 +99,9 @@ app.use((req, res) => {
   });
 });
 
-// Global error handler
+// Error handler
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err);
-  
   res.status(err.status || 500).json({
     ok: false,
     message: err.message || 'Internal server error',
@@ -99,51 +118,27 @@ app.listen(PORT, HOST, () => {
   console.log('='.repeat(50));
   console.log(`📍 Server URL: http://${HOST}:${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`📊 Database: ${process.env.MONGO_URI ? 'Connected' : 'Not configured'}`);
-  console.log('\n📋 Available Routes:');
-  console.log('   - GET  /                          Health check');
-  console.log('   - GET  /health                    Detailed health info');
-  console.log('   - POST /api/auth/register         User registration');
-  console.log('   - POST /api/auth/login            User login');
-  console.log('   - POST /api/auth/forgot-password  Password reset');
-  console.log('   - GET  /api/users                 User management');
-  console.log('   - GET  /api/quiz                  Quiz management');
-  console.log('   - POST /api/camera                Camera endpoints');
-  console.log('   - GET  /api/teacher               Teacher dashboard');
-  console.log('   - POST /api/wellness/mood         Save mood tracking');
-  console.log('   - GET  /api/wellness/mood/history Get mood history');
-  console.log('   - GET  /api/wellness/tips         Get wellness tips');
-  console.log('\n🌐 Network Interfaces:');
-  const interfaces = os.networkInterfaces();
-  Object.keys(interfaces).forEach(iface => {
-    interfaces[iface].forEach(details => {
-      if (details.family === 'IPv4') {
-        console.log(`   - ${iface}: http://${details.address}:${PORT}`);
-      }
-    });
-  });
+  console.log(`☁️  Cloudinary: ${process.env.CLOUDINARY_CLOUD_NAME ? '✅ ' + process.env.CLOUDINARY_CLOUD_NAME : '❌ Not configured'}`);
   console.log('='.repeat(50) + '\n');
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('👋 SIGTERM signal received: closing HTTP server');
+  console.log('👋 SIGTERM: closing server');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('\n👋 SIGINT signal received: closing HTTP server');
+  console.log('\n👋 SIGINT: closing server');
   process.exit(0);
 });
 
-// Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   console.error('💥 Uncaught Exception:', err);
   process.exit(1);
 });
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 Unhandled Rejection:', reason);
   process.exit(1);
 });

@@ -8,14 +8,25 @@ import {
   changePassword,
   updateNotificationSettings,
   updatePrivacySettings,
-  exportUserData
+  exportUserData,
+  uploadProfileImage 
 } from '../controllers/userController.js';
 import { protect } from '../middleware/auth.js';
+import multer from 'multer';
 import User from '../models/user.js';
 import Student from '../models/student.js';
 import Teacher from '../models/teacher.js';
 
 const router = express.Router();
+
+import { storage } from '../config/cloudinary.js';
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5 MB file size limit
+  }
+});
 
 // === PROFILE ROUTES - MUST BE BEFORE GENERAL ROUTES ===
 // These specific routes must come first to avoid conflicts
@@ -23,11 +34,45 @@ const router = express.Router();
 // Profile management routes
 router.get('/profile', protect, getProfile);
 router.put('/update-profile', protect, updateProfile);
+// Endpoint for uploading profile image (multipart/form-data, field name: 'profile')
+router.post('/upload-profile', protect, upload.single('profile'), uploadProfileImage);
 router.put('/change-password', protect, changePassword);
 router.put('/notification-settings', protect, updateNotificationSettings);
 router.put('/privacy-settings', protect, updatePrivacySettings);
 router.get('/export-data', protect, exportUserData);
 router.get('/dashboard', protect, getDashboardData);
+
+// DEBUG ROUTE: Check database for profile image
+router.get('/debug/check-db/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log('🔍 DEBUG: Checking database for userId:', userId);
+
+    // Check Student collection
+    const student = await Student.findById(userId).select('name email profileImage role');
+    console.log('📚 Student found:', student);
+
+    // Check Teacher collection
+    const teacher = await Teacher.findById(userId).select('name email profileImage role');
+    console.log('👨‍🏫 Teacher found:', teacher);
+
+    // Check User collection
+    const user = await User.findById(userId).select('name email profileImage role');
+    console.log('👤 Admin user found:', user);
+
+    const result = {
+      userId,
+      student: student ? { name: student.name, email: student.email, profileImage: student.profileImage, role: student.role } : null,
+      teacher: teacher ? { name: teacher.name, email: teacher.email, profileImage: teacher.profileImage, role: teacher.role } : null,
+      user: user ? { name: user.name, email: user.email, profileImage: user.profileImage, role: user.role } : null
+    };
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error checking database:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 
 // === GENERAL USER ROUTES ===
 router.get('/', protect, getUsers);

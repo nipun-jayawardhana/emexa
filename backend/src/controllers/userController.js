@@ -36,15 +36,12 @@ export const createUser = async (req, res) => {
 // Dashboard functions
 export const getDashboardData = async (req, res) => {
   try {
-    // Try User collection first
     let user = await User.findById(req.userId).select('-password');
     
-    // If not found in User, try Student collection
     if (!user) {
       user = await Student.findById(req.userId).select('-password');
     }
     
-    // If still not found, try Teacher collection
     if (!user) {
       user = await Teacher.findById(req.userId).select('-password');
     }
@@ -68,22 +65,19 @@ export const getDashboardData = async (req, res) => {
   }
 };
 
-// Profile functions - FIXED to check all collections
+// Profile functions
 export const getProfile = async (req, res) => {
   try {
     console.log('🔍 Getting profile for userId:', req.userId);
     
-    // Try User collection first
     let user = await User.findById(req.userId).select('-password');
     let collectionName = 'User';
     
-    // If not found in User, try Student collection
     if (!user) {
       user = await Student.findById(req.userId).select('-password');
       collectionName = 'Student';
     }
     
-    // If still not found, try Teacher collection
     if (!user) {
       user = await Teacher.findById(req.userId).select('-password');
       collectionName = 'Teacher';
@@ -96,7 +90,6 @@ export const getProfile = async (req, res) => {
 
     console.log(`✅ User found in ${collectionName} collection:`, user.email);
 
-    // Return complete profile data with all fields
     const profileData = {
       _id: user._id,
       name: user.name || '',
@@ -118,7 +111,7 @@ export const getProfile = async (req, res) => {
       upcomingQuizzes: user.upcomingQuizzes || []
     };
 
-    console.log('📤 Sending profile data:', profileData);
+    console.log('📤 Sending profile data with image:', profileData.profileImage);
     res.status(200).json(profileData);
   } catch (error) {
     console.error('❌ Get profile error:', error);
@@ -131,15 +124,12 @@ export const updateProfile = async (req, res) => {
   try {
     const { name, email } = req.body;
     
-    // Try User collection first
     let user = await User.findById(req.userId);
     
-    // If not in User, try Student collection
     if (!user) {
       user = await Student.findById(req.userId);
     }
     
-    // If still not found, try Teacher collection
     if (!user) {
       user = await Teacher.findById(req.userId);
     }
@@ -148,7 +138,6 @@ export const updateProfile = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check if email is already taken by another user
     if (email && email !== user.email) {
       const emailExistsInUser = await User.findOne({ email, _id: { $ne: req.userId } });
       const emailExistsInStudent = await Student.findOne({ email, _id: { $ne: req.userId } });
@@ -159,7 +148,6 @@ export const updateProfile = async (req, res) => {
       }
     }
 
-    // Update fields
     if (name) user.name = name;
     if (email) user.email = email;
     
@@ -195,7 +183,6 @@ export const changePassword = async (req, res) => {
       return res.status(400).json({ message: 'Password must be at least 6 characters long' });
     }
 
-    // Get user with password field - try all collections
     let user = await User.findById(req.userId).select('+password');
     let collectionName = 'User';
     
@@ -216,7 +203,6 @@ export const changePassword = async (req, res) => {
 
     console.log(`✅ User found in ${collectionName} collection for password change`);
 
-    // Verify current password
     const isMatch = await user.comparePassword(currentPassword);
     
     if (!isMatch) {
@@ -224,7 +210,6 @@ export const changePassword = async (req, res) => {
       return res.status(400).json({ message: 'Current password is incorrect' });
     }
 
-    // Update password (will be hashed by pre-save hook)
     user.password = newPassword;
     await user.save();
 
@@ -241,7 +226,6 @@ export const updateNotificationSettings = async (req, res) => {
   try {
     const { emailNotifications, smsNotifications, inAppNotifications } = req.body;
     
-    // Try all collections
     let user = await User.findById(req.userId);
     if (!user) user = await Student.findById(req.userId);
     if (!user) user = await Teacher.findById(req.userId);
@@ -273,7 +257,6 @@ export const updatePrivacySettings = async (req, res) => {
   try {
     const { emotionDataConsent } = req.body;
     
-    // Try all collections
     let user = await User.findById(req.userId);
     if (!user) user = await Student.findById(req.userId);
     if (!user) user = await Teacher.findById(req.userId);
@@ -301,7 +284,6 @@ export const updatePrivacySettings = async (req, res) => {
 // Export user data
 export const exportUserData = async (req, res) => {
   try {
-    // Try all collections
     let user = await User.findById(req.userId).select('-password');
     if (!user) user = await Student.findById(req.userId).select('-password');
     if (!user) user = await Teacher.findById(req.userId).select('-password');
@@ -337,31 +319,90 @@ export const exportUserData = async (req, res) => {
   }
 };
 
-// Upload profile image (for future implementation)
+// FIXED: Upload profile image with success field - CRITICAL FIX
 export const uploadProfileImage = async (req, res) => {
   try {
+    console.log('📸 ===== PROFILE IMAGE UPLOAD STARTED =====');
+    console.log('userId:', req.userId);
+    console.log('file:', req.file);
+    console.log('==========================================');
+    
     if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+      console.error('❌ No file uploaded');
+      return res.status(400).json({ 
+        success: false,  // ADDED
+        error: 'No file uploaded',
+        message: 'Please select an image file' 
+      });
     }
 
-    // Try all collections
+    console.log('📁 File details:');
+    console.log('  - Filename:', req.file.filename);
+    console.log('  - Path:', req.file.path);
+    console.log('  - Size:', req.file.size);
+    console.log('  - Mimetype:', req.file.mimetype);
+
+    // Try all collections to find the user
     let user = await User.findById(req.userId);
-    if (!user) user = await Student.findById(req.userId);
-    if (!user) user = await Teacher.findById(req.userId);
+    let collection = 'User';
     
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      user = await Student.findById(req.userId);
+      collection = 'Student';
+    }
+    
+    if (!user) {
+      user = await Teacher.findById(req.userId);
+      collection = 'Teacher';
+    }
+    
+    if (!user) {
+      console.error('❌ User not found in any collection for userId:', req.userId);
+      return res.status(404).json({ 
+        success: false,  // ADDED
+        error: 'User not found',
+        message: 'User not found in database' 
+      });
     }
 
-    user.profileImage = `/uploads/profiles/${req.file.filename}`;
-    await user.save();
+    console.log(`✅ User found in ${collection} collection: ${user.email}`);
 
+    // Cloudinary URL is already in req.file.path (provided by multer-storage-cloudinary)
+    const imageUrl = req.file.path;
+
+    console.log('🔗 Cloudinary image URL:', imageUrl);
+
+    // Save Cloudinary URL to user document
+    user.profileImage = imageUrl;
+    const savedUser = await user.save();
+
+    console.log(`✅ Profile image saved to ${collection}.`);
+    console.log(`   New profileImage:`, savedUser.profileImage);
+    console.log('==========================================\n');
+
+    // CRITICAL: Return success: true for frontend compatibility
     res.json({ 
+      success: true,  // THIS IS THE KEY FIX!
       message: 'Profile image uploaded successfully',
-      profileImage: user.profileImage
+      profileImage: savedUser.profileImage,
+      user: {
+        _id: savedUser._id,
+        name: savedUser.name,
+        email: savedUser.email,
+        profileImage: savedUser.profileImage
+      }
     });
   } catch (error) {
-    console.error('Error uploading profile image:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('❌ ===== ERROR UPLOADING PROFILE IMAGE =====');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('==========================================\n');
+    
+    res.status(500).json({ 
+      success: false,  // ADDED
+      error: 'Internal server error',
+      message: error.message || 'Failed to upload profile image',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };

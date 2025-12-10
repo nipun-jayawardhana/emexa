@@ -11,8 +11,6 @@ const getDashboardStats = async (req, res) => {
     
     console.log('📊 Fetching dashboard stats for teacher:', teacherId);
 
-    // For now, return mock data
-    // TODO: Replace with actual database queries when your schema is ready
     const stats = {
       totalStudents: 24,
       presentToday: 22,
@@ -21,30 +19,6 @@ const getDashboardStats = async (req, res) => {
       engagementLevel: 'High',
       weeklyChange: 5
     };
-
-    /* 
-    // Example real implementation when you have the data:
-    const teacher = await Teacher.findById(teacherId).populate('students');
-    
-    const totalStudents = teacher.students.length;
-    
-    // Count present students today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const presentToday = await Attendance.countDocuments({
-      teacherId,
-      date: { $gte: today },
-      status: 'present'
-    });
-    
-    // Calculate average progress
-    const progressData = await StudentProgress.aggregate([
-      { $match: { teacherId } },
-      { $group: { _id: null, avgProgress: { $avg: '$progress' } } }
-    ]);
-    
-    const averageProgress = Math.round(progressData[0]?.avgProgress || 0);
-    */
 
     res.json({
       success: true,
@@ -70,33 +44,12 @@ const getClassProgress = async (req, res) => {
     
     console.log('📈 Fetching class progress for teacher:', teacherId);
 
-    // Mock data for now
     const progressData = [
       { label: 'Week 1', completed: 65, target: 82 },
       { label: 'Week 2', completed: 72, target: 80 },
       { label: 'Week 3', completed: 80, target: 82 },
       { label: 'Week 4', completed: 88, target: 80 }
     ];
-
-    /*
-    // Example real implementation:
-    const fourWeeksAgo = new Date();
-    fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-    
-    const progressData = await WeeklyProgress.find({
-      teacherId,
-      weekStart: { $gte: fourWeeksAgo }
-    })
-    .sort({ weekStart: 1 })
-    .limit(4)
-    .lean();
-    
-    const formattedData = progressData.map((item, index) => ({
-      label: `Week ${index + 1}`,
-      completed: Math.round(item.completedPercentage || 0),
-      target: Math.round(item.targetPercentage || 80)
-    }));
-    */
 
     res.json({
       success: true,
@@ -122,7 +75,6 @@ const getEngagementTrend = async (req, res) => {
     
     console.log('📊 Fetching engagement trend for teacher:', teacherId);
 
-    // Mock data
     const engagementData = [
       { day: 'Mon', score: 65 },
       { day: 'Tue', score: 70 },
@@ -130,34 +82,6 @@ const getEngagementTrend = async (req, res) => {
       { day: 'Thu', score: 85 },
       { day: 'Fri', score: 80 }
     ];
-
-    /*
-    // Example real implementation:
-    const fiveDaysAgo = new Date();
-    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
-    
-    const trendData = await StudentEngagement.aggregate([
-      {
-        $match: {
-          teacherId: mongoose.Types.ObjectId(teacherId),
-          date: { $gte: fiveDaysAgo }
-        }
-      },
-      {
-        $group: {
-          _id: { $dayOfWeek: '$date' },
-          avgScore: { $avg: '$engagementScore' }
-        }
-      },
-      { $sort: { '_id': 1 } }
-    ]);
-    
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const formattedData = trendData.map(item => ({
-      day: dayNames[item._id - 1],
-      score: Math.round(item.avgScore || 0)
-    }));
-    */
 
     res.json({
       success: true,
@@ -183,48 +107,12 @@ const getEmotionalState = async (req, res) => {
     
     console.log('😊 Fetching emotional state for teacher:', teacherId);
 
-    // Mock data
     const emotionalData = {
       happy: 40,
       confused: 30,
       frustrated: 20,
       neutral: 10
     };
-
-    /*
-    // Example real implementation:
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    
-    const emotionData = await EmotionalState.aggregate([
-      {
-        $match: {
-          teacherId: mongoose.Types.ObjectId(teacherId),
-          recordedDate: { $gte: oneWeekAgo }
-        }
-      },
-      {
-        $group: {
-          _id: '$emotionType',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-    
-    const total = emotionData.reduce((sum, item) => sum + item.count, 0);
-    
-    const distribution = {
-      happy: 0,
-      confused: 0,
-      frustrated: 0,
-      neutral: 0
-    };
-    
-    emotionData.forEach(item => {
-      const percentage = Math.round((item.count / total) * 100);
-      distribution[item._id.toLowerCase()] = percentage;
-    });
-    */
 
     res.json({
       success: true,
@@ -251,7 +139,6 @@ const getStudentOverview = async (req, res) => {
     
     console.log('👨‍🎓 Fetching student overview for teacher:', teacherId);
 
-    // Mock data
     const students = [
       {
         id: '1',
@@ -283,60 +170,6 @@ const getStudentOverview = async (req, res) => {
       }
     ];
 
-    /*
-    // Example real implementation:
-    const teacher = await Teacher.findById(teacherId)
-      .populate({
-        path: 'students',
-        select: 'name email userId',
-        options: { limit },
-        populate: {
-          path: 'userId',
-          select: 'profileImage'
-        }
-      });
-    
-    const studentIds = teacher.students.map(s => s._id);
-    
-    // Get progress data
-    const progressData = await StudentProgress.find({
-      studentId: { $in: studentIds }
-    }).lean();
-    
-    // Get engagement data
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    
-    const engagementData = await StudentEngagement.aggregate([
-      {
-        $match: {
-          studentId: { $in: studentIds },
-          date: { $gte: oneWeekAgo }
-        }
-      },
-      {
-        $group: {
-          _id: '$studentId',
-          avgEngagement: { $avg: '$engagementScore' }
-        }
-      }
-    ]);
-    
-    const formattedStudents = teacher.students.map(student => {
-      const progress = progressData.find(p => p.studentId.equals(student._id));
-      const engagement = engagementData.find(e => e._id.equals(student._id));
-      
-      return {
-        id: student._id,
-        name: student.name,
-        engagement: engagement?.avgEngagement >= 75 ? 'High' : 
-                   engagement?.avgEngagement >= 50 ? 'Medium' : 'Low',
-        progress: Math.round(progress?.progressPercentage || 0),
-        image: student.userId?.profileImage || '👤'
-      };
-    });
-    */
-
     res.json({
       success: true,
       data: students.slice(0, limit),
@@ -361,7 +194,6 @@ const getRecentQuizzes = async (req, res) => {
     
     console.log('📝 Fetching recent quizzes for teacher:', teacherId);
 
-    // Mock data
     const quizzes = [
       {
         id: '1',
@@ -386,48 +218,6 @@ const getRecentQuizzes = async (req, res) => {
       }
     ];
 
-    /*
-    // Example real implementation:
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const quizzes = await Quiz.find({
-      teacherId,
-      createdAt: { $gte: thirtyDaysAgo }
-    })
-    .sort({ createdAt: -1 })
-    .limit(5)
-    .lean();
-    
-    const quizIds = quizzes.map(q => q._id);
-    
-    // Get submission counts
-    const submissions = await QuizSubmission.aggregate([
-      { $match: { quizId: { $in: quizIds } } },
-      {
-        $group: {
-          _id: '$quizId',
-          totalStudents: { $addToSet: '$studentId' },
-          completedCount: {
-            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] }
-          }
-        }
-      }
-    ]);
-    
-    const formattedQuizzes = quizzes.map(quiz => {
-      const submission = submissions.find(s => s._id.equals(quiz._id));
-      
-      return {
-        id: quiz._id,
-        title: quiz.title,
-        dueDate: quiz.dueDate,
-        totalStudents: submission?.totalStudents.length || 0,
-        completed: submission?.completedCount || 0
-      };
-    });
-    */
-
     res.json({
       success: true,
       data: quizzes,
@@ -438,6 +228,50 @@ const getRecentQuizzes = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch recent quizzes',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get teacher profile
+ */
+const getProfile = async (req, res) => {
+  try {
+    const teacherId = req.userId || req.user._id;
+    const teacher = await Teacher.findById(teacherId).select('-password');
+    
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        name: teacher.name,
+        email: teacher.email,
+        teacherId: teacher.teacherId,
+        department: teacher.department,
+        specialization: teacher.specialization,
+        role: teacher.role,
+        profileImage: teacher.profileImage || null,
+        settings: teacher.settings || {
+          emailNotifications: true,
+          smsNotifications: false,
+          inAppNotifications: true,
+          emotionConsent: true
+        }
+      },
+      profileImage: teacher.profileImage || null
+    });
+  } catch (error) {
+    console.error('❌ Error fetching profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch profile',
       error: error.message
     });
   }
@@ -551,12 +385,70 @@ const changePassword = async (req, res) => {
 };
 
 /**
- * Get teacher profile
+ * Upload teacher profile image to Cloudinary
  */
-const getProfile = async (req, res) => {
+const uploadProfileImage = async (req, res) => {
+  try {
+    console.log('📸 Upload profile image request received');
+    console.log('User:', req.user || req.userId);
+    console.log('File:', req.file);
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const teacherId = req.userId || req.user._id || req.user.id;
+
+    // Cloudinary URL from multer-storage-cloudinary
+    const profileImageUrl = req.file.path;
+    console.log('☁️  Cloudinary URL:', profileImageUrl);
+
+    // Update teacher's profile image in database
+    const teacher = await Teacher.findByIdAndUpdate(
+      teacherId,
+      { profileImage: profileImageUrl },
+      { new: true }
+    ).select('-password');
+
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    console.log('✅ Profile image updated in database');
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile image uploaded successfully',
+      profileImage: profileImageUrl,
+      data: {
+        profileImage: profileImageUrl
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Upload profile image error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload profile image',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get teacher settings (notifications & privacy) - FIXED
+ */
+const getSettings = async (req, res) => {
   try {
     const teacherId = req.userId || req.user._id;
-    const teacher = await Teacher.findById(teacherId).select('-password');
+    
+    const teacher = await Teacher.findById(teacherId).select('settings');
     
     if (!teacher) {
       return res.status(404).json({
@@ -565,22 +457,78 @@ const getProfile = async (req, res) => {
       });
     }
 
+    // Default settings if none exist
+    const settings = teacher.settings || {
+      emailNotifications: true,
+      smsNotifications: false,
+      inAppNotifications: true,
+      emotionConsent: true
+    };
+
+    console.log('✅ Settings retrieved from database:', settings);
+
     res.json({
       success: true,
-      data: {
-        name: teacher.name,
-        email: teacher.email,
-        teacherId: teacher.teacherId,
-        department: teacher.department,
-        specialization: teacher.specialization,
-        role: teacher.role
-      }
+      data: settings
     });
   } catch (error) {
-    console.error('❌ Error fetching profile:', error);
+    console.error('❌ Error fetching settings:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch profile',
+      message: 'Failed to fetch settings',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Update teacher settings (notifications & privacy) - FIXED
+ */
+const updateSettings = async (req, res) => {
+  try {
+    const teacherId = req.userId || req.user._id;
+    const { 
+      emailNotifications, 
+      smsNotifications, 
+      inAppNotifications, 
+      emotionConsent 
+    } = req.body;
+
+    console.log('📝 Updating settings for teacher:', teacherId);
+    console.log('Received settings:', req.body);
+
+    const settings = {
+      emailNotifications: emailNotifications !== undefined ? emailNotifications : true,
+      smsNotifications: smsNotifications !== undefined ? smsNotifications : false,
+      inAppNotifications: inAppNotifications !== undefined ? inAppNotifications : true,
+      emotionConsent: emotionConsent !== undefined ? emotionConsent : true
+    };
+
+    const teacher = await Teacher.findByIdAndUpdate(
+      teacherId,
+      { settings },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: 'Teacher not found'
+      });
+    }
+
+    console.log('✅ Settings saved to database:', teacher.settings);
+
+    res.json({
+      success: true,
+      data: settings,
+      message: 'Settings updated successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error updating settings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update settings',
       error: error.message
     });
   }
@@ -593,7 +541,10 @@ export default {
   getEmotionalState,
   getStudentOverview,
   getRecentQuizzes,
-  changePassword,
   getProfile,
-  updateProfile
+  updateProfile,
+  changePassword,
+  uploadProfileImage,
+  getSettings,
+  updateSettings
 };

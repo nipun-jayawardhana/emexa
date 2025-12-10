@@ -1,13 +1,19 @@
 import express from 'express';
 import teacherController from '../controllers/teacherController.js';
 import { protect, authorize } from '../middleware/auth.middleware.js';
+import multer from 'multer';
+import { storage } from '../config/cloudinary.js';
+
 
 const router = express.Router();
 
-/**
- * Teacher Dashboard Routes
- * All routes require authentication and teacher role
- */
+// Configure multer with Cloudinary storage
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5 MB file size limit
+  }
+});
 
 // Dashboard statistics
 router.get(
@@ -65,5 +71,18 @@ router.put('/update-name', protect, authorize('teacher'), teacherController.upda
 
 // Password change route
 router.put('/change-password', protect, authorize('teacher'), teacherController.changePassword);
+
+// 🆕 Profile image upload route (NEW)
+router.post(
+  '/upload-profile',
+  protect,
+  authorize('teacher'),
+  upload.single('profile'),
+  teacherController.uploadProfileImage
+);
+
+// Settings routes - NEW
+router.get('/settings', protect, authorize('teacher'), teacherController.getSettings);
+router.put('/settings', protect, authorize('teacher'), teacherController.updateSettings);
 
 export default router;

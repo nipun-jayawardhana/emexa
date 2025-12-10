@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import camera from "../lib/camera";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import teacherQuizService from "../services/teacherQuizService";
 import AdminViewWrapper from "../components/AdminViewWrapper";
@@ -25,9 +25,22 @@ const StudentDashboard = () => {
   const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
   const [sharedQuizzes, setSharedQuizzes] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  const adminToken = localStorage.getItem('adminToken');
+  const isAdminViewing = localStorage.getItem('adminViewingAs');
 
-  const adminToken = localStorage.getItem("adminToken");
-  const isAdminViewing = localStorage.getItem("adminViewingAs");
+  // Sync activeMenuItem with current location
+  useEffect(() => {
+    const pathToMenuItem = {
+      "/dashboard": "dashboard",
+      "/wellness-centre": "wellness",
+      "/profile": "profile",
+    };
+    
+    const menuItem = pathToMenuItem[location.pathname] || "dashboard";
+    setActiveMenuItem(menuItem);
+  }, [location.pathname]);
 
   useEffect(() => {
     fetchDashboardData();

@@ -17,6 +17,14 @@ const QuizPage = () => {
   const { quizId } = useParams();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
+  const [flaggedQuestions, setFlaggedQuestions] = useState(() => {
+    try {
+      const saved = localStorage.getItem('flaggedQuestions');
+      return saved ? JSON.parse(saved) : [];
+    } catch (err) {
+      return [];
+    }
+  });
   const [timeOnQuestion, setTimeOnQuestion] = useState(0);
   const [showBulb, setShowBulb] = useState(false);
   const [showEmojiDialog, setShowEmojiDialog] = useState(false);
@@ -231,8 +239,21 @@ const QuizPage = () => {
     setRevealedHints([]);
   }, [currentQuestion]);
 
+  // Persist flagged questions to localStorage
+  useEffect(() => {
+    localStorage.setItem('flaggedQuestions', JSON.stringify(flaggedQuestions));
+  }, [flaggedQuestions]);
+
   const handleAnswerSelect = (optionIndex) => {
     setAnswers({ ...answers, [currentQuestion]: optionIndex });
+  };
+
+  const handleToggleFlag = (index) => {
+    if (flaggedQuestions.includes(index)) {
+      setFlaggedQuestions(flaggedQuestions.filter(q => q !== index));
+    } else {
+      setFlaggedQuestions([...flaggedQuestions, index]);
+    }
   };
 
   const handleBulbClick = () => {
@@ -242,6 +263,9 @@ const QuizPage = () => {
   const handleEmojiClick = (emoji) => {
     if (emoji === "confused" || emoji === "frustrated") {
       setShowHints(true);
+    } else {
+      // For happy, neutral, excited - don't show hints
+      setShowHints(false);
     }
     setShowEmojiDialog(false);
   };
@@ -286,6 +310,7 @@ const QuizPage = () => {
   const matchesFilter = (index) => {
     const answered = answers[index] !== undefined;
     const isCurrent = index === currentQuestion;
+    const isFlagged = flaggedQuestions.includes(index);
 
     if (activeFilter === "all") return true;
     if (activeFilter === "current") return isCurrent;
@@ -294,6 +319,9 @@ const QuizPage = () => {
 
     return true;
   };
+
+  // Count flagged questions
+  const flaggedCount = flaggedQuestions.length;
 
   const handleFilterClick = (filter) => {
     // Always switch to the clicked filter (don't toggle off)
@@ -778,6 +806,7 @@ const QuizPage = () => {
           {quizData.questions.map((_, index) => {
             const answered = answers[index] !== undefined;
             const isCurrent = index === currentQuestion;
+            const isFlagged = flaggedQuestions.includes(index);
             const highlightQuestion = matchesFilter(index);
 
             return (
@@ -786,31 +815,24 @@ const QuizPage = () => {
                 onClick={() => setCurrentQuestion(index)}
                 className={`
                   w-12 h-12 rounded-lg font-semibold flex items-center justify-center transition-all relative
-                  ${
-                    isCurrent && activeFilter === "all"
-                      ? "bg-teal-700 text-white ring-4 ring-teal-300"
-                      : isCurrent && activeFilter !== "all"
-                      ? "bg-teal-700 text-white"
-                      : answered
-                      ? "bg-white text-teal-700 border-2 border-teal-700"
-                      : "bg-white text-gray-400 border-2 border-gray-200"
-                  }
-                  ${
-                    highlightQuestion && !isCurrent && activeFilter !== "all"
-                      ? "bg-teal-50"
-                      : ""
-                  }
-                  ${
-                    !highlightQuestion && activeFilter !== "all"
-                      ? "opacity-40"
-                      : ""
-                  }
+                  ${isCurrent && activeFilter === 'all' ? 'bg-teal-700 text-white ring-4 ring-teal-300' : 
+                    isCurrent && activeFilter !== 'all' ? 'bg-teal-700 text-white' :
+                    answered ? 'bg-white text-teal-700 border-2 border-teal-700' : 
+                    'bg-white text-gray-400 border-2 border-gray-200'}
+                  ${highlightQuestion && !isCurrent && activeFilter !== 'all' ? 'bg-teal-50' : ''}
+                  ${!highlightQuestion && activeFilter !== 'all' ? 'opacity-40' : ''}
+                  ${isFlagged ? 'ring-2 ring-orange-400' : ''}
                 `}
               >
                 {index + 1}
-                {answered && !isCurrent && (
+                {answered && !isCurrent && !isFlagged && (
                   <div className="absolute -top-1 -right-1 bg-teal-700 rounded-full w-4 h-4 flex items-center justify-center">
                     <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                  </div>
+                )}
+                {isFlagged && (
+                  <div className="absolute -top-1 -right-1 bg-orange-500 rounded-full w-4 h-4 flex items-center justify-center">
+                    <Flag className="w-2.5 h-2.5 text-white fill-white" />
                   </div>
                 )}
               </button>
@@ -865,6 +887,22 @@ const QuizPage = () => {
               }`}
             ></div>
             <span className="text-sm text-gray-700">Unanswered</span>
+          </button>
+          <button
+            onClick={() => handleFilterClick('flagged')}
+            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
+              activeFilter === 'flagged' ? 'bg-orange-200' : 'hover:bg-orange-50'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded ${
+              activeFilter === 'flagged' ? 'bg-orange-500' : 'bg-white border-2 border-orange-500'
+            }`}></div>
+            <span className="text-sm text-gray-700">Flagged</span>
+            {flaggedCount > 0 && (
+              <span className="ml-auto text-xs font-bold bg-orange-500 text-white rounded-full px-2 py-0.5">
+                {flaggedCount}
+              </span>
+            )}
           </button>
         </div>
 
@@ -926,9 +964,33 @@ const QuizPage = () => {
               </button>
             )}
 
-            <h2 className="text-xl font-semibold text-gray-800 mb-6">
-              Question {question.id}
-            </h2>
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-800">
+                  Question {question.id}
+                </h2>
+              </div>
+              <button
+                onClick={() => handleToggleFlag(currentQuestion)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors"
+                title={flaggedQuestions.includes(currentQuestion) ? 'Unflag this question' : 'Flag this question for review'}
+              >
+                <Flag
+                  className={`w-5 h-5 transition-colors ${
+                    flaggedQuestions.includes(currentQuestion)
+                      ? 'text-orange-500 fill-orange-500'
+                      : 'text-gray-400 hover:text-orange-500'
+                  }`}
+                />
+                <span className={`text-sm font-medium ${
+                  flaggedQuestions.includes(currentQuestion)
+                    ? 'text-orange-600'
+                    : 'text-gray-600'
+                }`}>
+                  {flaggedQuestions.includes(currentQuestion) ? 'Flagged' : 'Flag'}
+                </span>
+              </button>
+            </div>
             <p className="text-lg text-gray-700 mb-8">{question.text}</p>
 
             {/* Options for MCQ or Text Input for Short Answer */}

@@ -5,6 +5,7 @@ import LogoIcon from '../assets/headerlogo.png';
 const Header = ({ userName, userRole }) => {
   const navigate = useNavigate();
   const [profileImage, setProfileImage] = useState(null);
+  const [displayName, setDisplayName] = useState(userName);
 
   const handleLogout = () => {
     // Show confirmation dialog
@@ -19,18 +20,18 @@ const Header = ({ userName, userRole }) => {
 
   // Load profile image from localStorage and listen for changes
   useEffect(() => {
-    // Use role-specific localStorage key
-    const storageKey = userRole === 'teacher' ? 'teacherProfileImage' : 'studentProfileImage';
-    const eventName = userRole === 'teacher' ? 'teacherProfileImageChanged' : 'studentProfileImageChanged';
-    
+    // Use role-specific localStorage key and event name
+    const storageKey = userRole === 'admin' ? 'adminProfileImage' : (userRole === 'teacher' ? 'teacherProfileImage' : 'studentProfileImage');
+    const eventName = `${storageKey}Changed`;
+
     // Initial load
     const storedImage = localStorage.getItem(storageKey);
     setProfileImage(storedImage);
 
     // Listen for profile image changes (same tab)
     const handleProfileImageChange = (e) => {
-      console.log('Profile image change event received:', e.detail);
-      setProfileImage(e.detail);
+      console.log('Profile image change event received:', e?.detail);
+      setProfileImage(e?.detail);
     };
 
     // Listen for storage changes (cross-tab)
@@ -45,11 +46,38 @@ const Header = ({ userName, userRole }) => {
       window.removeEventListener(eventName, handleProfileImageChange);
       window.removeEventListener('storage', handleStorageChange);
     };
+  }, [userRole]);
+  
+  // Sync displayName with userName prop changes
+  useEffect(() => {
+    if (userName) {
+      console.log('🔄 Header: userName prop changed, syncing displayName:', userName);
+      setDisplayName(userName);
+    }
+  }, [userName]);
+
+  // Listen for name changes
+  useEffect(() => {
+    const handleNameChange = (e) => {
+      console.log('Name change event received:', e?.detail);
+      setDisplayName(e?.detail);
+    };
+    
+    const handleStorageChange = () => {
+      const updatedName = localStorage.getItem('userName');
+      if (updatedName) {
+        console.log('Storage change detected, updating name to:', updatedName);
+        setDisplayName(updatedName);
+      }
+    };
+    
+    window.addEventListener('userNameChanged', handleNameChange);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('userNameChanged', handleNameChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
-  // Read profile image from localStorage so header updates when user changes it
-    typeof window !== 'undefined' ? 
-    (userRole === 'admin' ? localStorage.getItem('adminProfileImage') : localStorage.getItem('profileImage')) 
-    : null;
 
   return (
     <header className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 h-14 z-50">
@@ -105,7 +133,7 @@ const Header = ({ userName, userRole }) => {
               {profileImage ? (
                 <img
                   src={profileImage}
-                  alt={userName || 'User'}
+                  alt={displayName || 'User'}
                   className="w-7 h-7 rounded-full object-cover shadow-sm"
                 />
               ) : (
@@ -114,11 +142,11 @@ const Header = ({ userName, userRole }) => {
                     userRole === "teacher" ? "bg-purple-600" : "bg-blue-600"
                   } rounded-full flex items-center justify-center text-white font-semibold text-xs`}
                 >
-                  {userName?.charAt(0).toUpperCase() || "A"}
+                  {displayName?.charAt(0).toUpperCase() || "A"}
                 </div>
               )}
               <span className="font-medium text-gray-900 text-sm">
-                {userName || "User"}
+                {displayName || "User"}
               </span>
             </div>
           </div>

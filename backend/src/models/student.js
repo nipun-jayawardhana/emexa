@@ -8,10 +8,31 @@ const studentSchema = new mongoose.Schema({
   password: { type: String, required: true, select: false },
   role: { type: String, default: 'student', immutable: true },
   isActive: { type: Boolean, default: true },
+  // Profile image stored as relative path (e.g. /uploads/profiles/xxx.jpg)
+  profileImage: { type: String, default: null },
   // Student-specific fields
   studentId: { type: String, unique: true, sparse: true },
   grade: { type: String },
   enrolledCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
+  
+  //  Notification settings
+  notificationSettings: {
+    emailNotifications: { type: Boolean, default: true },
+    smsNotifications: { type: Boolean, default: false },
+    inAppNotifications: { type: Boolean, default: true }
+  },
+  
+  //  Privacy settings
+  privacySettings: {
+    emotionDataConsent: { type: Boolean, default: true }
+  },
+  
+  //  Profile data fields (optional but useful)
+  recentActivity: { type: Array, default: [] },
+  totalQuizzes: { type: Number, default: 0 },
+  averageScore: { type: Number, default: 0 },
+  studyTime: { type: Number, default: 0 },
+  upcomingQuizzes: { type: Array, default: [] }
 }, { timestamps: true });
 
 // Hash password before saving

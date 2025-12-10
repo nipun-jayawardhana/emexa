@@ -1,5 +1,5 @@
 // frontend/src/pages/TeacherDashboard.jsx
-// COMPLETE VERSION with all graphs and student overview
+// FIXED VERSION - Resets to dashboard when admin views
 
 import React, { useState, useEffect } from "react";
 import AdminViewWrapper from "../components/AdminViewWrapper";
@@ -11,12 +11,28 @@ import TeacherQuizDraft from "./TeacherQuizDraft";
 import TeacherProfile from "./TeacherProfile";
 
 const TeacherDashboard = () => {
-  const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
+  // FIXED: Reset to dashboard when admin is viewing
+  const adminToken = localStorage.getItem("adminToken");
+  const isAdminViewing = localStorage.getItem("adminViewingAs");
+  
+  const [activeMenuItem, setActiveMenuItem] = useState(() => {
+    // If admin is viewing, always start with dashboard
+    if (isAdminViewing && adminToken) {
+      return "dashboard";
+    }
+    // Load from localStorage if available, otherwise default to "dashboard"
+    return localStorage.getItem("teacherActiveMenuItem") || "dashboard";
+  });
+  
   const [userName, setUserName] = useState("");
   const [editingDraftId, setEditingDraftId] = useState(null);
 
-  const adminToken = localStorage.getItem("adminToken");
-  const isAdminViewing = localStorage.getItem("adminViewingAs");
+  // Save activeMenuItem to localStorage whenever it changes (but not for admin viewing)
+  useEffect(() => {
+    if (!isAdminViewing || !adminToken) {
+      localStorage.setItem("teacherActiveMenuItem", activeMenuItem);
+    }
+  }, [activeMenuItem, isAdminViewing, adminToken]);
 
   useEffect(() => {
     const storedUserName = localStorage.getItem("userName");
@@ -28,17 +44,14 @@ const TeacherDashboard = () => {
   // Clear editingDraftId when navigating to create-quiz without coming from draft
   useEffect(() => {
     if (activeMenuItem === "create-quiz" && !editingDraftId) {
-      // User navigated to create-quiz directly (not from "Continue Editing")
-      // editingDraftId should already be null, but ensure it
       setEditingDraftId(null);
     } else if (
       activeMenuItem !== "create-quiz" &&
       activeMenuItem !== "quiz-drafts"
     ) {
-      // Clear editingDraftId when navigating away from quiz-related pages
       setEditingDraftId(null);
     }
-  }, [activeMenuItem]);
+  }, [activeMenuItem, editingDraftId]);
 
   const teacherMenuItems = [
     {
@@ -633,21 +646,6 @@ const DashboardContent = () => {
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-};
-
-// Profile Content Component
-const ProfileContent = () => {
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Profile</h1>
-      <p className="text-gray-600 mb-6">
-        Manage your account settings and preferences
-      </p>
-      <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
-        <p className="text-gray-600">Profile settings coming soon...</p>
       </div>
     </div>
   );
