@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import axios from 'axios';
 import { Camera, Eye, EyeOff } from "lucide-react";
+import Header from "../components/headerorigin";
 import tProfile from "../assets/t-profile.png";
 import jsPDF from "jspdf";
 
@@ -13,8 +15,17 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     role: ""
   });
 
+  const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef(null);
+
+  // Settings toggles
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [smsNotifications, setSmsNotifications] = useState(false);
+  const [inAppNotifications, setInAppNotifications] = useState(true);
+  const [emotionConsent, setEmotionConsent] = useState(true);
+  const [settingsLoading, setSettingsLoading] = useState(false);
 
   // Load user data from localStorage
   useEffect(() => {
@@ -56,6 +67,56 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     }
   }, []);
 
+  // Fetch teacher profile from server and sync profileImage from Cloudinary + Settings
+  useEffect(() => {
+    const fetchTeacherProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        // Use relative URL for multi-device compatibility
+        const response = await axios.get('/api/users/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data?.profileImage) {
+          // Cloudinary URL is already a full HTTPS URL
+          const cloudinaryUrl = response.data.profileImage;
+          setAvatarUrl(cloudinaryUrl);
+          
+          // Update localStorage with Cloudinary URL
+          localStorage.setItem('teacherProfileImage', cloudinaryUrl);
+          
+          console.log('✅ Loaded profile image from Cloudinary:', cloudinaryUrl);
+        }
+
+        // 🆕 Sync settings from server
+        if (response.data?.data?.settings) {
+          const serverSettings = response.data.data.settings;
+          console.log('✅ Loaded settings from server:', serverSettings);
+          
+          setEmailNotifications(serverSettings.emailNotifications ?? true);
+          setSmsNotifications(serverSettings.smsNotifications ?? false);
+          setInAppNotifications(serverSettings.inAppNotifications ?? true);
+          setEmotionConsent(serverSettings.emotionConsent ?? true);
+          
+          // Update localStorage
+          localStorage.setItem('profileSettings', JSON.stringify(serverSettings));
+        }
+      } catch (err) {
+        console.warn('Failed to fetch teacher profile:', err?.response?.data || err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTeacherProfile();
+  }, []);
+
+
   const handleAvatarClick = () => {
     if (fileInputRef.current) fileInputRef.current.click();
   };
@@ -63,13 +124,73 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
   const handleAvatarChange = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+
+    // Basic validation
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size should be less than 5MB');
+      e.target.value = '';
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      e.target.value = '';
+      return;
+    }
+
+    // Optimistically show preview using FileReader
     const reader = new FileReader();
     reader.onload = (evt) => {
       const dataUrl = evt.target.result;
       setAvatarUrl(dataUrl);
-      // Don't save to localStorage yet - wait for Save Changes button
     };
     reader.readAsDataURL(file);
+
+    // Upload to Cloudinary via backend
+    const upload = async () => {
+      try {
+        const formData = new FormData();
+        formData.append('profile', file);
+        const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+        
+        const res = await axios.post('/api/teacher/upload-profile', formData, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : undefined,
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+         
+        const cloudinaryUrl = res.data?.profileImage;
+        if (cloudinaryUrl) {
+          setAvatarUrl(cloudinaryUrl);
+          localStorage.setItem('teacherProfileImage', cloudinaryUrl);
+          window.dispatchEvent(new CustomEvent('teacherProfileImageChanged', { detail: cloudinaryUrl }));
+          
+          alert('Profile picture updated successfully!');
+          
+          try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get('/api/users/profile', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (response.data?.profileImage) {
+              setAvatarUrl(response.data.profileImage);
+              localStorage.setItem('teacherProfileImage', response.data.profileImage);
+            }
+          } catch (refetchErr) {
+            console.warn('Refetch failed:', refetchErr.message);
+          }
+        }
+      } catch (err) {
+        console.error('Upload failed:', err?.response?.data || err.message);
+        alert('Failed to upload profile picture. Please try again.');
+        const storedImage = localStorage.getItem('teacherProfileImage');
+        if (storedImage) {
+          setAvatarUrl(storedImage);
+        }
+      }
+    };
+
+    upload();
     e.target.value = '';
   };
 
@@ -77,28 +198,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
   const [changePwdData, setChangePwdData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
 
-  // Settings toggles
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [smsNotifications, setSmsNotifications] = useState(false);
-  const [inAppNotifications, setInAppNotifications] = useState(true);
-  const [emotionConsent, setEmotionConsent] = useState(true);
-
-  // Load settings from localStorage
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("profileSettings");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setEmailNotifications(!!parsed.emailNotifications);
-        setSmsNotifications(!!parsed.smsNotifications);
-        setInAppNotifications(!!parsed.inAppNotifications);
-      }
-    } catch (e) {
-      // ignore
-    }
-  }, []);
-
-  const userName = formData.fullName ? formData.fullName.split(" ")[0] : "";
+  const userName = displayName || formData.fullName ? (displayName || formData.fullName).split(" ")[0] : "";
   const userRole = (formData.role || "").toLowerCase();
   const tabs = ["Account Info", "Settings", "Activity", "Privacy & Data"];
 
@@ -142,54 +242,62 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       ...prev,
       [name]: newValue
     }));
+
+    if (name === "fullName" && newValue.trim()) {
+      setDisplayName(newValue);
+      localStorage.setItem('userName', newValue);
+      const event = new CustomEvent('userNameChanged', { detail: newValue });
+      window.dispatchEvent(event);
+      console.log('✅ Name change dispatched:', newValue);
+    }
   };
 
   const handleUpdateProfile = async () => {
     if (!formData.fullName || formData.fullName.trim() === '') {
-    alert('Name cannot be empty');
-    return;
-  }
-
-  try {
-    const token = localStorage.getItem('token');
-    
-    const response = await fetch('http://localhost:5000/api/teacher/update-name', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ name: formData.fullName })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      alert(data.message || 'Failed to update profile');
+      alert('Name cannot be empty');
       return;
     }
 
-    // Update localStorage with new name
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const parsed = JSON.parse(storedUser);
-      parsed.name = data.data.name;
-      parsed.fullName = data.data.name;
-      localStorage.setItem('user', JSON.stringify(parsed));
-    }
+    try {
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch('/api/teacher/update-name', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: formData.fullName })
+      });
 
-    // Save avatar to localStorage and trigger header update
-    if (avatarUrl) {
-      localStorage.setItem('teacherProfileImage', avatarUrl);
-      window.dispatchEvent(new CustomEvent('teacherProfileImageChanged', { detail: avatarUrl }));
-      console.log('Teacher profile image updated and event dispatched');
-    }
+      const data = await response.json();
 
-    alert('Changes saved successfully!');
-  } catch (error) {
-    console.error('Save changes error:', error);
-    alert('Failed to save changes. Please try again.');
-  }
+      if (!response.ok) {
+        alert(data.message || 'Failed to update profile');
+        return;
+      }
+
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        parsed.name = data.data.name;
+        parsed.fullName = data.data.name;
+        localStorage.setItem('user', JSON.stringify(parsed));
+      }
+      
+      localStorage.setItem('userName', formData.fullName);
+      window.dispatchEvent(new CustomEvent('userNameChanged', { detail: formData.fullName }));
+
+      if (avatarUrl) {
+        window.dispatchEvent(new CustomEvent('teacherProfileImageChanged', { detail: avatarUrl }));
+        console.log('✅ Teacher profile updated with Cloudinary image:', avatarUrl);
+      }
+
+      alert('Changes saved successfully!');
+    } catch (error) {
+      console.error('Save changes error:', error);
+      alert('Failed to save changes. Please try again.');
+    }
   }
 
   const handleSubmitChangePassword = async () => {
@@ -213,7 +321,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     try {
       const token = localStorage.getItem('token');
       
-      const response = await fetch('http://localhost:5000/api/teacher/change-password', {
+      const response = await fetch('/api/teacher/change-password', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -237,29 +345,71 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
     }
   };
 
-  const handleSaveChanges = () => {
-    console.log("Saving changes:", formData);
-    alert("Changes saved successfully!");
+  // 🆕 FIXED: Save settings to server AND localStorage
+  const handleSaveSettings = async () => {
+    const payload = { 
+      emailNotifications, 
+      smsNotifications, 
+      inAppNotifications 
+    };
+    
+    setSettingsLoading(true);
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      const response = await axios.put('/api/teacher/settings', payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.data?.success) {
+        // Update localStorage after successful server save
+        localStorage.setItem('profileSettings', JSON.stringify(payload));
+        console.log('✅ Settings saved to server and localStorage:', payload);
+        alert('Settings saved successfully!');
+      }
+    } catch (err) {
+      console.error('❌ Failed to save settings:', err?.response?.data || err.message);
+      
+      // Fallback to localStorage if server fails
+      localStorage.setItem('profileSettings', JSON.stringify(payload));
+      alert('Saved locally. Server error: ' + (err?.response?.data?.message || err.message));
+    } finally {
+      setSettingsLoading(false);
+    }
   };
 
-  const handleSaveSettings = async () => {
-    const payload = { emailNotifications, smsNotifications, inAppNotifications };
+  // 🆕 FIXED: Save privacy settings to server
+  const handleSavePrivacySettings = async () => {
+    const payload = { emotionConsent };
+    
+    setSettingsLoading(true);
+    
     try {
-      const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
-      const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
-      if (isLocal) {
-        localStorage.setItem('profileSettings', JSON.stringify(payload));
-        alert('Saved locally');
-        return;
-      }
+      const token = localStorage.getItem('token');
+      
+      const response = await axios.put('/api/teacher/settings', payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-      const data = await putJSON('/users/profile/settings', payload);
-      localStorage.setItem('profileSettings', JSON.stringify(payload));
-      alert('Settings saved');
+      if (response.data?.success) {
+        localStorage.setItem('privacySettings', JSON.stringify(payload));
+        console.log('✅ Privacy settings saved to server and localStorage:', payload);
+        alert('Privacy settings saved successfully!');
+      }
     } catch (err) {
-      localStorage.setItem('profileSettings', JSON.stringify(payload));
-      const msg = err?.message || (err?.body && err.body.message) || 'Server error';
-      alert('Saved locally. Server error: ' + msg);
+      console.error('❌ Failed to save privacy settings:', err?.response?.data || err.message);
+      
+      localStorage.setItem('privacySettings', JSON.stringify(payload));
+      alert('Saved locally. Server error: ' + (err?.response?.data?.message || err.message));
+    } finally {
+      setSettingsLoading(false);
     }
   };
 
@@ -297,18 +447,15 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       const pageHeight = doc.internal.pageSize.getHeight();
       let yPosition = 20;
 
-      // Header with background
-      doc.setFillColor(189, 242, 209); // #BDF2D1
+      doc.setFillColor(189, 242, 209);
       doc.rect(0, 0, pageWidth, 40, 'F');
       
-      // Title
       doc.setFontSize(22);
       doc.setTextColor(0, 0, 0);
       doc.text('Personal Data Export', pageWidth / 2, 25, { align: 'center' });
       
       yPosition = 50;
 
-      // Export Information
       doc.setFontSize(10);
       doc.setTextColor(100, 100, 100);
       const exportDate = new Date().toLocaleString('en-US', {
@@ -321,7 +468,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       doc.text(`Export Date: ${exportDate}`, 20, yPosition);
       yPosition += 15;
 
-      // Profile Information Section
       doc.setFillColor(240, 240, 240);
       doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
       doc.setFontSize(14);
@@ -338,7 +484,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       doc.text(`Role: ${formData.role || 'Not provided'}`, 20, yPosition);
       yPosition += 15;
 
-      // Notification Settings Section
       doc.setFillColor(240, 240, 240);
       doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
       doc.setFontSize(14);
@@ -355,7 +500,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       doc.text(`In-App Notifications: ${inAppNotifications ? 'Enabled' : 'Disabled'}`, 20, yPosition);
       yPosition += 15;
 
-      // Privacy Settings Section
       doc.setFillColor(240, 240, 240);
       doc.rect(15, yPosition, pageWidth - 30, 10, 'F');
       doc.setFontSize(14);
@@ -368,7 +512,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       doc.text(`Emotion Detection Consent: ${emotionConsent ? 'Granted' : 'Not Granted'}`, 20, yPosition);
       yPosition += 15;
 
-      // Activity History Section
       if (yPosition > pageHeight - 40) {
         doc.addPage();
         yPosition = 20;
@@ -391,13 +534,11 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       yPosition += 8;
       doc.text('Last Login: ' + new Date().toLocaleString(), 20, yPosition);
 
-      // Footer
       doc.setFontSize(9);
       doc.setTextColor(150, 150, 150);
       doc.text('This document contains your personal data as stored in our system.', pageWidth / 2, pageHeight - 15, { align: 'center' });
       doc.text('Generated by Emexa Platform', pageWidth / 2, pageHeight - 10, { align: 'center' });
 
-      // Save PDF
       const fileName = `personal-data-${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
       
@@ -423,9 +564,40 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       }
     : undefined;
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-full max-w-4xl mx-auto px-6 py-12">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
+            <div className="bg-gradient-to-r from-blue-400 to-blue-600 h-24"></div>
+            <div className="p-6 -mt-12 relative z-10">
+              <div className="flex items-end gap-4">
+                <div className="w-24 h-24 bg-gray-300 rounded-full animate-pulse border-4 border-white shadow-lg"></div>
+                <div className="flex-1 pb-2">
+                  <div className="h-6 bg-gray-300 rounded w-48 animate-pulse mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="space-y-3">
+                <div className="h-4 bg-gray-300 rounded w-32 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-6 text-center text-gray-500 text-sm">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50" style={frame ? { display: "flex", alignItems: "center", justifyContent: "center", background: "transparent" } : undefined}>
-      {/* Hidden file input for avatar upload */}
       <input
         ref={fileInputRef}
         type="file"
@@ -433,54 +605,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         onChange={handleAvatarChange}
         style={{ display: 'none' }}
       />
-      {/* Header */}
-      {!isEmbedded && (
-        <header className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 h-14 z-50">
-          <div className="h-full flex items-center justify-between px-6">
-            {/* Logo */}
-            <div className="flex items-center space-x-2">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-yellow-100 rounded flex items-center justify-center">
-                  <svg className="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                  </svg>
-                </div>
-                <span className="font-semibold text-gray-800">EMEKA</span>
-              </div>
-            </div>
+      {!isEmbedded && <Header userName={formData.fullName || displayName} userRole="teacher" />}
 
-            {/* Right side icons */}
-            <div className="flex items-center space-x-1">
-              {/* Notifications */}
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-              </button>
-
-              {/* Help */}
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-
-              {/* User Profile */}
-              <div className="flex items-center space-x-2 hover:bg-gray-100 px-2 py-1.5 rounded-lg transition ml-1">
-                <div className={`w-7 h-7 ${userRole === "teacher" ? "bg-purple-600" : "bg-blue-600"} rounded-full flex items-center justify-center text-white font-semibold text-xs`}>
-                  {userName ? userName.charAt(0).toUpperCase() : ""}
-                </div>
-                <span className="font-medium text-gray-900 text-sm">{userName || ""}</span>
-              </div>
-            </div>
-          </div>
-        </header>
-      )}
-
-      {/* Sidebar */}
       {!isEmbedded && (
         <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-[#bdf2d1] border-r border-gray-200 overflow-y-auto">
-        {/* Menu Items */}
         <nav className="pt-4 px-3 space-y-2">
           {menuItems.map((item) => (
             <button
@@ -498,7 +626,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
           ))}
         </nav>
 
-        {/* Logout Button */}
         <button
           onClick={handleLogoutClick}
           className="absolute bottom-4 left-3 right-3 flex items-center space-x-2.5 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition text-sm"
@@ -511,7 +638,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         </div>
       )}
 
-      {/* Logout Confirmation Modal (only when not embedded) */}
       {!isEmbedded && showLogoutModal && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-9999 p-4"
@@ -555,7 +681,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         </div>
       )}
 
-      {/* Change Password Modal */}
       {showChangePassword && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10000 p-6"
@@ -659,13 +784,10 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
         </div>
       )}
 
-      {/* Main Content */}
       {!isEmbedded ? (
-        <div className="mt-4 p-6">
+        <div className="mt-16 p-6">
           <div className="w-full mx-auto">
-          {/* Profile Header Card */}
           <div className="rounded-t-2xl p-8 relative" style={{ minHeight: 150, background: 'linear-gradient(90deg, #7FEBCB 0%, #19765A 100%)' }}>
-            {/* Combined centered block: avatar + text, split 50% across header divider */}
             <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 16, padding: '8px 12px' }}>
               <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
                 <img
@@ -687,10 +809,8 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
             </div>
           </div>
 
-          {/* White spacer matching green header height (separates gradient and tabs) */}
           <div className="bg-white" style={{ height: 48 }} />
 
-          {/* Form Content */}
           <div className="bg-white rounded-b-2xl p-8 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">Account Information</h2>
 
@@ -699,9 +819,7 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                 <>
                   <div className="max-w-4xl mx-auto">
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible flex flex-col justify-between" style={{ width: 612.44, minHeight: 220, position: 'relative' }}>
-                      {/* main container: fixed 803x216 */}
                       <div className="bg-linear-to-r from-emerald-400 to-teal-500 px-6 py-3 relative" style={{ height: 88 }}>
-                        {/* Combined centered block inside inner account container */}
                         <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px' }}>
                           <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
                             <img
@@ -722,7 +840,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                         </div>
                       </div>
 
-                      {/* Replace fixed spacer + absolute tabs with flex-based footer */}
                       <div className="flex-1 flex items-end">
                         <div className="w-full px-4" style={{ paddingBottom: 50 }}>
                           <div className="flex justify-start gap-16">
@@ -745,7 +862,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                     </div>
                   </div>
 
-                  {/* Role */}
                   <div className="max-w-[calc(50%-12px)]">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Role
@@ -759,7 +875,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                     />
                   </div>
 
-                  {/* Change Password Section */}
                   <div className="pt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
                       Change Password
@@ -773,7 +888,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                     </button>
                   </div>
 
-                  {/* Save Button */}
                   <div className="pt-6">
                     <button
                       onClick={handleUpdateProfile}
@@ -846,10 +960,23 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                       <button
                         type="button"
                         onClick={handleSaveSettings}
-                        className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                        disabled={settingsLoading}
+                        className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                        <span className="text-sm">Save Changes</span>
+                        {settingsLoading ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span className="text-sm">Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                            <span className="text-sm">Save Changes</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -983,27 +1110,24 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
 
                         <button
                           type="button"
-                          onClick={async () => {
-                            try {
-                              const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
-                              const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
-                              const payload = { emotionConsent };
-                              if (isLocal) {
-                                localStorage.setItem('privacySettings', JSON.stringify(payload));
-                                alert('Privacy settings saved locally');
-                                return;
-                              }
-                              localStorage.setItem('privacySettings', JSON.stringify(payload));
-                              alert('Privacy settings saved');
-                            } catch (err) {
-                              localStorage.setItem('privacySettings', JSON.stringify({ emotionConsent }));
-                              alert('Saved locally. Server error.');
-                            }
-                          }}
-                          className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 shadow"
+                          onClick={handleSavePrivacySettings}
+                          disabled={settingsLoading}
+                          className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 shadow disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                          <span>Save Privacy Settings</span>
+                          {settingsLoading ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span>Saving...</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                              <span>Save Privacy Settings</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -1017,10 +1141,9 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
       ) : (
         <div className="p-6" style={frameStyle ? { width: frameStyle.width, height: frameStyle.height, transform: frameStyle.transform, opacity: frameStyle.opacity } : undefined}>
           <div className="max-w-4xl mx-auto" style={frame ? { height: '100%', overflow: 'auto' } : undefined}>
+            {/* Embedded view - similar structure but more compact */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              {/* large gradient header area */}
               <div className="relative bg-linear-to-r from-emerald-400 to-teal-500 rounded-t-2xl" style={{ height: 120 }}>
-                    {/* Combined centered block for embedded/frame header (text stays white here) */}
                     <div style={{ position: 'absolute', left: 16, bottom: -60, display: 'flex', alignItems: 'center', gap: 12, padding: '6px 10px' }}>
                           <div style={{ position: 'relative', width: 96, height: 96, borderRadius: '9999px', padding: 4, background: 'transparent' }}>
                             <img
@@ -1040,7 +1163,6 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                 </div>
               </div>
 
-              {/* Tabs below header */}
               <div className="px-6 pt-25" style={{ height: 88, paddingBottom: 50 }}>
                 <div className="flex items-center space-x-16 border-b border-gray-100">
                   {tabs.map((tab) => (
@@ -1059,15 +1181,12 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                 </div>
               </div>
 
-              {/* Form Content: render according to active tab */}
               <div className="p-6" style={{ minHeight: 220 }}>
-                {activeTab === "Account Info" ? (
+                {activeTab === "Account Info" && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Full Name
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
                         <input
                           type="text"
                           name="fullName"
@@ -1077,28 +1196,22 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Email Address
-                        </label>
-                        <button type="button" disabled aria-disabled="true" className="w-full text-left px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700 cursor-not-allowed">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                        <button type="button" disabled className="w-full text-left px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700 cursor-not-allowed">
                           {formData.email}
                         </button>
                       </div>
                     </div>
 
                     <div className="max-w-[calc(50%-12px)]">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Role
-                      </label>
-                      <button type="button" disabled aria-disabled="true" className="w-full text-left px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700 cursor-not-allowed">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                      <button type="button" disabled className="w-full text-left px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700 cursor-not-allowed">
                         {formData.role}
                       </button>
                     </div>
 
                     <div className="pt-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-3">
-                        Change Password
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-3">Change Password</label>
                       <button 
                         type="button"
                         onClick={handleChangePassword}
@@ -1120,228 +1233,138 @@ const TeacherProfile = ({ embedded = false, frame = null }) => {
                       </button>
                     </div>
                   </div>
-                ) : activeTab === "Settings" ? (
+                )}
+                
+                {activeTab === "Settings" && (
                   <div className="max-w-4xl mx-auto">
                     <h3 className="text-lg font-semibold mb-4">Notification Preferences</h3>
-
-                  <div className="flex-1 flex flex-col justify-between gap-8">
-                    <div className="flex items-center justify-between py-4">
-                      <div>
-                        <p className="font-medium">Email Notifications</p>
-                        <p className="text-sm text-gray-500">Receive notifications via email</p>
-                      </div>
-                      <div>
+                    <div className="flex-1 flex flex-col justify-between gap-8">
+                      <div className="flex items-center justify-between py-4">
+                        <div>
+                          <p className="font-medium">Email Notifications</p>
+                          <p className="text-sm text-gray-500">Receive notifications via email</p>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => setEmailNotifications((s) => !s)}
-                          className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${emailNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
-                          aria-pressed={emailNotifications}
+                          onClick={() => setEmailNotifications(s => !s)}
+                          className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${emailNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
                         >
                           <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${emailNotifications ? 'translate-x-6' : 'translate-x-0'}`} />
                         </button>
                       </div>
-                    </div>
 
-                    <div className="flex items-center justify-between py-4">
-                      <div>
-                        <p className="font-medium">SMS Notifications</p>
-                        <p className="text-sm text-gray-500">Receive notifications via text message</p>
-                      </div>
-                      <div>
+                      <div className="flex items-center justify-between py-4">
+                        <div>
+                          <p className="font-medium">SMS Notifications</p>
+                          <p className="text-sm text-gray-500">Receive notifications via text message</p>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => setSmsNotifications((s) => !s)}
-                          className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${smsNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
-                          aria-pressed={smsNotifications}
+                          onClick={() => setSmsNotifications(s => !s)}
+                          className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${smsNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
                         >
                           <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${smsNotifications ? 'translate-x-6' : 'translate-x-0'}`} />
                         </button>
                       </div>
-                    </div>
 
-                    <div className="flex items-center justify-between py-4">
-                      <div>
-                        <p className="font-medium">In-App Notifications</p>
-                        <p className="text-sm text-gray-500">Receive notifications in the application</p>
-                      </div>
-                      <div>
+                      <div className="flex items-center justify-between py-4">
+                        <div>
+                          <p className="font-medium">In-App Notifications</p>
+                          <p className="text-sm text-gray-500">Receive notifications in the application</p>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => setInAppNotifications((s) => !s)}
-                          className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${inAppNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
-                          aria-pressed={inAppNotifications}
+                          onClick={() => setInAppNotifications(s => !s)}
+                          className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${inAppNotifications ? 'bg-green-600' : 'bg-gray-400'}`}
                         >
                           <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${inAppNotifications ? 'translate-x-6' : 'translate-x-0'}`} />
                         </button>
                       </div>
-                    </div>
 
-                    <div className="pt-2">
-                      <button
-                        type="button"
-                        onClick={handleSaveSettings}
-                        className="inline-flex items-center gap-3 px-5 py-3 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                        <span className="text-sm">Save Changes</span>
-                      </button>
-                    </div>
-                  </div>
-                  </div>
-                ) : activeTab === "Activity" ? (
-                  <div>
-                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                      <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
-
-                      <div className="space-y-3">
-                        {[{
-                          title: 'Algebra Fundamentals', date: 'May 15, 2023', duration: '01 Hour', status: 'Average', statusColor: 'bg-blue-100 text-blue-700'
-                        },{
-                          title: 'Geometry Basics', date: 'May 12, 2023', duration: '01 Hour', status: 'Good', statusColor: 'bg-green-100 text-green-700'
-                        },{
-                          title: 'Calculus Introduction', date: 'May 10, 2023', duration: '02 Hours', status: 'Weak', statusColor: 'bg-yellow-100 text-yellow-700'
-                        },{
-                          title: 'Statistics Fundamentals', date: 'May 5, 2023', duration: '01 Hour', status: 'Average', statusColor: 'bg-blue-100 text-blue-700'
-                        },{
-                          title: 'Probability Theory', date: 'May 3, 2023', duration: '02 Hours', status: 'Good', statusColor: 'bg-green-100 text-green-700'
-                        }].map((item, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-4 rounded-lg border border-gray-50 hover:shadow-sm">
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 bg-emerald-50 rounded flex items-center justify-center text-emerald-600">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6" /></svg>
-                              </div>
-                              <div>
-                                <a href="#" className="font-medium text-gray-800 hover:underline">{item.title}</a>
-                                <div className="text-xs text-gray-500">{item.date} • {item.duration}</div>
-                              </div>
-                            </div>
-                            <div>
-                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${item.statusColor}`}>{item.status}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-6 items-start">
-                      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col" style={{ minHeight: 550 }}>
-                        <div className="flex items-start justify-between mb-3">
-                          <h4 className="text-base font-semibold text-gray-800">Class Average</h4>
-                          <div className="text-sm bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">87.2%</div>
-                        </div>
-
-                        <div className="flex-1 flex flex-col justify-between">
-                          {[{label:'Algebra Fundamentals', pct:85,color:'bg-blue-500'},{label:'Geometry Basics', pct:92,color:'bg-green-500'},{label:'Calculus Introduction', pct:78,color:'bg-yellow-400'},{label:'Statistics Fundamentals', pct:88,color:'bg-blue-500'},{label:'Probability Theory', pct:95,color:'bg-emerald-500'}].map((c,i)=> (
-                            <div key={i} className="flex flex-col">
-                              <div className="flex items-center justify-between text-sm text-gray-700">
-                                <span className="truncate">{c.label}</span>
-                                <span className="font-semibold text-sm">{c.pct}%</span>
-                              </div>
-                              <div className="w-full bg-gray-100 rounded-full h-3 mt-2">
-                                <div className={`h-3 rounded-full ${c.color}`} style={{ width: `${c.pct}%` }} />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col" style={{ minHeight: 550 }}>
-                        <h4 className="text-base font-semibold text-gray-800">Top Performing Students</h4>
-                        <div className="mt-4 flex-1 flex flex-col justify-between divide-y divide-gray-100 overflow-hidden">
-                          {[{name:'Alex Johnson', score:'97%'},{name:'Jamie Smith', score:'95%'},{name:'Taylor Brown', score:'93%'}].map((s,i)=>(
-                            <div key={i} className="flex items-center gap-6 py-4 cursor-pointer hover:bg-gray-50 rounded-md px-3">
-                              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 font-semibold text-lg">{s.name.split(' ').map(n=>n[0]).slice(0,2).join('')}</div>
-                              <div className="flex-1">
-                                <div className="text-base font-semibold text-gray-900">{s.name}</div>
-                                <div className="text-sm text-gray-500 mt-1">{s.score} across 5 subjects</div>
-                              </div>
-                              <div className="text-base text-gray-600 font-semibold">{s.score}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between" style={{ minHeight: 550 }}>
-                        <h4 className="text-base font-semibold text-gray-800">Recent Submissions</h4>
-                        <div className="mt-4 flex-1 flex flex-col justify-between divide-y divide-gray-100 text-sm text-gray-700 overflow-hidden">
-                          {[{student:'Casey Williams', item:'Calculus Quiz 3', date:'May 16, 2023', score:'88', color:'text-blue-600'},{student:'Jordan Lee', item:'Statistics Homework', date:'May 15, 2023', score:'92', color:'text-green-600'},{student:'Riley Garcia', item:'Algebra Test', date:'May 15, 2023', score:'78', color:'text-yellow-500'}].map((r,i)=>(
-                            <div key={i} className="flex items-center justify-between py-4 cursor-pointer hover:bg-gray-50 rounded-md px-3">
-                              <div>
-                                <div className="font-semibold text-base">{r.student}</div>
-                                <div className="text-sm text-gray-500">{r.item} • {r.date}</div>
-                              </div>
-                              <div className={`text-lg font-semibold ${r.color}`}>{r.score}%</div>
-                            </div>
-                          ))}
-                        </div>
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={handleSaveSettings}
+                          disabled={settingsLoading}
+                          className="inline-flex items-center gap-3 px-5 py-3 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow disabled:opacity-50"
+                        >
+                          {settingsLoading ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span className="text-sm">Saving...</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                              <span className="text-sm">Save Changes</span>
+                            </>
+                          )}
+                        </button>
                       </div>
                     </div>
                   </div>
-                ) : (
+                )}
+
+                {activeTab === "Privacy & Data" && (
                   <div className="max-w-4xl mx-auto">
                     <h3 className="text-lg font-semibold mb-4">Privacy & Data</h3>
-
-                      <div className="flex flex-col gap-8">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">Emotion Data Consent</h4>
-                          <div className="mt-3 flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-gray-500">Allow the application to collect and analyze emotional data during quiz sessions to improve teaching experience.</p>
-                              <a href="#" className="text-sm text-emerald-600 font-medium mt-3 inline-block">Read our privacy policy</a>
-                            </div>
-                            <div>
-                              <button
-                                type="button"
-                                onClick={() => setEmotionConsent((v) => !v)}
-                                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${emotionConsent ? 'bg-emerald-600' : 'bg-gray-300'}`}
-                                aria-pressed={emotionConsent}
-                              >
-                                <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${emotionConsent ? 'translate-x-5' : 'translate-x-0'}`} />
-                              </button>
-                            </div>
+                    <div className="flex flex-col gap-8">
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900">Emotion Data Consent</h4>
+                        <div className="mt-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-500">Allow the application to collect and analyze emotional data during quiz sessions.</p>
+                            <a href="#" className="text-sm text-emerald-600 font-medium mt-3 inline-block">Read our privacy policy</a>
                           </div>
-                        </div>
-
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">Export Your Data</h4>
-                          <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
-
-                          <div className="mt-6 flex flex-col items-start gap-4">
-                            <button 
-                              onClick={handleExportData}
-                              className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
-                              <span className="text-sm">Export All Data</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  const hostname = typeof window !== 'undefined' && window.location && window.location.hostname ? window.location.hostname : '';
-                                  const isLocal = /localhost|127\.0\.0\.1/.test(hostname);
-                                  const payload = { emotionConsent };
-                                  if (isLocal) {
-                                    localStorage.setItem('privacySettings', JSON.stringify(payload));
-                                    alert('Privacy settings saved locally');
-                                    return;
-                                  }
-                                  localStorage.setItem('privacySettings', JSON.stringify(payload));
-                                  alert('Privacy settings saved');
-                                } catch (err) {
-                                  localStorage.setItem('privacySettings', JSON.stringify({ emotionConsent }));
-                                  alert('Saved locally. Server error.');
-                                }
-                              }}
-                              className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 shadow"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                              <span>Save Privacy Settings</span>
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEmotionConsent(v => !v)}
+                            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${emotionConsent ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                          >
+                            <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${emotionConsent ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </button>
                         </div>
                       </div>
+
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900">Export Your Data</h4>
+                        <p className="text-sm text-gray-500 mt-2">Download a copy of your personal data and activity history.</p>
+                        <div className="mt-6 flex flex-col items-start gap-4">
+                          <button 
+                            onClick={handleExportData}
+                            className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-[#19765A] text-white hover:bg-[#165e4f] shadow"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v13m0 0l-4-4m4 4l4-4M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6"/></svg>
+                            <span className="text-sm">Export All Data</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleSavePrivacySettings}
+                            disabled={settingsLoading}
+                            className="inline-flex items-center gap-3 px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 shadow disabled:opacity-50"
+                          >
+                            {settingsLoading ? (
+                              <>
+                                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Saving...</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                                <span>Save Privacy Settings</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

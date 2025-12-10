@@ -1,10 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Eye, EyeOff } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/sidebarorigin';
 import Header from '../components/headerorigin';
 import AdminViewWrapper from '../components/AdminViewWrapper';
+
+
+// Helper function to get full image URL - ADDED for multi-device support
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return "https://via.placeholder.com/120";
+  
+  // If it's already a full URL, return as is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  
+  // If it's a relative path, construct full URL
+  if (imagePath.startsWith('/uploads/')) {
+    return `http://localhost:5000${imagePath}`;
+  }
+  
+  return imagePath;
+};
 
 // Separate Password Modal Component to prevent re-renders
 const PasswordModal = ({ isOpen, onClose, onSave }) => {
@@ -134,6 +152,7 @@ const PasswordModal = ({ isOpen, onClose, onSave }) => {
 
 const Profile = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [activeTab, setActiveTab] = useState('account');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -141,6 +160,13 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [activeMenuItem, setActiveMenuItem] = useState('profile');
+
+  // Ensure activeMenuItem is always 'profile' when on profile page
+  useEffect(() => {
+    if (location.pathname === '/profile') {
+      setActiveMenuItem('profile');
+    }
+  }, [location.pathname]);
 
   // Read these once and store in state to prevent re-renders
   const [adminToken] = useState(() => localStorage.getItem('adminToken'));
@@ -168,19 +194,39 @@ const Profile = () => {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      await fetchUserData();
+      await fetchUserData(); // This loads everything from database including profileImage
       setUserName(localStorage.getItem('userName') || 'Student');
-
-      // Load profile image from localStorage
-      const savedImage = localStorage.getItem('studentProfileImage');
-      if (savedImage) {
-        setProfileImage(savedImage);
-      }
+      
     };
 
     loadInitialData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array ensures this only runs once on mount
+    
+  }, []); 
+
+useEffect(() => {
+  if (userData?.profileImage) {
+    console.log('🖼️ Loading profile image from database:', userData.profileImage);
+    setProfileImage(userData.profileImage);
+    localStorage.setItem('studentProfileImage', userData.profileImage);
+  }
+}, [userData?.profileImage]);
+
+  // CRITICAL: Sync notification and privacy settings from userData
+  useEffect(() => {
+    if (userData) {
+      console.log('📥 Syncing settings from userData:', userData);
+      
+      if (userData.notificationSettings) {
+        console.log('Setting notifications:', userData.notificationSettings);
+        setNotificationSettings(userData.notificationSettings);
+      }
+      
+      if (userData.privacySettings) {
+        console.log('Setting privacy:', userData.privacySettings);
+        setPrivacySettings(userData.privacySettings);
+      }
+    }
+  }, [userData]);
 
   const fetchUserData = async () => {
     setLoading(true);
@@ -201,35 +247,45 @@ const Profile = () => {
           });
 
           const user = response.data;
-          console.log('Fetched user data:', user);
+          console.log('✅ Fetched user data from server:', user);
+          
+          // Set complete user data - this triggers useEffect to sync profileImage
           setUserData(user);
 
-          // FIXED: Direct assignment without prev
+          // Set form data
           setFormData({
             name: user.name || storedUserName || '',
             email: user.email || storedUserEmail || '',
             role: user.role || 'student'
           });
 
-          setNotificationSettings(user.notificationSettings || {
-            emailNotifications: true,
-            smsNotifications: false,
-            inAppNotifications: true
-          });
+          // CRITICAL: Set notification settings from server
+          if (user.notificationSettings) {
+            console.log('📋 Loading notification settings:', user.notificationSettings);
+            setNotificationSettings({
+              emailNotifications: user.notificationSettings.emailNotifications ?? true,
+              smsNotifications: user.notificationSettings.smsNotifications ?? false,
+              inAppNotifications: user.notificationSettings.inAppNotifications ?? true
+            });
+          }
 
-          setPrivacySettings(user.privacySettings || {
-            emotionDataConsent: true
-          });
+          // CRITICAL: Set privacy settings from server
+          if (user.privacySettings) {
+            console.log('🔒 Loading privacy settings:', user.privacySettings);
+            setPrivacySettings({
+              emotionDataConsent: user.privacySettings.emotionDataConsent ?? true
+            });
+          }
+
         } catch (apiError) {
-          console.error('API Error:', apiError);
-
-          // Fallback to localStorage data if API fails
+          console.error('❌ API Error:', apiError);
           console.log('Using fallback data from localStorage');
+          
           const fallbackData = {
             name: storedUserName || 'Student',
             email: storedUserEmail || 'student@school.edu',
             role: 'student',
-            profileImage: null,
+            profileImage: localStorage.getItem('studentProfileImage') || null,
             recentActivity: [],
             notificationSettings: {
               emailNotifications: true,
@@ -242,7 +298,6 @@ const Profile = () => {
           };
 
           setUserData(fallbackData);
-          // FIXED: Direct assignment without prev
           setFormData({
             name: fallbackData.name,
             email: fallbackData.email,
@@ -269,7 +324,6 @@ const Profile = () => {
           }
         };
         setUserData(mockData);
-        // FIXED: Direct assignment without prev
         setFormData({
           name: mockData.name,
           email: mockData.email,
@@ -280,7 +334,7 @@ const Profile = () => {
       }
     } catch (error) {
       console.error('Critical error:', error);
-      // FIXED: Direct assignment without prev
+      const fallbackImage = localStorage.getItem('studentProfileImage');
       setFormData({
         name: localStorage.getItem('userName') || 'Student',
         email: 'student@school.edu',
@@ -289,13 +343,13 @@ const Profile = () => {
       setUserData({
         name: localStorage.getItem('userName') || 'Student',
         email: 'student@school.edu',
-        role: 'student'
+        role: 'student',
+        profileImage: fallbackImage
       });
     } finally {
       setLoading(false);
     }
   };
-
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prevData => {
@@ -308,17 +362,27 @@ const Profile = () => {
   };
 
   const handleNotificationToggle = (key) => {
-    setNotificationSettings(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+    setNotificationSettings(prev => {
+      const newSettings = {
+        ...prev,
+        [key]: !prev[key]
+      };
+      console.log('🔄 Toggled notification:', key, 'New value:', !prev[key]);
+      console.log('📝 New notification settings:', newSettings);
+      return newSettings;
+    });
   };
 
   const handlePrivacyToggle = (key) => {
-    setPrivacySettings(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+    setPrivacySettings(prev => {
+      const newSettings = {
+        ...prev,
+        [key]: !prev[key]
+      };
+      console.log('🔄 Toggled privacy:', key, 'New value:', !prev[key]);
+      console.log('📝 New privacy settings:', newSettings);
+      return newSettings;
+    });
   };
 
   const handleSaveAccountInfo = async () => {
@@ -326,26 +390,11 @@ const Profile = () => {
       const token = localStorage.getItem('token');
       
       if (!token) {
-        // If no token, just update localStorage
         console.warn('No token found, updating localStorage only');
-        
-        // Update localStorage
         localStorage.setItem('userName', formData.name);
         localStorage.setItem('userEmail', formData.email);
-        
-        // Update userName state to refresh header
         setUserName(formData.name);
         
-        // Save profile image
-        if (profileImage) {
-          const storedImage = localStorage.getItem('studentProfileImage');
-          if (profileImage !== storedImage) {
-            localStorage.setItem('studentProfileImage', profileImage);
-            window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: profileImage }));
-          }
-        }
-        
-        // Update user data
         setUserData(prev => ({
           ...prev,
           name: formData.name,
@@ -356,14 +405,12 @@ const Profile = () => {
         return;
       }
       
-      // Only send name and email to match backend expectations
       const dataToSave = {
         name: formData.name,
         email: formData.email
       };
       
-      console.log('Saving profile data:', dataToSave);
-      console.log('Token:', token ? 'Present' : 'Missing');
+      console.log('💾 Saving profile data:', dataToSave);
       
       const response = await axios.put(
         'http://localhost:5000/api/users/update-profile',
@@ -376,28 +423,13 @@ const Profile = () => {
         }
       );
       
-      console.log('Profile update response:', response.data);
+      console.log('✅ Profile update response:', response.data);
       
       if (response.data) {
-        // Save profile image to localStorage and dispatch event to update header
-        if (profileImage) {
-          const storedImage = localStorage.getItem('studentProfileImage');
-          // Only update if image has changed
-          if (profileImage !== storedImage) {
-            localStorage.setItem('studentProfileImage', profileImage);
-            window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: profileImage }));
-            console.log('Profile image updated in localStorage and header notified');
-          }
-        }
-        
-        // Update localStorage with new values
         localStorage.setItem('userName', dataToSave.name);
         localStorage.setItem('userEmail', dataToSave.email);
-        
-        // Update userName state to refresh header
         setUserName(dataToSave.name);
         
-        // Refresh user data without resetting form
         setUserData(prev => ({
           ...prev,
           name: dataToSave.name,
@@ -407,24 +439,11 @@ const Profile = () => {
         alert('Profile updated successfully!');
       }
     } catch (error) {
-      console.error('Full error object:', error);
-      console.error('Error response:', error.response);
-      console.error('Error message:', error.message);
-      
-      // Fallback: Update localStorage even if API fails
-      console.warn('API failed, updating localStorage as fallback');
+      console.error('❌ Error saving profile:', error);
       
       localStorage.setItem('userName', formData.name);
       localStorage.setItem('userEmail', formData.email);
       setUserName(formData.name);
-      
-      if (profileImage) {
-        const storedImage = localStorage.getItem('studentProfileImage');
-        if (profileImage !== storedImage) {
-          localStorage.setItem('studentProfileImage', profileImage);
-          window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: profileImage }));
-        }
-      }
       
       setUserData(prev => ({
         ...prev,
@@ -432,20 +451,7 @@ const Profile = () => {
         email: formData.email
       }));
       
-      if (error.response) {
-        // Server responded with error
-        console.error('Server error data:', error.response.data);
-        console.error('Server error status:', error.response.status);
-        alert(`Profile updated locally. Server error: ${error.response.data?.message || error.response.statusText}`);
-      } else if (error.request) {
-        // Request made but no response
-        console.error('No response received:', error.request);
-        alert('Profile updated locally. Could not reach server.');
-      } else {
-        // Error in request setup
-        console.error('Request setup error:', error.message);
-        alert(`Profile updated locally. Error: ${error.message}`);
-      }
+      alert(error.response?.data?.message || 'Profile updated locally. Server sync failed.');
     }
   };
 
@@ -481,34 +487,56 @@ const Profile = () => {
   const handleSaveNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
+      
+      console.log('💾 Saving notification settings:', notificationSettings);
+      console.log('🔑 Token:', token ? 'Present' : 'Missing');
+      
       const response = await axios.put(
         'http://localhost:5000/api/users/notification-settings',
         notificationSettings,
         { headers: { Authorization: `Bearer ${token}` }}
       );
+      
+      console.log('✅ Server response:', response.data);
+      
       if (response.data) {
         alert('Notification settings saved successfully!');
+        
+        // Refresh from server to confirm
+        await fetchUserData();
       }
     } catch (error) {
-      console.error('Error saving notifications:', error);
-      alert('Failed to save notification settings');
+      console.error('❌ Error saving notifications:', error);
+      console.error('Error details:', error.response?.data);
+      alert(error.response?.data?.message || 'Failed to save notification settings');
     }
   };
 
   const handleSavePrivacy = async () => {
     try {
       const token = localStorage.getItem('token');
+      
+      console.log('💾 Saving privacy settings:', privacySettings);
+      console.log('🔑 Token:', token ? 'Present' : 'Missing');
+      
       const response = await axios.put(
         'http://localhost:5000/api/users/privacy-settings',
         privacySettings,
         { headers: { Authorization: `Bearer ${token}` }}
       );
+      
+      console.log('✅ Server response:', response.data);
+      
       if (response.data) {
         alert('Privacy settings saved successfully!');
+        
+        // Refresh from server to confirm
+        await fetchUserData();
       }
     } catch (error) {
-      console.error('Error saving privacy settings:', error);
-      alert('Failed to save privacy settings');
+      console.error('❌ Error saving privacy settings:', error);
+      console.error('Error details:', error.response?.data);
+      alert(error.response?.data?.message || 'Failed to save privacy settings');
     }
   };
 
@@ -518,14 +546,232 @@ const Profile = () => {
       const response = await axios.get('http://localhost:5000/api/users/export-data', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'user-data.json';
-      a.click();
-      window.URL.revokeObjectURL(url);
-      alert('Data exported successfully!');
+
+      const data = response.data;
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Student Data Export - ${data.profile?.name || 'Student'}</title>
+          <style>
+            body { 
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+              padding: 40px; 
+              max-width: 900px; 
+              margin: 0 auto;
+              color: #333;
+              line-height: 1.6;
+            }
+            .header { 
+              background: linear-gradient(135deg, #0f766e 0%, #059669 100%);
+              color: white; 
+              padding: 30px; 
+              margin: -40px -40px 30px -40px;
+              border-radius: 8px 8px 0 0;
+              text-align: center;
+            }
+            .header h1 { 
+              margin: 0; 
+              font-size: 28px; 
+              font-weight: bold;
+            }
+            .header p {
+              margin: 5px 0 0 0;
+              font-size: 14px;
+              opacity: 0.9;
+            }
+            .profile-section {
+              display: flex;
+              gap: 30px;
+              margin-bottom: 40px;
+              background: #f8fafb;
+              padding: 25px;
+              border-radius: 8px;
+              border-left: 4px solid #0f766e;
+            }
+            .profile-image {
+              flex-shrink: 0;
+            }
+            .profile-image img {
+              width: 120px;
+              height: 120px;
+              border-radius: 12px;
+              border: 3px solid white;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+              object-fit: cover;
+            }
+            .profile-info {
+              flex: 1;
+            }
+            .profile-info h2 {
+              margin: 0 0 15px 0;
+              font-size: 22px;
+              color: #0f766e;
+            }
+            .info-row {
+              display: flex;
+              margin-bottom: 8px;
+              font-size: 14px;
+            }
+            .info-label {
+              font-weight: 600;
+              color: #555;
+              width: 120px;
+              flex-shrink: 0;
+            }
+            .info-value {
+              color: #333;
+            }
+            .section {
+              margin-bottom: 35px;
+              background: white;
+              padding: 25px;
+              border-radius: 8px;
+              border: 1px solid #e5e7eb;
+              page-break-inside: avoid;
+            }
+            .section h3 {
+              margin: 0 0 15px 0;
+              font-size: 18px;
+              color: #0f766e;
+              border-bottom: 2px solid #0f766e;
+              padding-bottom: 10px;
+            }
+            .settings-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 15px;
+            }
+            .setting-item {
+              padding: 12px;
+              background: #f8fafb;
+              border-radius: 6px;
+              border-left: 3px solid #059669;
+            }
+            .setting-label {
+              font-weight: 600;
+              color: #333;
+              font-size: 14px;
+            }
+            .setting-value {
+              color: #666;
+              font-size: 13px;
+              margin-top: 4px;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #e5e7eb;
+              color: #999;
+              font-size: 12px;
+            }
+            @media print {
+              body { padding: 20px; }
+              .header { margin: -20px -20px 20px -20px; }
+              .section { page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Student Data Export</h1>
+            <p>Export Date: ${new Date().toLocaleDateString('en-US', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}</p>
+          </div>
+
+          <div class="profile-section">
+            ${profileImage ? `
+              <div class="profile-image">
+                <img src="${profileImage}" alt="Profile Picture" />
+              </div>
+            ` : ''}
+            <div class="profile-info">
+              <h2>${data.profile?.name || 'Student'}</h2>
+              <div class="info-row">
+                <span class="info-label">Email:</span>
+                <span class="info-value">${data.profile?.email || 'N/A'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Role:</span>
+                <span class="info-value">${data.profile?.role || 'Student'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Member Since:</span>
+                <span class="info-value">${data.profile?.createdAt ? new Date(data.profile.createdAt).toLocaleDateString() : 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>📋 Notification Settings</h3>
+            <div class="settings-grid">
+              <div class="setting-item">
+                <div class="setting-label">Email Notifications</div>
+                <div class="setting-value">${data.settings?.notifications?.emailNotifications ? '✓ Enabled' : '✗ Disabled'}</div>
+              </div>
+              <div class="setting-item">
+                <div class="setting-label">SMS Notifications</div>
+                <div class="setting-value">${data.settings?.notifications?.smsNotifications ? '✓ Enabled' : '✗ Disabled'}</div>
+              </div>
+              <div class="setting-item">
+                <div class="setting-label">In-App Notifications</div>
+                <div class="setting-value">${data.settings?.notifications?.inAppNotifications ? '✓ Enabled' : '✗ Disabled'}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>🔒 Privacy Settings</h3>
+            <div class="settings-grid">
+              <div class="setting-item">
+                <div class="setting-label">Emotion Detection Consent</div>
+                <div class="setting-value">${data.settings?.privacy?.emotionDataConsent ? '✓ Granted' : '✗ Not Granted'}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>📊 Learning Statistics</h3>
+            <div class="settings-grid">
+              <div class="setting-item">
+                <div class="setting-label">Total Quizzes</div>
+                <div class="setting-value">${data.statistics?.totalQuizzes || 0}</div>
+              </div>
+              <div class="setting-item">
+                <div class="setting-label">Average Score</div>
+                <div class="setting-value">${data.statistics?.averageScore || 0}%</div>
+              </div>
+              <div class="setting-item">
+                <div class="setting-label">Study Time</div>
+                <div class="setting-value">${data.statistics?.studyTime || 0} hours</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>This is an official export of your EMEXA student profile. Generated on ${new Date().toLocaleString()}</p>
+            <p>For security, please keep this document private and do not share with others.</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+
+      alert('Data export ready. Please select "Save as PDF" in the print dialog.');
     } catch (error) {
       console.error('Error exporting data:', error);
       alert('Failed to export data');
@@ -536,52 +782,150 @@ const Profile = () => {
     fileInputRef.current?.click();
   };
 
-  const handleProfileImageChange = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Check file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size should be less than 5MB');
-        return;
-      }
-      // Check file type
-      if (!file.type.startsWith('image/')) {
-        alert('Please select an image file');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result;
-        // Only preview the image, don't save yet
-        setProfileImage(base64String);
-      };
-      reader.readAsDataURL(file);
+  // FIXED: handleProfileImageChange for multi-device support
+  // FIXED: Profile image upload with better error handling
+const handleProfileImageChange = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  // Validate file
+  if (file.size > 5 * 1024 * 1024) {
+    alert('File size should be less than 5MB');
+    return;
+  }
+  if (!file.type.startsWith('image/')) {
+    alert('Please select an image file');
+    return;
+  }
+
+  console.log('📤 Starting profile image upload...');
+  console.log('File:', file.name, 'Size:', file.size, 'Type:', file.type);
+
+  try {
+    // Create FormData
+    const formData = new FormData();
+    formData.append('profile', file);
+
+    // Get token
+    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+    
+    if (!token) {
+      alert('Authentication required. Please log in again.');
+      return;
     }
-  };
+
+    console.log('🔑 Token found, uploading...');
+
+    // Upload to server
+    const response = await axios.post(
+      'http://localhost:5000/api/users/upload-profile',
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          console.log(`Upload Progress: ${percentCompleted}%`);
+        }
+      }
+    );
+
+    console.log('✅ Upload response:', response.data);
+
+    if (response.data.success && response.data.profileImage) {
+      const cloudinaryUrl = response.data.profileImage;
+      
+      console.log('✅ Profile image URL:', cloudinaryUrl);
+
+      // Update UI immediately
+      setProfileImage(cloudinaryUrl);
+      
+      // Update userData
+      setUserData(prev => ({
+        ...prev,
+        profileImage: cloudinaryUrl
+      }));
+      
+      // Cache in localStorage
+      localStorage.setItem('studentProfileImage', cloudinaryUrl);
+      
+      // Notify header component
+      window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { 
+        detail: cloudinaryUrl 
+      }));
+      
+      alert('✅ Profile picture updated successfully!');
+      
+      // Refresh user data to ensure everything is in sync
+      await fetchUserData();
+    } else {
+      console.error('❌ Invalid response:', response.data);
+      alert('Upload completed but no image URL received');
+    }
+  } catch (error) {
+    console.error('❌ Upload failed:', error);
+    
+    if (error.response) {
+      // Server responded with error
+      console.error('Server error:', error.response.data);
+      alert(`Upload failed: ${error.response.data.message || error.response.data.error || 'Server error'}`);
+    } else if (error.request) {
+      // Request made but no response
+      console.error('No response from server');
+      alert('Upload failed: No response from server. Please check your connection.');
+    } else {
+      // Error setting up request
+      console.error('Request error:', error.message);
+      alert(`Upload failed: ${error.message}`);
+    }
+  } finally {
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+};
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading profile...</p>
+        <div className="w-full max-w-4xl mx-auto px-6 py-12">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
+            <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-24"></div>
+            <div className="p-6 -mt-12 relative z-10">
+              <div className="flex items-end gap-4">
+                <div className="w-24 h-24 bg-gray-300 rounded-full animate-pulse border-4 border-white shadow-lg"></div>
+                <div className="flex-1 pb-2">
+                  <div className="h-6 bg-gray-300 rounded w-48 animate-pulse mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="space-y-3">
+                <div className="h-4 bg-gray-300 rounded w-32 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-6 text-center text-gray-500 text-sm">Loading profile...</p>
         </div>
       </div>
     );
   }
-
   const profileContent = (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Profile Header - Equal Green and White Bar with Profile at Middle */}
         <div className="relative">
-          {/* Green Bar */}
           <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-24 rounded-t-lg"></div>
-          
-          {/* White Bar */}
           <div className="bg-white h-24"></div>
           
-          {/* Profile Info at the Exact Middle - Left Aligned */}
           <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 z-10">
             <div className="relative">
               <input
@@ -615,8 +959,6 @@ const Profile = () => {
         </div>
 
         <div className="bg-white rounded-b-lg shadow-sm p-8">
-
-          {/* Tabs */}
           <div className="mb-8">
             <div className="flex gap-8 border-b border-gray-200">
               <button
@@ -674,7 +1016,6 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* Tab Content */}
           {activeTab === 'account' && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-900">Account Information</h2>
@@ -743,7 +1084,7 @@ const Profile = () => {
               <h2 className="text-xl font-bold text-gray-900">Notification Preferences</h2>
 
               <div className="space-y-6">
-                <div className="flex items-center justify-between py-4">
+                <div className="flex items-center justify-between py-4 border-b border-gray-100">
                   <div>
                     <h3 className="font-medium text-gray-900">Email Notifications</h3>
                     <p className="text-sm text-gray-600">Receive notifications via email</p>
@@ -755,17 +1096,24 @@ const Profile = () => {
                       onChange={() => handleNotificationToggle('emailNotifications')}
                       className="sr-only peer"
                     />
-                    <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
-                      notificationSettings.emailNotifications ? 'bg-teal-600' : 'bg-gray-200'
+                    <div className={`w-14 h-7 rounded-full peer-focus:ring-4 peer-focus:ring-teal-300 relative transition-all duration-300 ${
+                      notificationSettings.emailNotifications 
+                        ? 'bg-teal-600' 
+                        : 'bg-gray-300'
                     }`}>
-                      <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
-                        notificationSettings.emailNotifications ? 'translate-x-6 left-0.5' : 'left-0.5'
+                      <div className={`absolute top-1 bg-white w-5 h-5 rounded-full shadow-md transition-all duration-300 ${
+                        notificationSettings.emailNotifications ? 'translate-x-7 left-1' : 'left-1'
                       }`}></div>
                     </div>
+                    <span className={`ml-3 text-sm font-medium ${
+                      notificationSettings.emailNotifications ? 'text-teal-600' : 'text-gray-500'
+                    }`}>
+                      {notificationSettings.emailNotifications ? 'ON' : 'OFF'}
+                    </span>
                   </label>
                 </div>
 
-                <div className="flex items-center justify-between py-4">
+                <div className="flex items-center justify-between py-4 border-b border-gray-100">
                   <div>
                     <h3 className="font-medium text-gray-900">SMS Notifications</h3>
                     <p className="text-sm text-gray-600">Receive notifications via text message</p>
@@ -777,17 +1125,24 @@ const Profile = () => {
                       onChange={() => handleNotificationToggle('smsNotifications')}
                       className="sr-only peer"
                     />
-                    <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
-                      notificationSettings.smsNotifications ? 'bg-teal-600' : 'bg-gray-200'
+                    <div className={`w-14 h-7 rounded-full peer-focus:ring-4 peer-focus:ring-teal-300 relative transition-all duration-300 ${
+                      notificationSettings.smsNotifications 
+                        ? 'bg-teal-600' 
+                        : 'bg-gray-300'
                     }`}>
-                      <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
-                        notificationSettings.smsNotifications ? 'translate-x-6 left-0.5' : 'left-0.5'
+                      <div className={`absolute top-1 bg-white w-5 h-5 rounded-full shadow-md transition-all duration-300 ${
+                        notificationSettings.smsNotifications ? 'translate-x-7 left-1' : 'left-1'
                       }`}></div>
                     </div>
+                    <span className={`ml-3 text-sm font-medium ${
+                      notificationSettings.smsNotifications ? 'text-teal-600' : 'text-gray-500'
+                    }`}>
+                      {notificationSettings.smsNotifications ? 'ON' : 'OFF'}
+                    </span>
                   </label>
                 </div>
 
-                <div className="flex items-center justify-between py-4">
+                <div className="flex items-center justify-between py-4 border-b border-gray-100">
                   <div>
                     <h3 className="font-medium text-gray-900">In-App Notifications</h3>
                     <p className="text-sm text-gray-600">Receive notifications in the application</p>
@@ -799,13 +1154,20 @@ const Profile = () => {
                       onChange={() => handleNotificationToggle('inAppNotifications')}
                       className="sr-only peer"
                     />
-                    <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
-                      notificationSettings.inAppNotifications ? 'bg-teal-600' : 'bg-gray-200'
+                    <div className={`w-14 h-7 rounded-full peer-focus:ring-4 peer-focus:ring-teal-300 relative transition-all duration-300 ${
+                      notificationSettings.inAppNotifications 
+                        ? 'bg-teal-600' 
+                        : 'bg-gray-300'
                     }`}>
-                      <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
-                        notificationSettings.inAppNotifications ? 'translate-x-6 left-0.5' : 'left-0.5'
+                      <div className={`absolute top-1 bg-white w-5 h-5 rounded-full shadow-md transition-all duration-300 ${
+                        notificationSettings.inAppNotifications ? 'translate-x-7 left-1' : 'left-1'
                       }`}></div>
                     </div>
+                    <span className={`ml-3 text-sm font-medium ${
+                      notificationSettings.inAppNotifications ? 'text-teal-600' : 'text-gray-500'
+                    }`}>
+                      {notificationSettings.inAppNotifications ? 'ON' : 'OFF'}
+                    </span>
                   </label>
                 </div>
               </div>
@@ -813,7 +1175,7 @@ const Profile = () => {
               <div className="pt-4">
                 <button
                   onClick={handleSaveNotifications}
-                  className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
+                  className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors font-medium"
                 >
                   <span>Save Changes</span>
                 </button>
@@ -874,7 +1236,7 @@ const Profile = () => {
               <div className="space-y-4">
                 <h3 className="font-semibold text-gray-900">Emotion Data Consent</h3>
 
-                <div className="bg-gray-50 p-6 rounded-lg">
+                <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <p className="text-sm text-gray-700 mb-3">
@@ -889,13 +1251,20 @@ const Profile = () => {
                         onChange={() => handlePrivacyToggle('emotionDataConsent')}
                         className="sr-only peer"
                       />
-                      <div className={`w-12 h-6 rounded-full peer-focus:ring-2 peer-focus:ring-teal-300 relative transition-colors duration-200 ${
-                        privacySettings.emotionDataConsent ? 'bg-teal-600' : 'bg-gray-200'
+                      <div className={`w-14 h-7 rounded-full peer-focus:ring-4 peer-focus:ring-teal-300 relative transition-all duration-300 ${
+                        privacySettings.emotionDataConsent 
+                          ? 'bg-teal-600' 
+                          : 'bg-gray-300'
                       }`}>
-                        <div className={`absolute top-0.5 bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-200 ${
-                          privacySettings.emotionDataConsent ? 'translate-x-6 left-0.5' : 'left-0.5'
+                        <div className={`absolute top-1 bg-white w-5 h-5 rounded-full shadow-md transition-all duration-300 ${
+                          privacySettings.emotionDataConsent ? 'translate-x-7 left-1' : 'left-1'
                         }`}></div>
                       </div>
+                      <span className={`ml-3 text-sm font-medium ${
+                        privacySettings.emotionDataConsent ? 'text-teal-600' : 'text-gray-500'
+                      }`}>
+                        {privacySettings.emotionDataConsent ? 'GRANTED' : 'NOT GRANTED'}
+                      </span>
                     </label>
                   </div>
                 </div>
@@ -916,7 +1285,7 @@ const Profile = () => {
                 <div className="pt-6">
                   <button
                     onClick={handleSavePrivacy}
-                    className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors"
+                    className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 transition-colors font-medium"
                   >
                     <span>Save Privacy Settings</span>
                   </button>
@@ -927,7 +1296,6 @@ const Profile = () => {
         </div>
       </div>
 
-      {/* Password Change Modal */}
       <PasswordModal
         isOpen={showPasswordModal}
         onClose={() => setShowPasswordModal(false)}
@@ -936,7 +1304,6 @@ const Profile = () => {
     </div>
   );
 
-  // Admin viewing check
   if (isAdminViewing && adminToken) {
     return (
       <AdminViewWrapper dashboardType="student">
@@ -945,7 +1312,6 @@ const Profile = () => {
     );
   }
 
-  // Regular student view
   return (
     <div className="min-h-screen bg-white">
       <Header userName={userName} userRole="student" />

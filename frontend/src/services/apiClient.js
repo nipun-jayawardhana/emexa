@@ -15,6 +15,15 @@ const getAuthHeaders = () => {
   return headers;
 };
 
+const getAuthHeader = () => {
+  try {
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch (err) {
+    return {};
+  }
+};
+
 const apiClient = {
   get: async (endpoint) => {
     console.log('🌐 API GET:', `${API_BASE_URL}${endpoint}`);
@@ -49,6 +58,7 @@ const apiClient = {
   },
 
   put: async (endpoint, body) => {
+    const headers = { 'Content-Type': 'application/json', ...getAuthHeader() };
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'PUT',
       headers: getAuthHeaders(),

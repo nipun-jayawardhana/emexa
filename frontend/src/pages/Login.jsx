@@ -156,6 +156,50 @@ export default function Login() {
 
           console.log("✅ User data saved successfully");
 
+          // --- Sync profile image into localStorage so other devices/tabs update ---
+          try {
+            const storageKey = userRole === 'admin' ? 'adminProfileImage' : (userRole === 'teacher' ? 'teacherProfileImage' : 'studentProfileImage');
+            const eventName = `${storageKey}Changed`;
+
+            const resProfileImage = res.user?.profileImage || res.user?.avatar || res.user?.image || null;
+            if (resProfileImage) {
+              localStorage.setItem(storageKey, resProfileImage);
+              window.dispatchEvent(new CustomEvent(eventName, { detail: resProfileImage }));
+              console.log('Profile image updated from login response:', resProfileImage);
+            } else if (res.token) {
+              // If login response didn't include profile image, fetch fresh profile
+              fetch('http://localhost:5000/api/users/profile', {
+                headers: { Authorization: `Bearer ${res.token}` }
+              })
+                .then(r => r.ok ? r.json() : Promise.reject(r))
+                .then(profileData => {
+                  const fetched = profileData?.profileImage || profileData?.avatar || profileData?.image || null;
+                  if (fetched) {
+                    localStorage.setItem(storageKey, fetched);
+                    window.dispatchEvent(new CustomEvent(eventName, { detail: fetched }));
+                    console.log('Profile image fetched after login and saved:', fetched);
+                  }
+                })
+                .catch(e => console.warn('Could not fetch profile after login:', e));
+            }
+          } catch (e) {
+            console.warn('Error syncing profile image on login:', e);
+          }
+
+          // --- Sync notification and privacy settings to localStorage ---
+          try {
+            if (res.user?.notificationSettings) {
+              localStorage.setItem('notificationSettings', JSON.stringify(res.user.notificationSettings));
+              console.log('✅ Notification settings saved:', res.user.notificationSettings);
+            }
+            if (res.user?.privacySettings) {
+              localStorage.setItem('privacySettings', JSON.stringify(res.user.privacySettings));
+              console.log('✅ Privacy settings saved:', res.user.privacySettings);
+            }
+          } catch (e) {
+            console.warn('Error syncing settings on login:', e);
+          }
+
           // VERIFICATION: Read back what we just saved
           console.log("📦 VERIFICATION - What's in localStorage:");
           console.log("  - userName:", localStorage.getItem("userName"));
