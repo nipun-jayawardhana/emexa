@@ -20,6 +20,7 @@ import quizRoutes from './src/routes/quizroutes.js';
 import cameraRoutes from './src/routes/cameraRoutes.js';
 import teacherRoutes from './src/routes/teacherRoutes.js';
 import wellnessRoutes from './src/routes/wellnessRoutes.js';
+import teacherQuizRoutes from './src/routes/teacherQuizRoutes.js'; 
 
 const app = express();
 
@@ -60,6 +61,7 @@ app.use('/api/quiz', quizRoutes);
 app.use('/api/camera', cameraRoutes);
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/wellness', wellnessRoutes);
+app.use('/api/teacher-quizzes', teacherQuizRoutes); // New teacher quiz routes 
 
 // Health check
 app.get('/', (req, res) => {
@@ -108,7 +110,7 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-const HOST = process.env.HOST || '127.0.0.1';
+const HOST = process.env.HOST || '0.0.0.0';
 
 app.listen(PORT, HOST, () => {
   console.log('\n' + '='.repeat(50));

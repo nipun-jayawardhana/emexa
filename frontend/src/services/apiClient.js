@@ -1,5 +1,19 @@
 // frontend/src/services/apiClient.js
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+// Helper to get auth headers
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
+};
 
 const getAuthHeader = () => {
   try {
@@ -12,26 +26,32 @@ const getAuthHeader = () => {
 
 const apiClient = {
   get: async (endpoint) => {
-    const headers = { ...getAuthHeader() };
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, { headers });
+    console.log('🌐 API GET:', `${API_BASE_URL}${endpoint}`);
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      headers: getAuthHeaders()
+    });
     const data = await response.json();
+    console.log('📥 API Response:', response.status, data);
 
     if (!response.ok) {
+      console.error('❌ API Error:', response.status, data);
       throw new Error(data.message || `API Error: ${response.status}`);
     }
     return data;
   },
 
   post: async (endpoint, body) => {
-    const headers = { 'Content-Type': 'application/json', ...getAuthHeader() };
+    console.log('🌐 API POST:', `${API_BASE_URL}${endpoint}`, body);
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
-      headers,
+      headers: getAuthHeaders(),
       body: JSON.stringify(body),
     });
     const data = await response.json();
+    console.log('📥 API Response:', response.status, data);
 
     if (!response.ok) {
+      console.error('❌ API Error:', response.status, data);
       throw new Error(data.message || `API Error: ${response.status}`);
     }
     return data;
@@ -41,7 +61,7 @@ const apiClient = {
     const headers = { 'Content-Type': 'application/json', ...getAuthHeader() };
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'PUT',
-      headers,
+      headers: getAuthHeaders(),
       body: JSON.stringify(body),
     });
     const data = await response.json();
@@ -53,8 +73,10 @@ const apiClient = {
   },
 
   delete: async (endpoint) => {
-    const headers = { ...getAuthHeader() };
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, { method: 'DELETE', headers });
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, { 
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
     const data = await response.json();
 
     if (!response.ok) {
