@@ -482,7 +482,7 @@ const getSettings = async (req, res) => {
 };
 
 /**
- * Update teacher settings (notifications & privacy) - FIXED
+ * Update teacher settings (notifications & privacy) - FIXED TO PRESERVE EXISTING SETTINGS
  */
 const updateSettings = async (req, res) => {
   try {
@@ -497,19 +497,9 @@ const updateSettings = async (req, res) => {
     console.log('📝 Updating settings for teacher:', teacherId);
     console.log('Received settings:', req.body);
 
-    const settings = {
-      emailNotifications: emailNotifications !== undefined ? emailNotifications : true,
-      smsNotifications: smsNotifications !== undefined ? smsNotifications : false,
-      inAppNotifications: inAppNotifications !== undefined ? inAppNotifications : true,
-      emotionConsent: emotionConsent !== undefined ? emotionConsent : true
-    };
-
-    const teacher = await Teacher.findByIdAndUpdate(
-      teacherId,
-      { settings },
-      { new: true, runValidators: true }
-    ).select('-password');
-
+    // Get current settings first to preserve existing values
+    const teacher = await Teacher.findById(teacherId).select('settings');
+    
     if (!teacher) {
       return res.status(404).json({
         success: false,
@@ -517,11 +507,26 @@ const updateSettings = async (req, res) => {
       });
     }
 
-    console.log('✅ Settings saved to database:', teacher.settings);
+    // Merge with existing settings - only update provided fields
+    const currentSettings = teacher.settings || {};
+    const settings = {
+      emailNotifications: emailNotifications !== undefined ? emailNotifications : (currentSettings.emailNotifications ?? true),
+      smsNotifications: smsNotifications !== undefined ? smsNotifications : (currentSettings.smsNotifications ?? false),
+      inAppNotifications: inAppNotifications !== undefined ? inAppNotifications : (currentSettings.inAppNotifications ?? true),
+      emotionConsent: emotionConsent !== undefined ? emotionConsent : (currentSettings.emotionConsent ?? true)
+    };
+
+    const updatedTeacher = await Teacher.findByIdAndUpdate(
+      teacherId,
+      { settings },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    console.log('✅ Settings saved to database:', updatedTeacher.settings);
 
     res.json({
       success: true,
-      data: settings,
+      data: updatedTeacher.settings,
       message: 'Settings updated successfully'
     });
   } catch (error) {
