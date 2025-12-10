@@ -139,9 +139,31 @@ const UserManagement = () => {
     }
   };
 
+  // FIXED: Updated navigation function with proper state management
   const navigateToDashboard = (type) => {
-    localStorage.setItem("adminViewingAs", type === "student" ? "student" : "teacher");
-    navigate(type === "student" ? "/dashboard" : "/teacher-dashboard");
+    console.log(`🔄 Navigating to ${type} dashboard as admin`);
+    
+    // Set the viewing mode BEFORE navigation
+    localStorage.setItem("adminViewingAs", type);
+    
+    // Also set a flag that admin is viewing (for ProtectedRoute to check)
+    const adminToken = localStorage.getItem('adminToken') || localStorage.getItem('token');
+    const adminUserData = localStorage.getItem('adminUser');
+    
+    console.log('Admin state:', {
+      adminViewingAs: type,
+      hasAdminToken: !!adminToken,
+      hasAdminUser: !!adminUserData
+    });
+    
+    // Navigate to the correct route based on type
+    if (type === "student") {
+      // Force reload to ensure StudentDashboard initializes with admin context
+      window.location.href = "/dashboard";
+    } else if (type === "teacher") {
+      // Force reload to ensure TeacherDashboard initializes with admin context
+      window.location.href = "/teacher-dashboard";
+    }
   };
 
   const adminMenuItems = [
@@ -149,7 +171,10 @@ const UserManagement = () => {
       id: "userManagement",
       label: "User Management",
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
-      onClick: () => localStorage.removeItem("adminViewingAs"),
+      onClick: () => {
+        localStorage.removeItem("adminViewingAs");
+        window.location.href = "/admin/user-management";
+      },
     },
     {
       id: "studentPreview",
