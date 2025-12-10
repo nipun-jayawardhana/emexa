@@ -70,24 +70,31 @@ export default function Permission() {
       const params = new URLSearchParams(location.search);
       const quizId = params.get('quizId') || 'active-quiz';
       
-      // If allowed, the camera is already running from Permission page
-      // We need to hide the preview but keep the stream for periodic captures
+      console.log('Quiz ID from URL:', quizId);
+      console.log('Current location:', location.search);
+      
+      // If allowed, start periodic capture
       if (webcamPermission === 'allowed') {
         try {
-          // Remove the video preview element but keep the stream active for captures
-          if (previewRef.current) {
-            previewRef.current.innerHTML = '';
-          }
           // Start periodic capture (the camera stream is already active)
           camera.startCapture({ intervalMs: 60000, quality: 0.6, quizId });
+          console.log('Camera capture started');
         } catch (err) {
           console.error('startCapture failed', err);
         }
       }
       
       // navigate to the quiz page for the selected quiz
-      navigate(`/quiz/${encodeURIComponent(quizId)}`);
+      const quizPath = `/quiz/${encodeURIComponent(quizId)}`;
+      console.log('Navigating to:', quizPath);
+      
+      try {
+        navigate(quizPath);
+      } catch (err) {
+        console.error('Navigation error:', err);
+      }
     } else {
+      console.log('No permission selected yet');
       alert('Please choose Allow or Deny to continue');
     }
   };
