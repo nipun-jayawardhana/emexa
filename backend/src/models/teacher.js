@@ -7,16 +7,30 @@ const teacherSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true, select: false },
   role: { type: String, default: 'teacher', immutable: true },
-  isActive: { type: Boolean, default: true },
-  // Profile image stored as Cloudinary URL or relative path
+  isActive: { type: Boolean, default: false },
+  
+  // Approval status fields
+  approvalStatus: { 
+    type: String, 
+    enum: ['pending', 'approved', 'rejected'], 
+    default: 'pending' 
+  },
+  status: { 
+    type: String, 
+    enum: ['Active', 'Inactive', 'Pending'], 
+    default: 'Pending' 
+  },
+  
+  // Profile image
   profileImage: { type: String, default: null },
+  
   // Teacher-specific fields
   teacherId: { type: String, unique: true, sparse: true },
   department: { type: String },
   specialization: { type: String },
   courses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
   
-  // NEW: Settings field for cross-device sync
+  // Settings field for cross-device sync
   settings: {
     emailNotifications: { type: Boolean, default: true },
     smsNotifications: { type: Boolean, default: false },
@@ -25,10 +39,20 @@ const teacherSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-
-// Hash password before saving
+// Hash password before saving - BUT ONLY if password is actually modified
 teacherSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password')) {
+    return next();
+  }
+  
+  // CRITICAL: Check if password is already hashed (starts with $2b$ or $2a$)
+  if (this.password && (this.password.startsWith('$2b$') || this.password.startsWith('$2a$'))) {
+    console.log('🔑 Teacher password already hashed, skipping hash');
+    return next();
+  }
+  
+  // Only hash if it's a plain text password
+  console.log('🔑 Hashing new teacher password');
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
   next();
