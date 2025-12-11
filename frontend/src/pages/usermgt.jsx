@@ -7,9 +7,6 @@ import axios from 'axios';
 import {
   getUsers,
   deleteUser,
-  getTeacherApprovals,
-  approveTeacher,
-  rejectTeacher,
 } from "../services/user.service";
 import Modal from "react-modal";
 import Header from "../components/headerorigin.jsx";
@@ -249,21 +246,51 @@ const UserManagement = () => {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  // ============================================
+  // UPDATED: Fetch data with new approval endpoints
+  // ============================================
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+        
+        // Fetch all three lists in parallel
         const [usersRes, teacherRes, studentRes] = await Promise.allSettled([
           getUsers(),
-          getTeacherApprovals(),
-          fetch("/api/auth/student-approvals", { credentials: "include" }).then(r => r.ok ? r.json() : [])
+          fetch("http://localhost:5000/api/auth/teacher-approvals", { 
+            credentials: "include",
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }).then(r => r.ok ? r.json() : []),
+          fetch("http://localhost:5000/api/auth/student-approvals", { 
+            credentials: "include",
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }).then(r => r.ok ? r.json() : [])
         ]);
 
+        // Set users list (approved users from Student/Teacher collections)
         setUsers(usersRes.status === "fulfilled" ? usersRes.value || [] : []);
-        setTeacherApprovals(teacherRes.status === "fulfilled" ? teacherRes.value || [] : []);
-        setStudentApprovals(studentRes.status === "fulfilled" ? studentRes.value || [] : []);
+        
+        // Set approval lists (pending/rejected from User collection)
+        const teachers = teacherRes.status === "fulfilled" ? teacherRes.value || [] : [];
+        const students = studentRes.status === "fulfilled" ? studentRes.value || [] : [];
+        
+        console.log('📊 Fetched data:', { 
+          users: usersRes.status === "fulfilled" ? usersRes.value?.length : 0,
+          teachers: teachers.length, 
+          students: students.length 
+        });
+        
+        setTeacherApprovals(teachers);
+        setStudentApprovals(students);
       } catch (err) {
-        console.error("Error fetching data:", err);
+        console.error("❌ Error fetching data:", err);
       } finally {
         setLoading(false);
       }
@@ -281,18 +308,132 @@ const UserManagement = () => {
     });
   };
 
+  // ============================================
+  // UPDATED: Student approval handlers
+  // ============================================
   const handleApproveStudent = async (id) => {
     try {
-      const res = await fetch(`/api/auth/student-approvals/${id}/approve`, { method: "PUT", credentials: "include" });
-      if (res.ok) setStudentApprovals(prev => prev.map(a => a._id === id ? { ...a, status: "Approved" } : a));
-    } catch (err) { console.error(err); }
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/auth/student-approvals/${id}/approve`, { 
+        method: "PUT", 
+        credentials: "include",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (res.ok) {
+        console.log('✅ Student approved');
+        // Remove from approval list
+        setStudentApprovals(prev => prev.filter(a => a._id !== id));
+        // Refresh users list to show newly approved user
+        const usersRes = await getUsers();
+        setUsers(usersRes || []);
+        alert('Student approved successfully! They can now login and will appear in All Users tab.');
+      } else {
+        const error = await res.json();
+        console.error('❌ Approval failed:', error);
+        alert(error.message || 'Failed to approve student');
+      }
+    } catch (err) { 
+      console.error('❌ Error approving student:', err); 
+      alert('Error approving student');
+    }
   };
 
   const handleRejectStudent = async (id) => {
     try {
-      const res = await fetch(`/api/auth/student-approvals/${id}/reject`, { method: "PUT", credentials: "include" });
-      if (res.ok) setStudentApprovals(prev => prev.map(a => a._id === id ? { ...a, status: "Rejected" } : a));
-    } catch (err) { console.error(err); }
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/auth/student-approvals/${id}/reject`, { 
+        method: "PUT", 
+        credentials: "include",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (res.ok) {
+        console.log('❌ Student rejected');
+        // Update the status in the list
+        setStudentApprovals(prev => prev.map(a => 
+          a._id === id ? { ...a, approvalStatus: 'rejected', status: 'Inactive' } : a
+        ));
+        alert('Student rejected');
+      } else {
+        const error = await res.json();
+        console.error('❌ Rejection failed:', error);
+        alert(error.message || 'Failed to reject student');
+      }
+    } catch (err) { 
+      console.error('❌ Error rejecting student:', err);
+      alert('Error rejecting student');
+    }
+  };
+
+  // ============================================
+  // NEW: Teacher approval handlers
+  // ============================================
+  const handleApproveTeacher = async (id) => {
+    try {
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/auth/teacher-approvals/${id}/approve`, { 
+        method: "PUT", 
+        credentials: "include",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (res.ok) {
+        console.log('✅ Teacher approved');
+        // Remove from approval list
+        setTeacherApprovals(prev => prev.filter(a => a._id !== id));
+        // Refresh users list to show newly approved user
+        const usersRes = await getUsers();
+        setUsers(usersRes || []);
+        alert('Teacher approved successfully! They can now login and will appear in All Users tab.');
+      } else {
+        const error = await res.json();
+        console.error('❌ Approval failed:', error);
+        alert(error.message || 'Failed to approve teacher');
+      }
+    } catch (err) { 
+      console.error('❌ Error approving teacher:', err);
+      alert('Error approving teacher');
+    }
+  };
+
+  const handleRejectTeacher = async (id) => {
+    try {
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/auth/teacher-approvals/${id}/reject`, { 
+        method: "PUT", 
+        credentials: "include",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (res.ok) {
+        console.log('❌ Teacher rejected');
+        // Update the status in the list
+        setTeacherApprovals(prev => prev.map(a => 
+          a._id === id ? { ...a, approvalStatus: 'rejected', status: 'Inactive' } : a
+        ));
+        alert('Teacher rejected');
+      } else {
+        const error = await res.json();
+        console.error('❌ Rejection failed:', error);
+        alert(error.message || 'Failed to reject teacher');
+      }
+    } catch (err) { 
+      console.error('❌ Error rejecting teacher:', err);
+      alert('Error rejecting teacher');
+    }
   };
 
   const filteredUsers = users.filter(u =>
@@ -300,8 +441,8 @@ const UserManagement = () => {
     (u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || u.email?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const pendingTeacherApprovals = teacherApprovals.filter(a => !a.status).length;
-  const pendingStudentApprovals = studentApprovals.filter(a => !a.status).length;
+  const pendingTeacherApprovals = teacherApprovals.filter(a => a.approvalStatus === 'pending').length;
+  const pendingStudentApprovals = studentApprovals.filter(a => a.approvalStatus === 'pending').length;
 
   if (loading) {
     return (
@@ -487,12 +628,28 @@ const UserManagement = () => {
                 </>
               )}
 
+              {/* UPDATED: Teacher approvals tab with new handlers */}
               {tab === "teacher-approvals" && (
-                <div className="p-10"><ApprovalTab approvals={teacherApprovals} title="Teacher Approval Requests" onApprove={approveTeacher} onReject={rejectTeacher} /></div>
+                <div className="p-10">
+                  <ApprovalTab 
+                    approvals={teacherApprovals} 
+                    title="Teacher Approval Requests" 
+                    onApprove={handleApproveTeacher} 
+                    onReject={handleRejectTeacher} 
+                  />
+                </div>
               )}
 
+              {/* UPDATED: Student approvals tab with new handlers */}
               {tab === "student-approvals" && (
-                <div className="p-10"><ApprovalTab approvals={studentApprovals} title="Student Approval Requests" onApprove={handleApproveStudent} onReject={handleRejectStudent} /></div>
+                <div className="p-10">
+                  <ApprovalTab 
+                    approvals={studentApprovals} 
+                    title="Student Approval Requests" 
+                    onApprove={handleApproveStudent} 
+                    onReject={handleRejectStudent} 
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -525,14 +682,23 @@ const ApprovalTab = ({ approvals = [], title, onApprove, onReject }) => (
                 <p className="text-gray-700 mt-2 text-lg">{ap.email}</p>
                 <p className="text-gray-500 mt-3">Requested: {ap.createdAt ? new Date(ap.createdAt).toLocaleDateString() : "N/A"}</p>
                 {ap.qualifications && <p className="mt-6 text-gray-800 text-base"><strong className="font-bold">Qualifications:</strong> {ap.qualifications}</p>}
+                <div className="mt-4">
+                  <span className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                    ap.approvalStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                    ap.approvalStatus === 'approved' ? 'bg-green-100 text-green-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    Status: {ap.approvalStatus || 'pending'}
+                  </span>
+                </div>
               </div>
               <div className="flex gap-4">
-                {!ap.status ? (
+                {ap.approvalStatus === 'pending' || !ap.approvalStatus ? (
                   <>
                     <button onClick={() => onApprove(ap._id)} className="px-8 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-bold text-lg shadow-md">Approve</button>
                     <button onClick={() => onReject(ap._id)} className="px-8 py-4 border-2 border-gray-300 rounded-xl hover:bg-gray-100 font-bold text-lg">Reject</button>
                   </>
-                ) : ap.status === "Approved" ? (
+                ) : ap.approvalStatus === 'approved' ? (
                   <span className="px-8 py-4 bg-green-100 text-green-700 rounded-xl font-bold text-xl">Approved</span>
                 ) : (
                   <span className="px-8 py-4 bg-red-100 text-red-700 rounded-xl font-bold text-xl">Rejected</span>
