@@ -8,7 +8,6 @@ const TeacherCreateQuiz = ({
 }) => {
   const [assignmentTitle, setAssignmentTitle] = useState("");
   const [subject, setSubject] = useState("");
-  const [dueDate, setDueDate] = useState("");
   const [isGradeLevelOpen, setIsGradeLevelOpen] = useState(false);
   const [selectedGrades, setSelectedGrades] = useState([]);
   const [questions, setQuestions] = useState([]);
@@ -53,13 +52,6 @@ const TeacherCreateQuiz = ({
               setSelectedGrades([]);
             }
 
-            // Format dueDate for input field (YYYY-MM-DD)
-            if (quiz.dueDate) {
-              const date = new Date(quiz.dueDate);
-              const formattedDate = date.toISOString().split("T")[0];
-              setDueDate(formattedDate);
-            }
-
             setQuestions(quiz.questions || []);
             console.log("📋 Loaded questions:", quiz.questions?.length || 0);
 
@@ -89,7 +81,6 @@ const TeacherCreateQuiz = ({
         // Reset form when not editing (editingDraftId is null/undefined)
         setAssignmentTitle("");
         setSubject("");
-        setDueDate("");
         setSelectedGrades([]);
         setQuestions([]);
         setIsGradeLevelOpen(false);
@@ -249,14 +240,9 @@ const TeacherCreateQuiz = ({
 
   const handleCreateAssignment = async () => {
     // Validate that required fields are filled
-    if (
-      !assignmentTitle ||
-      !subject ||
-      selectedGrades.length === 0 ||
-      !dueDate
-    ) {
+    if (!assignmentTitle || !subject || selectedGrades.length === 0) {
       alert(
-        "Please fill in all assignment details (Title, Subject, Grade Level, and Due Date)"
+        "Please fill in all assignment details (Title, Subject, and Grade Level)"
       );
       return;
     }
@@ -278,7 +264,6 @@ const TeacherCreateQuiz = ({
         title: assignmentTitle,
         subject: subject.charAt(0).toUpperCase() + subject.slice(1),
         gradeLevel: [firstGrade], // Send as array to match backend schema
-        dueDate: new Date(dueDate).toISOString(),
         questions: questions.map((q) => ({
           id: q.id,
           type: q.type,
@@ -401,8 +386,8 @@ const TeacherCreateQuiz = ({
           />
         </div>
 
-        {/* Grade Level and Due Date */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Grade Level */}
+        <div>
           {/* Grade Level Dropdown */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -481,20 +466,6 @@ const TeacherCreateQuiz = ({
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Due Date */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Due Date
-            </label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm text-gray-500"
-              placeholder="mm/dd/yyyy"
-            />
           </div>
         </div>
       </div>

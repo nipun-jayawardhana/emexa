@@ -8,17 +8,16 @@ export const createQuiz = async (req, res) => {
       title,
       subject,
       gradeLevel,
-      dueDate,
       questions
     } = req.body;
 
     console.log('📝 Create Quiz Request:', { title, subject, gradeLevel, questions: questions?.length });
 
     // Validate required fields
-    if (!title || !subject || !gradeLevel || !dueDate) {
+    if (!title || !subject || !gradeLevel) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: title, subject, gradeLevel, or dueDate'
+        message: 'Missing required fields: title, subject, or gradeLevel'
       });
     }
 
@@ -40,7 +39,6 @@ export const createQuiz = async (req, res) => {
       title,
       subject,
       gradeLevel,
-      dueDate,
       questions: questions || [],
       status: 'draft',
       isScheduled: false
