@@ -7,27 +7,41 @@ const studentSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true, select: false },
   role: { type: String, default: 'student', immutable: true },
-  isActive: { type: Boolean, default: true },
-  // Profile image stored as relative path (e.g. /uploads/profiles/xxx.jpg)
+  isActive: { type: Boolean, default: false },
+  
+  // Approval status fields
+  approvalStatus: { 
+    type: String, 
+    enum: ['pending', 'approved', 'rejected'], 
+    default: 'pending' 
+  },
+  status: { 
+    type: String, 
+    enum: ['Active', 'Inactive', 'Pending'], 
+    default: 'Pending' 
+  },
+  
+  // Profile image
   profileImage: { type: String, default: null },
+  
   // Student-specific fields
   studentId: { type: String, unique: true, sparse: true },
   grade: { type: String },
   enrolledCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
   
-  //  Notification settings
+  // Notification settings
   notificationSettings: {
     emailNotifications: { type: Boolean, default: true },
     smsNotifications: { type: Boolean, default: false },
     inAppNotifications: { type: Boolean, default: true }
   },
   
-  //  Privacy settings
+  // Privacy settings
   privacySettings: {
     emotionDataConsent: { type: Boolean, default: true }
   },
   
-  //  Profile data fields (optional but useful)
+  // Profile data fields
   recentActivity: { type: Array, default: [] },
   totalQuizzes: { type: Number, default: 0 },
   averageScore: { type: Number, default: 0 },
@@ -35,9 +49,20 @@ const studentSchema = new mongoose.Schema({
   upcomingQuizzes: { type: Array, default: [] }
 }, { timestamps: true });
 
-// Hash password before saving
+// Hash password before saving - BUT ONLY if password is actually modified
 studentSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password')) {
+    return next();
+  }
+  
+  // CRITICAL: Check if password is already hashed (starts with $2b$ or $2a$)
+  if (this.password && (this.password.startsWith('$2b$') || this.password.startsWith('$2a$'))) {
+    console.log('🔑 Student password already hashed, skipping hash');
+    return next();
+  }
+  
+  // Only hash if it's a plain text password
+  console.log('🔑 Hashing new student password');
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
   next();
