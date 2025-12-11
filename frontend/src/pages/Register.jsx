@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import logo from "../assets/auth-pages-images/EMEXA Logo.png";
 import api from "../lib/api";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import "./Form.css";
 
 export default function Register() {
@@ -15,6 +15,7 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState(false);
   const [userName, setUserName] = useState("");
   const navigate = useNavigate();
 
@@ -30,77 +31,15 @@ export default function Register() {
     } else if (email !== email.toLowerCase()) {
       e.email = "Email must be in lowercase only";
     } else {
-      // Validate TLD
       const tld = email.split(".").pop().toLowerCase();
       const validTLDs = [
-        "com",
-        "org",
-        "net",
-        "edu",
-        "gov",
-        "mil",
-        "int",
-        "co",
-        "uk",
-        "us",
-        "ca",
-        "au",
-        "de",
-        "fr",
-        "jp",
-        "cn",
-        "in",
-        "br",
-        "ru",
-        "za",
-        "es",
-        "it",
-        "nl",
-        "se",
-        "no",
-        "dk",
-        "fi",
-        "be",
-        "ch",
-        "at",
-        "nz",
-        "sg",
-        "hk",
-        "kr",
-        "tw",
-        "mx",
-        "ar",
-        "cl",
-        "info",
-        "biz",
-        "io",
-        "ai",
-        "app",
-        "dev",
-        "tech",
-        "online",
-        "site",
-        "website",
-        "space",
-        "store",
-        "club",
-        "xyz",
-        "top",
-        "pro",
-        "name",
-        "me",
-        "tv",
-        "cc",
-        "ws",
-        "mobi",
-        "asia",
-        "tel",
-        "travel",
-        "museum",
-        "coop",
-        "aero",
-        "jobs",
-        "cat",
+        "com", "org", "net", "edu", "gov", "mil", "int", "co", "uk", "us",
+        "ca", "au", "de", "fr", "jp", "cn", "in", "br", "ru", "za", "es",
+        "it", "nl", "se", "no", "dk", "fi", "be", "ch", "at", "nz", "sg",
+        "hk", "kr", "tw", "mx", "ar", "cl", "info", "biz", "io", "ai",
+        "app", "dev", "tech", "online", "site", "website", "space", "store",
+        "club", "xyz", "top", "pro", "name", "me", "tv", "cc", "ws",
+        "mobi", "asia", "tel", "travel", "museum", "coop", "aero", "jobs", "cat"
       ];
       if (!validTLDs.includes(tld)) {
         e.email = "Please enter a valid email address";
@@ -123,13 +62,11 @@ export default function Register() {
     ev.preventDefault();
     const e = validate();
     setErrors(e);
+    
     if (Object.keys(e).length === 0) {
       setLoading(true);
-
-      // Clear any previous errors
       setErrors({});
 
-      // Log what we're sending to backend
       console.log("📤 Sending registration to backend:", {
         fullName,
         email,
@@ -140,43 +77,43 @@ export default function Register() {
       api
         .post("/auth/register", { fullName, email, password, accountType })
         .then((res) => {
-          console.log("✅ Registration successful:", res);
+          console.log("✅ Registration response:", res);
 
-          // Use returned user name field for success message
           setUserName(res.user?.name || fullName);
-          setRegistered(true);
-
-          // Clear any existing auth data and redirect to login
-          // User must login with their new credentials
-          setTimeout(() => {
-            console.log(
-              "✅ Registration complete. Clearing auth and redirecting to login..."
-            );
-
-            // Clear all auth-related data
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            localStorage.removeItem("userName");
-            localStorage.removeItem("userEmail");
-            localStorage.removeItem("userId");
-            localStorage.removeItem("userRole");
-            sessionStorage.clear();
-
-            navigate("/login", { replace: true });
-          }, 2000);
+          
+          // Check if approval is pending
+          if (res.pendingApproval) {
+            console.log("⏳ Account pending approval");
+            setPendingApproval(true);
+            setRegistered(true);
+            
+            // Redirect to login after showing message
+            setTimeout(() => {
+              navigate("/login", { 
+                replace: true,
+                state: { 
+                  message: "Registration successful! Please wait for admin approval before logging in.",
+                  email: email
+                }
+              });
+            }, 3000);
+          } else {
+            // Old flow - shouldn't happen anymore
+            setRegistered(true);
+            setTimeout(() => {
+              navigate("/login", { replace: true });
+            }, 2000);
+          }
         })
         .catch((err) => {
           console.error("❌ Registration error:", err);
 
           let errorMessage = "Registration failed. Please try again.";
 
-          // Detect network failure (fetch throws), or HTTP errors where message is available
-          if (err.message && err.message.startsWith("HTTP")) {
-            // Generic HTTP error (e.g. HTTP 409)
-            errorMessage = `Server returned an error (${err.message})`;
+          if (err.message && err.message.includes("HTTP")) {
+            errorMessage = `Server error: ${err.message}`;
           } else if (err.isNetworkError) {
-            errorMessage =
-              "⚠️ Cannot connect to server. Please check if backend is running on http://localhost:5000";
+            errorMessage = "⚠️ Cannot connect to server. Please check if backend is running.";
           } else if (err.message) {
             errorMessage = err.message;
           }
@@ -223,14 +160,8 @@ export default function Register() {
                       const newEmail = e.target.value;
                       setEmail(newEmail);
 
-                      // Real-time validation
                       if (newEmail.trim()) {
-                        // Check basic format first
-                        if (
-                          !/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
-                            newEmail
-                          )
-                        ) {
+                        if (!/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(newEmail)) {
                           setErrors((prev) => ({
                             ...prev,
                             email: "Please enter a valid email address",
@@ -241,77 +172,16 @@ export default function Register() {
                             email: "Email must be in lowercase only",
                           }));
                         } else {
-                          // Validate TLD against whitelist
                           const tld = newEmail.split(".").pop().toLowerCase();
                           const validTLDs = [
-                            "com",
-                            "org",
-                            "net",
-                            "edu",
-                            "gov",
-                            "mil",
-                            "int",
-                            "co",
-                            "uk",
-                            "us",
-                            "ca",
-                            "au",
-                            "de",
-                            "fr",
-                            "jp",
-                            "cn",
-                            "in",
-                            "br",
-                            "ru",
-                            "za",
-                            "es",
-                            "it",
-                            "nl",
-                            "se",
-                            "no",
-                            "dk",
-                            "fi",
-                            "be",
-                            "ch",
-                            "at",
-                            "nz",
-                            "sg",
-                            "hk",
-                            "kr",
-                            "tw",
-                            "mx",
-                            "ar",
-                            "cl",
-                            "info",
-                            "biz",
-                            "io",
-                            "ai",
-                            "app",
-                            "dev",
-                            "tech",
-                            "online",
-                            "site",
-                            "website",
-                            "space",
-                            "store",
-                            "club",
-                            "xyz",
-                            "top",
-                            "pro",
-                            "name",
-                            "me",
-                            "tv",
-                            "cc",
-                            "ws",
-                            "mobi",
-                            "asia",
-                            "tel",
-                            "travel",
-                            "museum",
-                            "coop",
-                            "aero",
-                            "jobs",
-                            "cat",
+                            "com", "org", "net", "edu", "gov", "mil", "int", "co", "uk",
+                            "us", "ca", "au", "de", "fr", "jp", "cn", "in", "br", "ru",
+                            "za", "es", "it", "nl", "se", "no", "dk", "fi", "be", "ch",
+                            "at", "nz", "sg", "hk", "kr", "tw", "mx", "ar", "cl", "info",
+                            "biz", "io", "ai", "app", "dev", "tech", "online", "site",
+                            "website", "space", "store", "club", "xyz", "top", "pro",
+                            "name", "me", "tv", "cc", "ws", "mobi", "asia", "tel",
+                            "travel", "museum", "coop", "aero", "jobs", "cat"
                           ];
 
                           if (!validTLDs.includes(tld)) {
@@ -324,30 +194,6 @@ export default function Register() {
                           }
                         }
                       } else {
-                        setErrors((prev) => ({ ...prev, email: "" }));
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const emailValue = e.target.value.trim();
-                      if (
-                        emailValue &&
-                        !/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
-                          emailValue
-                        )
-                      ) {
-                        setErrors((prev) => ({
-                          ...prev,
-                          email: "Please enter a valid email address",
-                        }));
-                      } else if (
-                        emailValue &&
-                        emailValue !== emailValue.toLowerCase()
-                      ) {
-                        setErrors((prev) => ({
-                          ...prev,
-                          email: "Email must be in lowercase only",
-                        }));
-                      } else if (!emailValue) {
                         setErrors((prev) => ({ ...prev, email: "" }));
                       }
                     }}
@@ -386,9 +232,7 @@ export default function Register() {
                         lineHeight: "1",
                         transition: "color 0.2s ease",
                       }}
-                      aria-label={
-                        showPassword ? "Hide password" : "Show password"
-                      }
+                      aria-label={showPassword ? "Hide password" : "Show password"}
                     >
                       {showPassword ? "👁️" : "👁️‍🗨️"}
                     </button>
@@ -426,9 +270,7 @@ export default function Register() {
                         lineHeight: "1",
                         transition: "color 0.2s ease",
                       }}
-                      aria-label={
-                        showConfirm ? "Hide password" : "Show password"
-                      }
+                      aria-label={showConfirm ? "Hide password" : "Show password"}
                     >
                       {showConfirm ? "👁️" : "👁️‍🗨️"}
                     </button>
@@ -529,7 +371,6 @@ export default function Register() {
             </div>
 
             <div className="success-card">
-              {/* FIXED: Centered success icon */}
               <div
                 className="success-icon"
                 style={{
@@ -544,43 +385,54 @@ export default function Register() {
                     cx="30"
                     cy="30"
                     r="28"
-                    fill="#155724"
-                    stroke="#155724"
+                    fill={pendingApproval ? "#ff9800" : "#155724"}
+                    stroke={pendingApproval ? "#ff9800" : "#155724"}
                     strokeWidth="2"
                   />
-                  <path
-                    d="M20 30L26 36L40 22"
-                    stroke="white"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                  {pendingApproval ? (
+                    <path
+                      d="M30 15v20M30 40v2"
+                      stroke="white"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                    />
+                  ) : (
+                    <path
+                      d="M20 30L26 36L40 22"
+                      stroke="white"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
                 </svg>
               </div>
 
               <h2 className="success-title" style={{ textAlign: "center" }}>
-                Registration Successful!
+                {pendingApproval ? "Registration Pending Approval" : "Registration Successful!"}
               </h2>
 
               <p className="success-subtitle" style={{ textAlign: "center" }}>
-                Welcome {userName}! Your account has been created successfully.
-                {accountType === "teacher"
-                  ? " Redirecting to teacher dashboard..."
-                  : " Redirecting to student dashboard..."}
+                {pendingApproval ? (
+                  <>
+                    Welcome {userName}! Your account has been created and is pending admin approval.
+                    <br /><br />
+                    <strong>You will be able to login once an admin approves your account.</strong>
+                    <br /><br />
+                    Redirecting to login page...
+                  </>
+                ) : (
+                  <>
+                    Welcome {userName}! Your account has been created successfully.
+                    Redirecting to login...
+                  </>
+                )}
               </p>
             </div>
 
             <div style={{ marginTop: "20px", textAlign: "center" }}>
-              <Link
-                className="link"
-                to={
-                  accountType === "teacher"
-                    ? "/teacher-dashboard"
-                    : "/dashboard"
-                }
-              >
-                Go to {accountType === "teacher" ? "Teacher" : "Student"}{" "}
-                Dashboard
+              <Link className="link" to="/login">
+                Go to Login
               </Link>
             </div>
           </div>
