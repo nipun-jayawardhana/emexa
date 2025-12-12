@@ -228,128 +228,201 @@ useEffect(() => {
     }
   }, [userData]);
 
-  const fetchUserData = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const storedUserName = localStorage.getItem('userName');
-      const storedUserEmail = localStorage.getItem('userEmail');
+ // COMPLETE REPLACEMENT for fetchUserData function in StudentProfile.jsx
+// Find the existing fetchUserData function and replace it entirely with this:
 
-      if (!token && !adminToken) {
-        navigate('/login');
+const fetchUserData = async () => {
+  setLoading(true);
+  try {
+    const token = localStorage.getItem('token');
+    const adminToken = localStorage.getItem('adminToken');
+    const isAdminViewing = localStorage.getItem('adminViewingAs');
+    const viewingUserId = localStorage.getItem('adminViewingUserId');
+    
+    console.log('🔍 Fetch user data:', {
+      isAdminViewing,
+      viewingUserId,
+      hasToken: !!token,
+      hasAdminToken: !!adminToken
+    });
+
+    // ADMIN VIEWING SPECIFIC USER
+    if (isAdminViewing && adminToken && viewingUserId) {
+      console.log('👤 Admin viewing user ID:', viewingUserId);
+      
+      try {
+        // Fetch the specific user's profile by ID
+        const response = await axios.get(
+          `http://localhost:5000/api/users/${viewingUserId}`,
+          {
+            headers: { Authorization: `Bearer ${adminToken}` }
+          }
+        );
+
+        const user = response.data;
+        console.log('✅ Fetched user data for admin view:', user);
+        
+        // Set all user data
+        setUserData(user);
+        setFormData({
+          name: user.name || '',
+          email: user.email || '',
+          role: user.role || 'student'
+        });
+
+        // Set notification settings
+        if (user.notificationSettings) {
+          console.log('📋 Setting notification settings:', user.notificationSettings);
+          setNotificationSettings({
+            emailNotifications: user.notificationSettings.emailNotifications ?? true,
+            smsNotifications: user.notificationSettings.smsNotifications ?? false,
+            inAppNotifications: user.notificationSettings.inAppNotifications ?? true
+          });
+        }
+
+        // Set privacy settings
+        if (user.privacySettings) {
+          console.log('🔒 Setting privacy settings:', user.privacySettings);
+          setPrivacySettings({
+            emotionDataConsent: user.privacySettings.emotionDataConsent ?? true
+          });
+        }
+
+        // Set profile image
+        if (user.profileImage) {
+          console.log('🖼️ Setting profile image:', user.profileImage);
+          setProfileImage(user.profileImage);
+        }
+
+        setLoading(false);
+        return;
+        
+      } catch (error) {
+        console.error('❌ Error fetching user for admin:', error);
+        alert('Failed to load user profile. Returning to user management.');
+        
+        // Clear admin viewing flags and return to user management
+        localStorage.removeItem('adminViewingUserId');
+        localStorage.removeItem('adminViewingUserRole');
+        localStorage.removeItem('adminViewingAs');
+        
+        navigate('/admin/user-management');
         return;
       }
-
-      if (!isAdminViewing) {
-        try {
-          const response = await axios.get('http://localhost:5000/api/users/profile', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-
-          const user = response.data;
-          console.log('✅ Fetched user data from server:', user);
-          
-          // Set complete user data - this triggers useEffect to sync profileImage
-          setUserData(user);
-
-          // Set form data
-          setFormData({
-            name: user.name || storedUserName || '',
-            email: user.email || storedUserEmail || '',
-            role: user.role || 'student'
-          });
-
-          // CRITICAL: Set notification settings from server
-          if (user.notificationSettings) {
-            console.log('📋 Loading notification settings:', user.notificationSettings);
-            setNotificationSettings({
-              emailNotifications: user.notificationSettings.emailNotifications ?? true,
-              smsNotifications: user.notificationSettings.smsNotifications ?? false,
-              inAppNotifications: user.notificationSettings.inAppNotifications ?? true
-            });
-          }
-
-          // CRITICAL: Set privacy settings from server
-          if (user.privacySettings) {
-            console.log('🔒 Loading privacy settings:', user.privacySettings);
-            setPrivacySettings({
-              emotionDataConsent: user.privacySettings.emotionDataConsent ?? true
-            });
-          }
-
-        } catch (apiError) {
-          console.error('❌ API Error:', apiError);
-          console.log('Using fallback data from localStorage');
-          
-          const fallbackData = {
-            name: storedUserName || 'Student',
-            email: storedUserEmail || 'student@school.edu',
-            role: 'student',
-            profileImage: localStorage.getItem('studentProfileImage') || null,
-            recentActivity: [],
-            notificationSettings: {
-              emailNotifications: true,
-              smsNotifications: false,
-              inAppNotifications: true
-            },
-            privacySettings: {
-              emotionDataConsent: true
-            }
-          };
-
-          setUserData(fallbackData);
-          setFormData({
-            name: fallbackData.name,
-            email: fallbackData.email,
-            role: fallbackData.role
-          });
-          setNotificationSettings(fallbackData.notificationSettings);
-          setPrivacySettings(fallbackData.privacySettings);
-        }
-      } else {
-        // Mock data for admin viewing
-        const mockData = {
-          name: 'Anna Faris',
-          email: 'anna.faris@school.edu',
-          role: 'student',
-          profileImage: null,
-          recentActivity: [],
-          notificationSettings: {
-            emailNotifications: true,
-            smsNotifications: false,
-            inAppNotifications: true
-          },
-          privacySettings: {
-            emotionDataConsent: true
-          }
-        };
-        setUserData(mockData);
-        setFormData({
-          name: mockData.name,
-          email: mockData.email,
-          role: mockData.role
-        });
-        setNotificationSettings(mockData.notificationSettings);
-        setPrivacySettings(mockData.privacySettings);
-      }
-    } catch (error) {
-      console.error('Critical error:', error);
-      const fallbackImage = localStorage.getItem('studentProfileImage');
-      setFormData({
-        name: localStorage.getItem('userName') || 'Student',
-        email: 'student@school.edu',
-        role: 'student'
-      });
-      setUserData({
-        name: localStorage.getItem('userName') || 'Student',
-        email: 'student@school.edu',
-        role: 'student',
-        profileImage: fallbackImage
-      });
-    } finally {
-      setLoading(false);
     }
-  };
+
+    // NORMAL USER VIEWING THEIR OWN PROFILE
+    const storedUserName = localStorage.getItem('userName');
+    const storedUserEmail = localStorage.getItem('userEmail');
+
+    if (!token) {
+      console.log('❌ No token found, redirecting to login');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      console.log('👤 Fetching own profile');
+      const response = await axios.get('http://localhost:5000/api/users/profile', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const user = response.data;
+      console.log('✅ Fetched own profile data:', user);
+      
+      setUserData(user);
+      setFormData({
+        name: user.name || storedUserName || '',
+        email: user.email || storedUserEmail || '',
+        role: user.role || 'student'
+      });
+
+      // Set notification settings
+      if (user.notificationSettings) {
+        console.log('📋 Loading notification settings:', user.notificationSettings);
+        setNotificationSettings({
+          emailNotifications: user.notificationSettings.emailNotifications ?? true,
+          smsNotifications: user.notificationSettings.smsNotifications ?? false,
+          inAppNotifications: user.notificationSettings.inAppNotifications ?? true
+        });
+      }
+
+      // Set privacy settings
+      if (user.privacySettings) {
+        console.log('🔒 Loading privacy settings:', user.privacySettings);
+        setPrivacySettings({
+          emotionDataConsent: user.privacySettings.emotionDataConsent ?? true
+        });
+      }
+
+      // Set profile image
+      if (user.profileImage) {
+        console.log('🖼️ Loading profile image:', user.profileImage);
+        setProfileImage(user.profileImage);
+      }
+
+    } catch (apiError) {
+      console.error('❌ API Error:', apiError);
+      console.log('⚠️ Using fallback data from localStorage');
+      
+      const fallbackData = {
+        name: storedUserName || 'Student',
+        email: storedUserEmail || 'student@school.edu',
+        role: 'student',
+        profileImage: localStorage.getItem('studentProfileImage') || null,
+        recentActivity: [],
+        notificationSettings: {
+          emailNotifications: true,
+          smsNotifications: false,
+          inAppNotifications: true
+        },
+        privacySettings: {
+          emotionDataConsent: true
+        }
+      };
+
+      setUserData(fallbackData);
+      setFormData({
+        name: fallbackData.name,
+        email: fallbackData.email,
+        role: fallbackData.role
+      });
+      setNotificationSettings(fallbackData.notificationSettings);
+      setPrivacySettings(fallbackData.privacySettings);
+      
+      if (fallbackData.profileImage) {
+        setProfileImage(fallbackData.profileImage);
+      }
+    }
+    
+  } catch (error) {
+    console.error('💥 Critical error:', error);
+    
+    // Ultimate fallback
+    const fallbackImage = localStorage.getItem('studentProfileImage');
+    const fallbackName = localStorage.getItem('userName') || 'Student';
+    
+    setFormData({
+      name: fallbackName,
+      email: 'student@school.edu',
+      role: 'student'
+    });
+    
+    setUserData({
+      name: fallbackName,
+      email: 'student@school.edu',
+      role: 'student',
+      profileImage: fallbackImage
+    });
+    
+    if (fallbackImage) {
+      setProfileImage(fallbackImage);
+    }
+    
+  } finally {
+    setLoading(false);
+  }
+};
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prevData => {
