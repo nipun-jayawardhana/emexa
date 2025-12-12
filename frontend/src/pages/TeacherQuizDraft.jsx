@@ -717,11 +717,26 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                   {quiz.dueDate && (
                     <button
                       onClick={() => {
-                        setSelectedQuizForDueDate(quiz);
-                        const date = new Date(quiz.dueDate);
-                        const formattedDate = date.toISOString().split("T")[0];
-                        setDueDate(formattedDate);
-                        setShowDueDateModal(true);
+                        setSelectedQuizForSchedule(quiz);
+                        // Load schedule date if exists
+                        if (quiz.scheduleDate) {
+                          const date = new Date(quiz.scheduleDate);
+                          const formattedDate = date
+                            .toISOString()
+                            .split("T")[0];
+                          setScheduleDate(formattedDate);
+                        }
+                        setStartTime(quiz.startTime || "");
+                        setEndTime(quiz.endTime || "");
+                        // Load existing due date
+                        if (quiz.dueDate) {
+                          const dueDateObj = new Date(quiz.dueDate);
+                          const formattedDueDate = dueDateObj
+                            .toISOString()
+                            .split("T")[0];
+                          setDueDate(formattedDueDate);
+                        }
+                        setShowScheduleModal(true);
                       }}
                       className="bg-orange-50 border-2 border-orange-500 rounded-lg px-3 py-2 text-right hover:bg-orange-100 transition cursor-pointer relative group"
                     >
