@@ -163,6 +163,68 @@ const UserManagement = () => {
     }
   };
 
+const handleViewUser = (user) => {
+  console.log('👁️ Admin viewing user profile:', user);
+  
+  // CRITICAL: Clean up ALL previous states first
+  localStorage.removeItem('adminViewingUserId');
+  localStorage.removeItem('adminViewingUserRole');
+  localStorage.removeItem('adminViewingUserData');
+  localStorage.removeItem('adminViewingAs');
+  
+  // Store the complete user data for the profile page
+  const userDataToStore = {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    status: user.status,
+    createdAt: user.createdAt,
+    profileImage: user.profileImage || null,
+    phone: user.phone || '',
+    dateOfBirth: user.dateOfBirth || '',
+    qualifications: user.qualifications || '',
+    subjects: user.subjects || [],
+    grade: user.grade || '',
+    guardianName: user.guardianName || '',
+    guardianContact: user.guardianContact || '',
+    bio: user.bio || '',
+    address: user.address || '',
+    notificationSettings: user.notificationSettings || {
+      emailNotifications: true,
+      smsNotifications: false,
+      inAppNotifications: true
+    },
+    privacySettings: user.privacySettings || {
+      emotionDataConsent: true
+    }
+  };
+  
+  // Set the admin viewing flags
+  localStorage.setItem('adminViewingUserId', user._id);
+  const roleFormatted = user.role.toLowerCase();
+  localStorage.setItem('adminViewingUserRole', roleFormatted);
+  localStorage.setItem('adminViewingAs', roleFormatted);
+  localStorage.setItem('adminViewingUserData', JSON.stringify(userDataToStore));
+  
+  console.log('✅ Admin viewing state set:', {
+    userId: user._id,
+    role: roleFormatted,
+    name: user.name,
+    viewingAs: localStorage.getItem('adminViewingAs')
+  });
+  
+  // Navigate based on role - use window.location.href for clean reload
+  if (roleFormatted === 'student') {
+    window.location.href = '/profile';
+  } else if (roleFormatted === 'teacher') {
+    window.location.href = '/teacher-profile';
+  } else {
+    console.error('Unknown role:', user.role);
+    alert('Cannot view profile for this user role');
+  }
+};
+
   const adminMenuItems = [
     {
       id: "userManagement",
@@ -246,9 +308,7 @@ const UserManagement = () => {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  // ============================================
-  // UPDATED: Fetch data with new approval endpoints
-  // ============================================
+  // Fetch data with new approval endpoints
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -308,9 +368,7 @@ const UserManagement = () => {
     });
   };
 
-  // ============================================
-  // UPDATED: Student approval handlers
-  // ============================================
+  // Student approval handlers
   const handleApproveStudent = async (id) => {
     try {
       const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
@@ -372,9 +430,7 @@ const UserManagement = () => {
     }
   };
 
-  // ============================================
-  // NEW: Teacher approval handlers
-  // ============================================
+  // Teacher approval handlers
   const handleApproveTeacher = async (id) => {
     try {
       const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
@@ -436,10 +492,32 @@ const UserManagement = () => {
     }
   };
 
-  const filteredUsers = users.filter(u =>
-    (selectedRole === "All Roles" || u.role === selectedRole) &&
-    (u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || u.email?.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  // FIXED: Filter users based on role AND search query
+  const filteredUsers = users.filter(u => {
+    // Role filter - handle case-insensitive comparison
+    const userRole = u.role?.toLowerCase();
+    const selectedRoleLower = selectedRole.toLowerCase();
+    const roleMatch = selectedRole === "All Roles" || 
+                     userRole === selectedRoleLower ||
+                     u.role === selectedRole;
+    
+    // Search filter
+    const searchLower = searchQuery.toLowerCase();
+    const searchMatch = searchQuery === "" || 
+      u.name?.toLowerCase().includes(searchLower) || 
+      u.email?.toLowerCase().includes(searchLower);
+    
+    return roleMatch && searchMatch;
+  });
+
+  // Debug log to check what we're filtering
+  console.log('Total users:', users.length, 'Filtered users:', filteredUsers.length, 'Selected role:', selectedRole);
+  
+  // Debug: Log user roles if filter returns empty
+  if (users.length > 0 && filteredUsers.length === 0) {
+    console.log('All user roles:', users.map(u => u.role));
+    console.log('Selected role for filter:', selectedRole);
+  }
 
   const pendingTeacherApprovals = teacherApprovals.filter(a => a.approvalStatus === 'pending').length;
   const pendingStudentApprovals = studentApprovals.filter(a => a.approvalStatus === 'pending').length;
@@ -616,7 +694,7 @@ const UserManagement = () => {
                                 {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "N/A"}
                               </td>
                               <td className="px-8 py-5 text-base">
-                                <button onClick={() => openModal("view", u)} className="text-emerald-600 hover:text-emerald-800 font-semibold mr-6">View</button>
+                                <button onClick={() => handleViewUser(u)} className="text-emerald-600 hover:text-emerald-800 font-semibold mr-6">View</button>
                                 <button onClick={() => openModal("delete", u)} className="text-red-600 hover:text-red-800 font-semibold">Delete</button>
                               </td>
                             </tr>
@@ -628,7 +706,7 @@ const UserManagement = () => {
                 </>
               )}
 
-              {/* UPDATED: Teacher approvals tab with new handlers */}
+              {/* Teacher approvals tab */}
               {tab === "teacher-approvals" && (
                 <div className="p-10">
                   <ApprovalTab 
@@ -640,7 +718,7 @@ const UserManagement = () => {
                 </div>
               )}
 
-              {/* UPDATED: Student approvals tab with new handlers */}
+              {/* Student approvals tab */}
               {tab === "student-approvals" && (
                 <div className="p-10">
                   <ApprovalTab 
@@ -656,85 +734,118 @@ const UserManagement = () => {
         </main>
       </div>
 
-      <Modal isOpen={modalOpen} onRequestClose={closeModal} className="bg-white rounded-2xl shadow-2xl max-w-lg mx-auto p-8 outline-none" overlayClassName="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" ariaHideApp={false}>
-        {modalType === "view" && <ViewUserModal user={selectedUser} onClose={closeModal} />}
-        {modalType === "delete" && <DeleteUserModal user={selectedUser} onSubmit={() => handleDeleteUser(selectedUser._id)} onCancel={closeModal} />}
-      </Modal>
+      <Modal 
+  isOpen={modalOpen} 
+  onRequestClose={closeModal} 
+  className="bg-white rounded-2xl shadow-2xl max-w-lg mx-auto p-8 outline-none" 
+  overlayClassName="fixed inset-0 flex items-center justify-center z-50 px-4"
+  ariaHideApp={false}
+  style={{
+    overlay: {
+      backgroundColor: 'rgba(255, 255, 255, 0.4)',
+      backdropFilter: 'blur(10px)',
+      WebkitBackdropFilter: 'blur(10px)'
+    }
+  }}
+>
+  {modalType === "delete" && (
+    <DeleteUserModal 
+      user={selectedUser} 
+      onSubmit={() => handleDeleteUser(selectedUser._id)} 
+      onCancel={closeModal} 
+    />
+  )}
+</Modal>
     </div>
   );
 };
 
-const ApprovalTab = ({ approvals = [], title, onApprove, onReject }) => (
-  <div>
-    <h2 className="text-3xl font-bold mb-4 text-gray-900">{title}</h2>
-    <p className="text-gray-600 mb-10 text-lg">Review and manage pending registration requests</p>
-    {approvals.length === 0 ? (
-      <div className="text-center py-32 text-gray-500 border-2 border-dashed border-gray-300 rounded-2xl text-xl font-medium">
-        No pending requests
-      </div>
-    ) : (
-      <div className="space-y-8">
-        {approvals.map(ap => (
-          <div key={ap._id} className="border rounded-2xl p-8 hover:shadow-xl transition bg-gradient-to-r from-emerald-50/50 to-white">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-bold text-2xl text-gray-900">{ap.name}</h3>
-                <p className="text-gray-700 mt-2 text-lg">{ap.email}</p>
-                <p className="text-gray-500 mt-3">Requested: {ap.createdAt ? new Date(ap.createdAt).toLocaleDateString() : "N/A"}</p>
-                {ap.qualifications && <p className="mt-6 text-gray-800 text-base"><strong className="font-bold">Qualifications:</strong> {ap.qualifications}</p>}
-                <div className="mt-4">
-                  <span className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                    ap.approvalStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                    ap.approvalStatus === 'approved' ? 'bg-green-100 text-green-700' :
-                    'bg-red-100 text-red-700'
-                  }`}>
-                    Status: {ap.approvalStatus || 'pending'}
-                  </span>
+// FIXED: Sort approvals to show pending first, approved in middle, rejected last
+const ApprovalTab = ({ approvals = [], title, onApprove, onReject }) => {
+  // Sort approvals: pending -> approved -> rejected
+  const sortedApprovals = [...approvals].sort((a, b) => {
+    const order = { 'pending': 1, 'approved': 2, 'rejected': 3 };
+    const statusA = a.approvalStatus || 'pending';
+    const statusB = b.approvalStatus || 'pending';
+    return order[statusA] - order[statusB];
+  });
+
+  return (
+    <div>
+      <h2 className="text-3xl font-bold mb-4 text-gray-900">{title}</h2>
+      <p className="text-gray-600 mb-10 text-lg">Review and manage pending registration requests</p>
+      {sortedApprovals.length === 0 ? (
+        <div className="text-center py-32 text-gray-500 border-2 border-dashed border-gray-300 rounded-2xl text-xl font-medium">
+          No pending requests
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {sortedApprovals.map(ap => (
+            <div key={ap._id} className="border rounded-2xl p-8 hover:shadow-xl transition bg-gradient-to-r from-emerald-50/50 to-white">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-bold text-2xl text-gray-900">{ap.name}</h3>
+                  <p className="text-gray-700 mt-2 text-lg">{ap.email}</p>
+                  <p className="text-gray-500 mt-3">Requested: {ap.createdAt ? new Date(ap.createdAt).toLocaleDateString() : "N/A"}</p>
+                  {ap.qualifications && <p className="mt-6 text-gray-800 text-base"><strong className="font-bold">Qualifications:</strong> {ap.qualifications}</p>}
+                  <div className="mt-4">
+                    <span className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                      ap.approvalStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                      ap.approvalStatus === 'approved' ? 'bg-green-100 text-green-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      Status: {ap.approvalStatus || 'pending'}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  {ap.approvalStatus === 'pending' || !ap.approvalStatus ? (
+                    <>
+                      <button onClick={() => onApprove(ap._id)} className="px-8 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-bold text-lg shadow-md">Approve</button>
+                      <button onClick={() => onReject(ap._id)} className="px-8 py-4 border-2 border-gray-300 rounded-xl hover:bg-gray-100 font-bold text-lg">Reject</button>
+                    </>
+                  ) : ap.approvalStatus === 'approved' ? (
+                    <span className="px-8 py-4 bg-green-100 text-green-700 rounded-xl font-bold text-xl">Approved</span>
+                  ) : (
+                    <span className="px-8 py-4 bg-red-100 text-red-700 rounded-xl font-bold text-xl">Rejected</span>
+                  )}
                 </div>
               </div>
-              <div className="flex gap-4">
-                {ap.approvalStatus === 'pending' || !ap.approvalStatus ? (
-                  <>
-                    <button onClick={() => onApprove(ap._id)} className="px-8 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-bold text-lg shadow-md">Approve</button>
-                    <button onClick={() => onReject(ap._id)} className="px-8 py-4 border-2 border-gray-300 rounded-xl hover:bg-gray-100 font-bold text-lg">Reject</button>
-                  </>
-                ) : ap.approvalStatus === 'approved' ? (
-                  <span className="px-8 py-4 bg-green-100 text-green-700 rounded-xl font-bold text-xl">Approved</span>
-                ) : (
-                  <span className="px-8 py-4 bg-red-100 text-red-700 rounded-xl font-bold text-xl">Rejected</span>
-                )}
-              </div>
             </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-);
-
-const ViewUserModal = ({ user, onClose }) => (
-  <div>
-    <h2 className="text-3xl font-bold mb-8 text-gray-900">User Profile</h2>
-    <div className="space-y-6 text-lg">
-      <p><strong className="text-gray-700">Name:</strong> {user.name}</p>
-      <p><strong className="text-gray-700">Email:</strong> {user.email}</p>
-      <p><strong className="text-gray-700">Role:</strong> <RoleTag role={user.role} /></p>
-      <p><strong className="text-gray-700">Status:</strong> <StatusTag status={user.status} /></p>
-      <p><strong className="text-gray-700">Joined:</strong> {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}</p>
+          ))}
+        </div>
+      )}
     </div>
-    <div className="mt-12 text-right">
-      <button onClick={onClose} className="px-10 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-bold text-xl">Close</button>
-    </div>
-  </div>
-);
+  );
+};
 
 const DeleteUserModal = ({ user, onSubmit, onCancel }) => (
   <div>
+    {/* Title */}
     <h2 className="text-3xl font-bold mb-6 text-red-600">Delete User</h2>
-    <p className="text-gray-700 mb-10 text-lg">Are you sure you want to permanently delete <strong className="font-bold">{user.name}</strong>? This action cannot be undone.</p>
+    
+    {/* Description */}
+    <p className="text-gray-700 mb-2 text-lg">
+      Are you sure you want to permanently delete <strong className="font-bold">{user?.name}</strong>?
+    </p>
+    <p className="text-gray-600 mb-10 text-base">
+      This action cannot be undone.
+    </p>
+
+    {/* Action Buttons */}
     <div className="flex justify-end gap-6">
-      <button onClick={onCancel} className="px-10 py-4 border-2 border-gray-300 rounded-xl hover:bg-gray-100 font-bold text-xl">Cancel</button>
-      <button onClick={onSubmit} className="px-10 py-4 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold text-xl">Delete User</button>
+      <button
+        onClick={onCancel}
+        className="px-10 py-4 border-2 border-gray-300 rounded-xl hover:bg-gray-100 font-bold text-xl transition-colors"
+      >
+        Cancel
+      </button>
+      <button
+        onClick={onSubmit}
+        className="px-10 py-4 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold text-xl transition-colors"
+      >
+        Delete User
+      </button>
     </div>
   </div>
 );
