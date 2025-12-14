@@ -14,6 +14,7 @@ import Logout from "./pages/Logout";
 import LandingPage from "./pages/LandingPage";
 import StudentDashboard from "./pages/stdashboard";
 import Profile from "./pages/StudentProfile"; 
+import TeacherProfile from "./pages/TeacherProfile";
 import QuizPage from "./pages/quizpage";
 import AdminLogin from "./pages/AdminLogin";
 import UserManagement from "./pages/usermgt";
@@ -62,8 +63,6 @@ createRoot(document.getElementById("root")).render(
           element={<Navigate to="/admin/user-management" replace />}
         />
 
-        <Route path="/admin/user-management" element={<UserManagement />} />
-
         {/* Permission Route */}
         <Route path="/permission" element={<Permission />} />
 
@@ -73,6 +72,16 @@ createRoot(document.getElementById("root")).render(
           element={
             <ProtectedRoute allowedRoles={["teacher", "admin"]}>
               <TeacherDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Teacher Profile - Base route for both teacher and admin viewing */}
+        <Route
+          path="/teacher-profile"
+          element={
+            <ProtectedRoute allowedRoles={["teacher", "admin"]}>
+              <TeacherProfile />
             </ProtectedRoute>
           }
         />
@@ -96,7 +105,7 @@ createRoot(document.getElementById("root")).render(
           }
         />
 
-        {/* NEW PROFILE ROUTE - Add this */}
+        {/* Student Profile - Base route for both student and admin viewing */}
         <Route
           path="/profile"
           element={
@@ -104,6 +113,18 @@ createRoot(document.getElementById("root")).render(
               <Profile />
             </ProtectedRoute>
           }
+        />
+
+        {/* Legacy profile routes with userId parameter - redirect to base routes */}
+        {/* These maintain the localStorage data set by handleViewUser */}
+        <Route
+          path="/student-profile/:userId"
+          element={<Navigate to="/profile" replace />}
+        />
+
+        <Route
+          path="/teacher-profile/:userId"
+          element={<Navigate to="/teacher-profile" replace />}
         />
 
         {/* Wellness Centre - ONLY for student, BLOCKED for admin */}
@@ -116,6 +137,7 @@ createRoot(document.getElementById("root")).render(
           }
         />
 
+        {/* Quiz Route */}
         <Route
           path="/quiz/:quizId"
           element={
@@ -125,7 +147,7 @@ createRoot(document.getElementById("root")).render(
           }
         />
 
-        {/* Legacy Redirects */}
+        {/* Legacy Student Dashboard Redirects */}
         <Route
           path="/student-dashboard"
           element={<Navigate to="/dashboard" replace />}
@@ -135,7 +157,7 @@ createRoot(document.getElementById("root")).render(
           element={<Navigate to="/dashboard" replace />}
         />
 
-        {/* 404 Catch-all */}
+        {/* 404 Catch-all - Redirect to landing page */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
