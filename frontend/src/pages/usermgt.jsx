@@ -58,83 +58,85 @@ const UserManagement = () => {
     fileInputRef.current?.click();
   };
 
-  const handleProfileImageChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+const handleProfileImageChange = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-    // Validation
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File size should be less than 5MB');
-      e.target.value = '';
-      return;
-    }
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      e.target.value = '';
-      return;
-    }
+  // Validation
+  if (file.size > 5 * 1024 * 1024) {
+    alert('File size should be less than 5MB');
+    e.target.value = '';
+    return;
+  }
+  if (!file.type.startsWith('image/')) {
+    alert('Please select an image file');
+    e.target.value = '';
+    return;
+  }
 
-    // Optimistic preview
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      setAdminProfileImage(evt.target.result);
-    };
-    reader.readAsDataURL(file);
-
-    // Upload to Cloudinary via backend
-    try {
-      const formData = new FormData();
-      formData.append('profile', file);
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
-      
-      console.log('📤 Uploading admin profile image...');
-      
-      const res = await axios.post('/api/users/upload-profile', formData, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : undefined,
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-
-      console.log('✅ Upload response:', res.data);
-
-      // Get Cloudinary URL from response
-      const cloudinaryUrl = res.data?.profileImage;
-      if (cloudinaryUrl) {
-        setAdminProfileImage(cloudinaryUrl);
-        localStorage.setItem('adminProfileImage', cloudinaryUrl);
-        
-        // Dispatch event for header update
-        window.dispatchEvent(new CustomEvent('adminProfileImageChanged', { detail: cloudinaryUrl }));
-        
-        alert('Profile picture updated successfully!');
-        
-        // Refetch profile to ensure sync
-        try {
-          const profileRes = await axios.get('/api/users/profile', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (profileRes.data?.profileImage) {
-            setAdminProfileImage(profileRes.data.profileImage);
-            localStorage.setItem('adminProfileImage', profileRes.data.profileImage);
-          }
-        } catch (refetchErr) {
-          console.warn('Refetch failed:', refetchErr.message);
-        }
-      }
-    } catch (err) {
-      console.error('❌ Upload failed:', err?.response?.data || err.message);
-      alert('Failed to upload profile picture. Please try again.');
-      
-      // Revert to previous image on failure
-      const storedImage = localStorage.getItem('adminProfileImage');
-      if (storedImage) {
-        setAdminProfileImage(storedImage);
-      }
-    } finally {
-      e.target.value = '';
-    }
+  // Optimistic preview
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    setAdminProfileImage(evt.target.result);
   };
+  reader.readAsDataURL(file);
+
+  // Upload to Cloudinary via backend
+  try {
+    const formData = new FormData();
+    formData.append('profile', file);
+    formData.append('userRole', 'admin'); // IMPORTANT: Specify this is admin's image
+    
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+    
+    console.log('📤 Uploading admin profile image...');
+    
+    const res = await axios.post('/api/users/upload-profile', formData, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : undefined,
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+
+    console.log('✅ Upload response:', res.data);
+
+    // Get Cloudinary URL from response
+    const cloudinaryUrl = res.data?.profileImage;
+    if (cloudinaryUrl) {
+      setAdminProfileImage(cloudinaryUrl);
+      localStorage.setItem('adminProfileImage', cloudinaryUrl);
+      
+      // Dispatch event for header update - ONLY for admin
+      window.dispatchEvent(new CustomEvent('adminProfileImageChanged', { detail: cloudinaryUrl }));
+      
+      alert('Admin profile picture updated successfully!');
+      
+      // Refetch profile to ensure sync
+      try {
+        const profileRes = await axios.get('/api/users/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (profileRes.data?.profileImage) {
+          setAdminProfileImage(profileRes.data.profileImage);
+          localStorage.setItem('adminProfileImage', profileRes.data.profileImage);
+        }
+      } catch (refetchErr) {
+        console.warn('Refetch failed:', refetchErr.message);
+      }
+    }
+  } catch (err) {
+    console.error('❌ Upload failed:', err?.response?.data || err.message);
+    alert('Failed to upload profile picture. Please try again.');
+    
+    // Revert to previous image on failure
+    const storedImage = localStorage.getItem('adminProfileImage');
+    if (storedImage) {
+      setAdminProfileImage(storedImage);
+    }
+  } finally {
+    e.target.value = '';
+  }
+};
 
   // FIXED: Updated navigation function with proper state management
   const navigateToDashboard = (type) => {
@@ -430,37 +432,60 @@ const handleViewUser = (user) => {
     }
   };
 
-  // Teacher approval handlers
-  const handleApproveTeacher = async (id) => {
-    try {
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/auth/teacher-approvals/${id}/approve`, { 
-        method: "PUT", 
-        credentials: "include",
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (res.ok) {
-        console.log('✅ Teacher approved');
-        // Remove from approval list
-        setTeacherApprovals(prev => prev.filter(a => a._id !== id));
-        // Refresh users list to show newly approved user
-        const usersRes = await getUsers();
-        setUsers(usersRes || []);
-        alert('Teacher approved successfully! They can now login and will appear in All Users tab.');
-      } else {
-        const error = await res.json();
-        console.error('❌ Approval failed:', error);
-        alert(error.message || 'Failed to approve teacher');
+// Replace the handleApproveTeacher function in usermgt.jsx with this fixed version:
+
+const handleApproveTeacher = async (id) => {
+  try {
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+    console.log('🔄 Approving teacher with ID:', id);
+    
+    const res = await fetch(`http://localhost:5000/api/auth/teacher-approvals/${id}/approve`, { 
+      method: "PUT", 
+      credentials: "include",
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
-    } catch (err) { 
-      console.error('❌ Error approving teacher:', err);
-      alert('Error approving teacher');
+    });
+    
+    console.log('Response status:', res.status);
+    const responseData = await res.json();
+    console.log('Response data:', responseData);
+    
+    // Check if request was successful OR teacher already exists
+    if (res.ok) {
+      console.log('✅ Teacher approved successfully');
+      
+      // Remove from approval list
+      setTeacherApprovals(prev => prev.filter(a => a._id !== id));
+      
+      // Refresh users list to show the newly approved teacher
+      const usersRes = await getUsers();
+      setUsers(usersRes || []);
+      
+      alert('✅ Teacher approved successfully! They can now login and will appear in All Users tab.');
+    } else if (res.status === 400 && responseData.message?.includes('already exists')) {
+      // Teacher already exists - this is actually OK, just remove from pending list
+      console.log('✅ Teacher already approved, removing from pending list');
+      
+      // Remove from approval list
+      setTeacherApprovals(prev => prev.filter(a => a._id !== id));
+      
+      // Refresh users list
+      const usersRes = await getUsers();
+      setUsers(usersRes || []);
+      
+      alert('✅ This teacher was already approved! Removed from pending list.');
+    } else {
+      // Actual error
+      console.error('❌ Approval failed:', responseData);
+      alert(responseData.message || 'Failed to approve teacher');
     }
-  };
+  } catch (err) { 
+    console.error('❌ Error approving teacher:', err);
+    alert(`Error approving teacher: ${err.message}`);
+  }
+};
 
   const handleRejectTeacher = async (id) => {
     try {
@@ -742,7 +767,7 @@ const handleViewUser = (user) => {
   ariaHideApp={false}
   style={{
     overlay: {
-      backgroundColor: 'rgba(255, 255, 255, 0.4)',
+      backgroundColor: 'rgba(0, 0, 0, 0.3)',
       backdropFilter: 'blur(10px)',
       WebkitBackdropFilter: 'blur(10px)'
     }
