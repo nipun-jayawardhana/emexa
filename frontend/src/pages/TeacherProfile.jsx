@@ -949,8 +949,9 @@ const handleSavePrivacy = async () => {
   }
 
   // Main profile content (used in both admin and regular views)
-  const profileContent = (
-    <div className="min-h-screen bg-gray-50 p-6">
+   // Main profile content (used in both admin and regular views)
+   const profileContent = (
+    <div className="min-h-screen bg-white">
       <input
         ref={fileInputRef}
         type="file"
@@ -961,7 +962,7 @@ const handleSavePrivacy = async () => {
       
       {/* Admin Preview Banner - Only shows when admin is viewing */}
       {isAdminViewing && (
-        <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-3 flex items-center justify-between mb-6 rounded-lg">
+        <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-3 flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <svg className="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
@@ -989,43 +990,42 @@ const handleSavePrivacy = async () => {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto">
         {/* Profile Header Section */}
-        <div className="relative">
-          <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-24 rounded-t-lg"></div>
-          <div className="bg-white h-24"></div>
+        <div className="relative bg-white">
+          <div className="bg-gradient-to-r from-teal-400 to-teal-600 h-32"></div>
           
-          <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 z-10">
-            <div className="relative">
-              <div className="bg-white rounded-full p-1 shadow-lg">
-                <img
-                  src={avatarUrl || "https://via.placeholder.com/120"}
-                  alt="Profile"
-                  className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
-                />
+          <div className="px-8 -mt-16 pb-6">
+            <div className="flex items-end gap-6">
+              <div className="relative">
+                <div className="bg-white rounded-full p-1 shadow-lg">
+                  <img
+                    src={avatarUrl || "https://via.placeholder.com/120"}
+                    alt="Profile"
+                    className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
+                  />
+                </div>
+                {/* Camera button - Now available for admin too */}
+                <button
+                  onClick={handleAvatarClick}
+                  type="button"
+                  className="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full hover:bg-teal-700 shadow-lg transition-colors"
+                >
+                  <Camera size={18} />
+                </button>
               </div>
-              {/* Camera button - Now available for admin too */}
-              <button
-                onClick={handleAvatarClick}
-                type="button"
-                className="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full hover:bg-teal-700 shadow-lg transition-colors"
-              >
-                <Camera size={18} />
-              </button>
-            </div>
-            
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">{formData.fullName || 'Teacher'}</h1>
-              <p className="text-gray-600 text-sm">Teacher</p>
-              <p className="text-gray-500 text-sm">{formData.email}</p>
+              
+              <div className="pb-2">
+                <h1 className="text-2xl font-bold text-gray-900">{formData.fullName || 'Teacher'}</h1>
+                <p className="text-gray-600 text-sm mt-1">{formData.email}</p>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Tabs and Content Section */}
-        <div className="bg-white rounded-b-lg shadow-sm p-8">
-          <div className="mb-8">
-            <div className="flex gap-8 border-b border-gray-200">
+        <div className="bg-white px-8 py-6">
+          <div className="mb-6">
+            <div className="flex gap-6 border-b border-gray-200">
               <button
                 onClick={() => setActiveTab("account")}
                 className={`pb-4 px-2 transition relative ${
@@ -1334,7 +1334,6 @@ const handleSavePrivacy = async () => {
             </div>
           )}
         </div>
-      </div>
 
       {/* Password Modal */}
       <PasswordModal
@@ -1366,11 +1365,15 @@ const handleSavePrivacy = async () => {
 
   // Normal teacher viewing their own profile
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50">
       <Header userName={formData.fullName || displayName || 'Teacher'} userRole="teacher" />
       <Sidebar activeMenuItem={activeMenuItem} setActiveMenuItem={setActiveMenuItem} />
-      <div className="ml-52 pt-14">
-        {profileContent}
+      <div className="ml-0 pt-0">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            {profileContent}
+          </div>
+        </div>
       </div>
     </div>
   );
