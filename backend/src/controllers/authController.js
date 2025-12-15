@@ -325,58 +325,92 @@ export const approveStudent = async (req, res) => {
 };
 
 // ============================================
-// APPROVE TEACHER
+// FIXED approveTeacher function for authController.js
 // ============================================
+
 export const approveTeacher = async (req, res) => {
   try {
     const { id } = req.params;
     
+    console.log('🔍 Attempting to approve teacher with ID:', id);
+    
     const userRecord = await User.findById(id).select('+password');
     
     if (!userRecord) {
-      return res.status(404).json({ message: 'Teacher not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Teacher not found in approval queue'
+      });
     }
     
     if (userRecord.role !== 'teacher') {
-      return res.status(400).json({ message: 'Not a teacher account' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Not a teacher account'
+      });
     }
     
-    console.log('✅ Approving teacher:', userRecord.email);
-    console.log('🔑 Password exists:', !!userRecord.password);
+    console.log('✅ Teacher found:', userRecord.email);
     
-    // Check if already exists
+    // Check if teacher already exists
     const existingTeacher = await Teacher.findOne({ email: userRecord.email });
+    
     if (existingTeacher) {
+      console.log('⚠️ Teacher already exists in Teacher collection');
+      
+      // Update User record
       userRecord.approvalStatus = 'approved';
       userRecord.status = 'Active';
       userRecord.isActive = true;
       await userRecord.save();
       
-      return res.json({ 
+      return res.status(200).json({ 
+        success: true,
         message: 'Teacher already approved',
+        alreadyExists: true,
         teacher: {
           id: existingTeacher._id,
           name: existingTeacher.name,
-          email: existingTeacher.email
+          email: existingTeacher.email,
+          role: existingTeacher.role
         }
       });
     }
     
-    // Create in Teacher collection
-    const newTeacher = new Teacher({
+    // Create new teacher - DON'T set teacherId, let the model generate it
+    console.log('📝 Creating NEW teacher...');
+    
+    const newTeacherData = {
       name: userRecord.name,
       email: userRecord.email,
-      password: userRecord.password, // Already hashed
+      password: userRecord.password,
       role: 'teacher',
       approvalStatus: 'approved',
       status: 'Active',
       isActive: true,
-      profileImage: userRecord.profileImage
-    });
+      profileImage: userRecord.profileImage || null,
+      qualifications: userRecord.qualifications || '',
+      subjects: userRecord.subjects || [],
+      notificationSettings: userRecord.notificationSettings || {
+        emailNotifications: true,
+        smsNotifications: false,
+        inAppNotifications: true
+      },
+      privacySettings: userRecord.privacySettings || {
+        emotionDataConsent: true
+      }
+      // DON'T SET teacherId - it will be auto-generated
+    };
     
+    console.log('📦 Creating teacher:', newTeacherData.email);
+    
+    const newTeacher = new Teacher(newTeacherData);
     await newTeacher.save();
     
-    console.log('✅ Teacher created');
+    console.log('✅ NEW TEACHER CREATED');
+    console.log('   ID:', newTeacher._id);
+    console.log('   Email:', newTeacher.email);
+    console.log('   TeacherId:', newTeacher.teacherId);
     
     // Update User record
     userRecord.approvalStatus = 'approved';
@@ -384,19 +418,82 @@ export const approveTeacher = async (req, res) => {
     userRecord.isActive = true;
     await userRecord.save();
     
-    res.json({ 
+    res.status(200).json({ 
+      success: true,
       message: 'Teacher approved successfully',
+      alreadyExists: false,
       teacher: {
         id: newTeacher._id,
         name: newTeacher.name,
-        email: newTeacher.email
+        email: newTeacher.email,
+        role: newTeacher.role,
+        teacherId: newTeacher.teacherId
       }
     });
+    
   } catch (error) {
-    console.error('❌ Error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ ERROR APPROVING TEACHER');
+    console.error('Error:', error.message);
+    console.error('Code:', error.code);
+    
+    // Handle duplicate email
+    if (error.code === 11000) {
+      console.log('🔄 Handling duplicate...');
+      
+      try {
+        const userRecord = await User.findById(req.params.id);
+        if (!userRecord) {
+          return res.status(404).json({
+            success: false,
+            message: 'User record not found'
+          });
+        }
+        
+        const existingTeacher = await Teacher.findOne({ email: userRecord.email });
+        
+        if (existingTeacher) {
+          // Update User record
+          userRecord.approvalStatus = 'approved';
+          userRecord.status = 'Active';
+          userRecord.isActive = true;
+          await userRecord.save();
+          
+          return res.status(200).json({ 
+            success: true,
+            message: 'Teacher already approved',
+            alreadyExists: true,
+            teacher: {
+              id: existingTeacher._id,
+              name: existingTeacher.name,
+              email: existingTeacher.email,
+              role: existingTeacher.role
+            }
+          });
+        }
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Duplicate error but could not find existing teacher'
+        });
+        
+      } catch (innerError) {
+        console.error('❌ Inner error:', innerError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to handle duplicate'
+        });
+      }
+    }
+    
+    // Generic error
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error while approving teacher',
+      error: error.message 
+    });
   }
 };
+
 
 // ============================================
 // REJECT
