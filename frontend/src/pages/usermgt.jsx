@@ -759,28 +759,13 @@ const handleApproveTeacher = async (id) => {
         </main>
       </div>
 
-      <Modal 
-  isOpen={modalOpen} 
-  onRequestClose={closeModal} 
-  className="bg-white rounded-2xl shadow-2xl max-w-lg mx-auto p-8 outline-none" 
-  overlayClassName="fixed inset-0 flex items-center justify-center z-50 px-4"
-  ariaHideApp={false}
-  style={{
-    overlay: {
-      backgroundColor: 'rgba(0, 0, 0, 0.3)',
-      backdropFilter: 'blur(10px)',
-      WebkitBackdropFilter: 'blur(10px)'
-    }
-  }}
->
-  {modalType === "delete" && (
-    <DeleteUserModal 
-      user={selectedUser} 
-      onSubmit={() => handleDeleteUser(selectedUser._id)} 
-      onCancel={closeModal} 
-    />
-  )}
-</Modal>
+      {modalOpen && modalType === "delete" && (
+  <DeleteUserModal 
+    user={selectedUser} 
+    onSubmit={() => handleDeleteUser(selectedUser._id)} 
+    onCancel={closeModal} 
+  />
+)}
     </div>
   );
 };
@@ -845,34 +830,59 @@ const ApprovalTab = ({ approvals = [], title, onApprove, onReject }) => {
 };
 
 const DeleteUserModal = ({ user, onSubmit, onCancel }) => (
-  <div>
-    {/* Title */}
-    <h2 className="text-3xl font-bold mb-6 text-red-600">Delete User</h2>
-    
-    {/* Description */}
-    <p className="text-gray-700 mb-2 text-lg">
-      Are you sure you want to permanently delete <strong className="font-bold">{user?.name}</strong>?
-    </p>
-    <p className="text-gray-600 mb-10 text-base">
-      This action cannot be undone.
-    </p>
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+    <div className="bg-white rounded-lg max-w-sm w-full text-center shadow-xl overflow-hidden">
+      {/* Teal Background Header (matches your logout modal) */}
+      <div className="bg-teal-500 px-8 py-12">
+        {/* Checkmark Circle Icon */}
+        <div className="flex justify-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+            <svg
+              className="w-8 h-8 text-green-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+        </div>
+      </div>
 
-    {/* Action Buttons */}
-    <div className="flex justify-end gap-6">
-      <button
-        onClick={onCancel}
-        className="px-10 py-4 border-2 border-gray-300 rounded-xl hover:bg-gray-100 font-bold text-xl transition-colors"
-      >
-        Cancel
-      </button>
-      <button
-        onClick={onSubmit}
-        className="px-10 py-4 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold text-xl transition-colors"
-      >
-        Delete User
-      </button>
+      {/* White Content Area */}
+      <div className="p-8">
+        {/* Title */}
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Are you sure?</h2>
+        
+        {/* Description */}
+        <p className="text-gray-600 text-sm mb-6">
+          Do you want to permanently delete <strong className="font-semibold">{user?.name}</strong>?
+        </p>
+
+        {/* Action Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition font-medium text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSubmit}
+            className="flex-1 px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition font-medium text-sm"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 );
+
 
 export default UserManagement;
