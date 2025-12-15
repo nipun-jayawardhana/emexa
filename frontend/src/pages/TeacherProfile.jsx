@@ -341,84 +341,89 @@ const TeacherProfile = () => {
     if (fileInputRef.current) fileInputRef.current.click();
   };
 
-  const handleAvatarChange = async (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
+const handleAvatarChange = async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File size should be less than 5MB');
-      e.target.value = '';
+  if (file.size > 5 * 1024 * 1024) {
+    alert('File size should be less than 5MB');
+    e.target.value = '';
+    return;
+  }
+  if (!file.type.startsWith('image/')) {
+    alert('Please select an image file');
+    e.target.value = '';
+    return;
+  }
+
+  console.log('📤 Starting profile image upload...');
+  console.log('File:', file.name, 'Size:', file.size, 'Type:', file.type);
+  console.log('Admin viewing:', isAdminViewing);
+
+  try {
+    const formDataToSend = new FormData();
+    formDataToSend.append('profile', file);
+    
+    // CRITICAL: Add userId and role when admin is uploading for another user
+    if (isAdminViewing && viewingUserData?._id) {
+      formDataToSend.append('targetUserId', viewingUserData._id);
+      formDataToSend.append('userRole', 'teacher');
+      console.log('📤 Admin uploading image for teacher:', viewingUserData._id);
+    } else {
+      formDataToSend.append('userRole', 'teacher');
+    }
+    
+    // IMPORTANT: Use admin token if admin is viewing
+    const token = isAdminViewing 
+      ? (localStorage.getItem('adminToken') || localStorage.getItem('token'))
+      : localStorage.getItem('token');
+    
+    if (!token) {
+      alert('Authentication required. Please log in again.');
       return;
     }
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      e.target.value = '';
-      return;
-    }
 
-    console.log('📤 Starting profile image upload...');
-    console.log('File:', file.name, 'Size:', file.size, 'Type:', file.type);
-    console.log('Admin viewing:', isAdminViewing);
+    console.log('🔑 Token found, uploading...');
 
-    try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('profile', file);
-      
-      // IMPORTANT: Use admin token if admin is viewing
-      const token = isAdminViewing 
-        ? (localStorage.getItem('adminToken') || localStorage.getItem('token'))
-        : localStorage.getItem('token');
-      
-      if (!token) {
-        alert('Authentication required. Please log in again.');
-        return;
+    // Upload endpoint
+    const uploadUrl = '/api/users/upload-profile';
+
+    const res = await axios.post(uploadUrl, formDataToSend, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data'
       }
+    });
+     
+    console.log('✅ Upload response:', res.data);
 
-      console.log('🔑 Token found, uploading...');
-
-      // Upload endpoint
-      let uploadUrl = '/api/users/upload-profile';
+    const cloudinaryUrl = res.data?.profileImage;
+    if (cloudinaryUrl) {
+      const fullUrl = getImageUrl(cloudinaryUrl);
+      setAvatarUrl(fullUrl);
       
-      if (isAdminViewing && viewingUserData?._id) {
-        console.log('📤 Admin uploading image for user:', viewingUserData._id);
-      }
-
-      const res = await axios.post(uploadUrl, formDataToSend, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-       
-      console.log('✅ Upload response:', res.data);
-
-      const cloudinaryUrl = res.data?.profileImage;
-      if (cloudinaryUrl) {
-        const fullUrl = getImageUrl(cloudinaryUrl);
-        setAvatarUrl(fullUrl);
-        
-        // Only update localStorage if not admin viewing
-        if (!isAdminViewing) {
-          localStorage.setItem('teacherProfileImage', fullUrl);
-          window.dispatchEvent(new CustomEvent('teacherProfileImageChanged', { detail: fullUrl }));
-        }
-        
-        alert('✅ Profile picture updated successfully!');
-      }
-    } catch (err) {
-      console.error('❌ Upload failed:', err?.response?.data || err.message);
-      alert('Failed to upload profile picture. Please try again.');
-      
+      // Only update localStorage if not admin viewing
       if (!isAdminViewing) {
-        const storedImage = localStorage.getItem('teacherProfileImage');
-        if (storedImage) {
-          setAvatarUrl(storedImage);
-        }
+        localStorage.setItem('teacherProfileImage', fullUrl);
+        window.dispatchEvent(new CustomEvent('teacherProfileImageChanged', { detail: fullUrl }));
       }
-    } finally {
-      e.target.value = '';
+      
+      alert('✅ Profile picture updated successfully!');
     }
-  };
+  } catch (err) {
+    console.error('❌ Upload failed:', err?.response?.data || err.message);
+    alert('Failed to upload profile picture. Please try again.');
+    
+    if (!isAdminViewing) {
+      const storedImage = localStorage.getItem('teacherProfileImage');
+      if (storedImage) {
+        setAvatarUrl(storedImage);
+      }
+    }
+  } finally {
+    e.target.value = '';
+  }
+};
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -586,113 +591,113 @@ const TeacherProfile = () => {
     }
   };
 
-  const handleSaveNotifications = async () => {
-    setSettingsLoading(true);
+const handleSaveNotifications = async () => {
+  setSettingsLoading(true);
+  
+  try {
+    // IMPORTANT: Use admin token if admin is viewing
+    const token = isAdminViewing 
+      ? (localStorage.getItem('adminToken') || localStorage.getItem('token'))
+      : localStorage.getItem('token');
     
-    try {
-      // IMPORTANT: Use admin token if admin is viewing
-      const token = isAdminViewing 
-        ? (localStorage.getItem('adminToken') || localStorage.getItem('token'))
-        : localStorage.getItem('token');
+    console.log('💾 Saving notification settings:', notificationSettings);
+    console.log('Admin viewing:', isAdminViewing, 'User ID:', viewingUserData?._id);
+    
+    let updateUrl = 'http://localhost:5000/api/teacher/settings';
+    
+    if (isAdminViewing && viewingUserData?._id) {
+      // Admin updating specific user's settings
+      updateUrl = `http://localhost:5000/api/users/${viewingUserData._id}/notification-settings`;
       
-      console.log('💾 Saving notification settings:', notificationSettings);
-      console.log('Admin viewing:', isAdminViewing, 'User ID:', viewingUserData?._id);
-      
-      let updateUrl = '/api/teacher/settings';
-      
-      if (isAdminViewing && viewingUserData?._id) {
-        // Admin updating specific user's settings
-        updateUrl = `/api/users/${viewingUserData._id}/notification-settings`;
-        
-        const response = await axios.put(updateUrl, notificationSettings, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (response.data?.success || response.data) {
-          alert('✅ Notification settings updated successfully by admin!');
+      const response = await axios.put(updateUrl, notificationSettings, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         }
-      } else {
-        const response = await axios.put(updateUrl, notificationSettings, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
+      });
 
-        if (response.data?.success) {
-          localStorage.setItem('profileSettings', JSON.stringify(notificationSettings));
-          alert('Notification settings saved successfully!');
-        }
+      if (response.data?.success || response.data) {
+        alert('✅ Notification settings updated successfully by admin!');
       }
-    } catch (err) {
-      console.error('❌ Failed to save settings:', err?.response?.data || err.message);
-      
-      if (!isAdminViewing) {
+    } else {
+      const response = await axios.put(updateUrl, notificationSettings, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.data?.success) {
         localStorage.setItem('profileSettings', JSON.stringify(notificationSettings));
+        alert('Notification settings saved successfully!');
       }
-      
-      alert('Saved locally. Server error: ' + (err?.response?.data?.message || err.message));
-    } finally {
-      setSettingsLoading(false);
     }
-  };
-
-  const handleSavePrivacy = async () => {
-    setSettingsLoading(true);
+  } catch (err) {
+    console.error('❌ Failed to save settings:', err?.response?.data || err.message);
     
-    try {
-      // IMPORTANT: Use admin token if admin is viewing
-      const token = isAdminViewing 
-        ? (localStorage.getItem('adminToken') || localStorage.getItem('token'))
-        : localStorage.getItem('token');
-      
-      console.log('💾 Saving privacy settings:', privacySettings);
-      console.log('Admin viewing:', isAdminViewing, 'User ID:', viewingUserData?._id);
-      
-      const payload = {
-        ...notificationSettings,
-        ...privacySettings
-      };
-      
-      let updateUrl = '/api/teacher/settings';
-      
-      if (isAdminViewing && viewingUserData?._id) {
-        // Admin updating specific user's privacy settings
-        updateUrl = `/api/users/${viewingUserData._id}/privacy-settings`;
-        
-        const response = await axios.put(updateUrl, privacySettings, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (response.data?.success || response.data) {
-          alert('✅ Privacy settings updated successfully by admin!');
-        }
-      } else {
-        const response = await axios.put(updateUrl, payload, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (response.data?.success) {
-          localStorage.setItem('profileSettings', JSON.stringify(payload));
-          alert('Privacy settings saved successfully!');
-        }
-      }
-    } catch (err) {
-      console.error('❌ Failed to save privacy settings:', err?.response?.data || err.message);
-      alert('Saved locally. Server error: ' + (err?.response?.data?.message || err.message));
-    } finally {
-      setSettingsLoading(false);
+    if (!isAdminViewing) {
+      localStorage.setItem('profileSettings', JSON.stringify(notificationSettings));
     }
-  };
+    
+    alert('Error: ' + (err?.response?.data?.message || err.message));
+  } finally {
+    setSettingsLoading(false);
+  }
+};
+
+const handleSavePrivacy = async () => {
+  setSettingsLoading(true);
+  
+  try {
+    // IMPORTANT: Use admin token if admin is viewing
+    const token = isAdminViewing 
+      ? (localStorage.getItem('adminToken') || localStorage.getItem('token'))
+      : localStorage.getItem('token');
+    
+    console.log('💾 Saving privacy settings:', privacySettings);
+    console.log('Admin viewing:', isAdminViewing, 'User ID:', viewingUserData?._id);
+    
+    const payload = {
+      ...notificationSettings,
+      ...privacySettings
+    };
+    
+    let updateUrl = 'http://localhost:5000/api/teacher/settings';
+    
+    if (isAdminViewing && viewingUserData?._id) {
+      // Admin updating specific user's privacy settings
+      updateUrl = `http://localhost:5000/api/users/${viewingUserData._id}/privacy-settings`;
+      
+      const response = await axios.put(updateUrl, privacySettings, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.data?.success || response.data) {
+        alert('✅ Privacy settings updated successfully by admin!');
+      }
+    } else {
+      const response = await axios.put(updateUrl, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.data?.success) {
+        localStorage.setItem('profileSettings', JSON.stringify(payload));
+        alert('Privacy settings saved successfully!');
+      }
+    }
+  } catch (err) {
+    console.error('❌ Failed to save privacy settings:', err?.response?.data || err.message);
+    alert('Error: ' + (err?.response?.data?.message || err.message));
+  } finally {
+    setSettingsLoading(false);
+  }
+};
 
   const handleExportData = async () => {
     try {
