@@ -367,13 +367,14 @@ export const exportUserData = async (req, res) => {
 };
 
 // ============================================
-// UPLOAD PROFILE IMAGE
+// UPLOAD PROFILE IMAGE (FIXED FOR ADMIN VIEWING)
 // ============================================
 export const uploadProfileImage = async (req, res) => {
   try {
     console.log('📸 ===== PROFILE IMAGE UPLOAD STARTED =====');
     console.log('userId:', req.userId);
     console.log('file:', req.file);
+    console.log('body:', req.body);
     
     if (!req.file) {
       console.error('❌ No file uploaded');
@@ -389,21 +390,50 @@ export const uploadProfileImage = async (req, res) => {
     console.log('  - Path:', req.file.path);
     console.log('  - Size:', req.file.size);
 
-    let user = await User.findById(req.userId);
-    let collection = 'User';
+    // IMPORTANT: Check if admin is uploading for another user
+    const targetUserId = req.body.targetUserId || req.userId;
+    const targetRole = req.body.userRole;
+    
+    console.log('🎯 Target user:', targetUserId);
+    console.log('🎯 Target role:', targetRole);
+    console.log('🔐 Current user (uploader):', req.userId);
+    
+    // Find the target user
+    let user;
+    let collection;
+    
+    if (targetRole) {
+      // If role is specified, search in that collection first
+      if (targetRole === 'student') {
+        user = await Student.findById(targetUserId);
+        collection = 'Student';
+      } else if (targetRole === 'teacher') {
+        user = await Teacher.findById(targetUserId);
+        collection = 'Teacher';
+      } else if (targetRole === 'admin') {
+        user = await User.findById(targetUserId);
+        collection = 'User';
+      }
+    }
+    
+    // If not found with specified role, search all collections
+    if (!user) {
+      user = await User.findById(targetUserId);
+      collection = 'User';
+    }
     
     if (!user) {
-      user = await Student.findById(req.userId);
+      user = await Student.findById(targetUserId);
       collection = 'Student';
     }
     
     if (!user) {
-      user = await Teacher.findById(req.userId);
+      user = await Teacher.findById(targetUserId);
       collection = 'Teacher';
     }
     
     if (!user) {
-      console.error('❌ User not found. userId:', req.userId);
+      console.error('❌ User not found. targetUserId:', targetUserId);
       return res.status(404).json({ 
         success: false,
         error: 'User not found',
@@ -421,6 +451,7 @@ export const uploadProfileImage = async (req, res) => {
 
     console.log(`✅ Profile image saved to ${collection}`);
     console.log('   New profileImage:', savedUser.profileImage);
+    console.log('   Is admin upload:', targetUserId !== req.userId);
 
     res.json({ 
       success: true,
@@ -430,12 +461,14 @@ export const uploadProfileImage = async (req, res) => {
         _id: savedUser._id,
         name: savedUser.name,
         email: savedUser.email,
+        role: savedUser.role,
         profileImage: savedUser.profileImage
       }
     });
   } catch (error) {
     console.error('❌ ===== ERROR UPLOADING PROFILE IMAGE =====');
     console.error('Error:', error.message);
+    console.error('Stack:', error.stack);
     
     res.status(500).json({ 
       success: false,
