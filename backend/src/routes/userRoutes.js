@@ -227,4 +227,98 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Admin routes for updating specific user's notification settings
+router.put('/:userId/notification-settings', protect, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const settings = req.body;
+    
+    console.log('📋 Admin updating notification settings for user:', userId);
+    console.log('New settings:', settings);
+    
+    // Find user in all collections
+    let user = await Student.findById(userId);
+    let collection = 'Student';
+    
+    if (!user) {
+      user = await Teacher.findById(userId);
+      collection = 'Teacher';
+    }
+    
+    if (!user) {
+      user = await User.findById(userId);
+      collection = 'User';
+    }
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    user.notificationSettings = {
+      emailNotifications: settings.emailNotifications ?? true,
+      smsNotifications: settings.smsNotifications ?? false,
+      inAppNotifications: settings.inAppNotifications ?? true
+    };
+    
+    await user.save();
+    
+    console.log(`✅ Notification settings updated in ${collection} collection`);
+    
+    res.json({
+      success: true,
+      message: 'Notification settings updated successfully',
+      notificationSettings: user.notificationSettings
+    });
+  } catch (error) {
+    console.error('❌ Error updating notification settings:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Admin routes for updating specific user's privacy settings
+router.put('/:userId/privacy-settings', protect, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const settings = req.body;
+    
+    console.log('🔒 Admin updating privacy settings for user:', userId);
+    console.log('New settings:', settings);
+    
+    // Find user in all collections
+    let user = await Student.findById(userId);
+    let collection = 'Student';
+    
+    if (!user) {
+      user = await Teacher.findById(userId);
+      collection = 'Teacher';
+    }
+    
+    if (!user) {
+      user = await User.findById(userId);
+      collection = 'User';
+    }
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    user.privacySettings = {
+      emotionDataConsent: settings.emotionDataConsent ?? true
+    };
+    
+    await user.save();
+    
+    console.log(`✅ Privacy settings updated in ${collection} collection`);
+    
+    res.json({
+      success: true,
+      message: 'Privacy settings updated successfully',
+      privacySettings: user.privacySettings
+    });
+  } catch (error) {
+    console.error('❌ Error updating privacy settings:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 export default router;
