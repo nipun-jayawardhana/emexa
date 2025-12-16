@@ -7,9 +7,6 @@ import axios from 'axios';
 import {
   getUsers,
   deleteUser,
-  getTeacherApprovals,
-  approveTeacher,
-  rejectTeacher,
 } from "../services/user.service";
 import Modal from "react-modal";
 import Header from "../components/headerorigin.jsx";
@@ -61,83 +58,85 @@ const UserManagement = () => {
     fileInputRef.current?.click();
   };
 
-  const handleProfileImageChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+const handleProfileImageChange = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-    // Validation
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File size should be less than 5MB');
-      e.target.value = '';
-      return;
-    }
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      e.target.value = '';
-      return;
-    }
+  // Validation
+  if (file.size > 5 * 1024 * 1024) {
+    alert('File size should be less than 5MB');
+    e.target.value = '';
+    return;
+  }
+  if (!file.type.startsWith('image/')) {
+    alert('Please select an image file');
+    e.target.value = '';
+    return;
+  }
 
-    // Optimistic preview
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      setAdminProfileImage(evt.target.result);
-    };
-    reader.readAsDataURL(file);
-
-    // Upload to Cloudinary via backend
-    try {
-      const formData = new FormData();
-      formData.append('profile', file);
-      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
-      
-      console.log('📤 Uploading admin profile image...');
-      
-      const res = await axios.post('/api/users/upload-profile', formData, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : undefined,
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-
-      console.log('✅ Upload response:', res.data);
-
-      // Get Cloudinary URL from response
-      const cloudinaryUrl = res.data?.profileImage;
-      if (cloudinaryUrl) {
-        setAdminProfileImage(cloudinaryUrl);
-        localStorage.setItem('adminProfileImage', cloudinaryUrl);
-        
-        // Dispatch event for header update
-        window.dispatchEvent(new CustomEvent('adminProfileImageChanged', { detail: cloudinaryUrl }));
-        
-        alert('Profile picture updated successfully!');
-        
-        // Refetch profile to ensure sync
-        try {
-          const profileRes = await axios.get('/api/users/profile', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (profileRes.data?.profileImage) {
-            setAdminProfileImage(profileRes.data.profileImage);
-            localStorage.setItem('adminProfileImage', profileRes.data.profileImage);
-          }
-        } catch (refetchErr) {
-          console.warn('Refetch failed:', refetchErr.message);
-        }
-      }
-    } catch (err) {
-      console.error('❌ Upload failed:', err?.response?.data || err.message);
-      alert('Failed to upload profile picture. Please try again.');
-      
-      // Revert to previous image on failure
-      const storedImage = localStorage.getItem('adminProfileImage');
-      if (storedImage) {
-        setAdminProfileImage(storedImage);
-      }
-    } finally {
-      e.target.value = '';
-    }
+  // Optimistic preview
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    setAdminProfileImage(evt.target.result);
   };
+  reader.readAsDataURL(file);
+
+  // Upload to Cloudinary via backend
+  try {
+    const formData = new FormData();
+    formData.append('profile', file);
+    formData.append('userRole', 'admin'); // IMPORTANT: Specify this is admin's image
+    
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+    
+    console.log('📤 Uploading admin profile image...');
+    
+    const res = await axios.post('/api/users/upload-profile', formData, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : undefined,
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+
+    console.log('✅ Upload response:', res.data);
+
+    // Get Cloudinary URL from response
+    const cloudinaryUrl = res.data?.profileImage;
+    if (cloudinaryUrl) {
+      setAdminProfileImage(cloudinaryUrl);
+      localStorage.setItem('adminProfileImage', cloudinaryUrl);
+      
+      // Dispatch event for header update - ONLY for admin
+      window.dispatchEvent(new CustomEvent('adminProfileImageChanged', { detail: cloudinaryUrl }));
+      
+      alert('Admin profile picture updated successfully!');
+      
+      // Refetch profile to ensure sync
+      try {
+        const profileRes = await axios.get('/api/users/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (profileRes.data?.profileImage) {
+          setAdminProfileImage(profileRes.data.profileImage);
+          localStorage.setItem('adminProfileImage', profileRes.data.profileImage);
+        }
+      } catch (refetchErr) {
+        console.warn('Refetch failed:', refetchErr.message);
+      }
+    }
+  } catch (err) {
+    console.error('❌ Upload failed:', err?.response?.data || err.message);
+    alert('Failed to upload profile picture. Please try again.');
+    
+    // Revert to previous image on failure
+    const storedImage = localStorage.getItem('adminProfileImage');
+    if (storedImage) {
+      setAdminProfileImage(storedImage);
+    }
+  } finally {
+    e.target.value = '';
+  }
+};
 
   // FIXED: Updated navigation function with proper state management
   const navigateToDashboard = (type) => {
@@ -165,6 +164,68 @@ const UserManagement = () => {
       window.location.href = "/teacher-dashboard";
     }
   };
+
+const handleViewUser = (user) => {
+  console.log('👁️ Admin viewing user profile:', user);
+  
+  // CRITICAL: Clean up ALL previous states first
+  localStorage.removeItem('adminViewingUserId');
+  localStorage.removeItem('adminViewingUserRole');
+  localStorage.removeItem('adminViewingUserData');
+  localStorage.removeItem('adminViewingAs');
+  
+  // Store the complete user data for the profile page
+  const userDataToStore = {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    status: user.status,
+    createdAt: user.createdAt,
+    profileImage: user.profileImage || null,
+    phone: user.phone || '',
+    dateOfBirth: user.dateOfBirth || '',
+    qualifications: user.qualifications || '',
+    subjects: user.subjects || [],
+    grade: user.grade || '',
+    guardianName: user.guardianName || '',
+    guardianContact: user.guardianContact || '',
+    bio: user.bio || '',
+    address: user.address || '',
+    notificationSettings: user.notificationSettings || {
+      emailNotifications: true,
+      smsNotifications: false,
+      inAppNotifications: true
+    },
+    privacySettings: user.privacySettings || {
+      emotionDataConsent: true
+    }
+  };
+  
+  // Set the admin viewing flags
+  localStorage.setItem('adminViewingUserId', user._id);
+  const roleFormatted = user.role.toLowerCase();
+  localStorage.setItem('adminViewingUserRole', roleFormatted);
+  localStorage.setItem('adminViewingAs', roleFormatted);
+  localStorage.setItem('adminViewingUserData', JSON.stringify(userDataToStore));
+  
+  console.log('✅ Admin viewing state set:', {
+    userId: user._id,
+    role: roleFormatted,
+    name: user.name,
+    viewingAs: localStorage.getItem('adminViewingAs')
+  });
+  
+  // Navigate based on role - use window.location.href for clean reload
+  if (roleFormatted === 'student') {
+    window.location.href = '/profile';
+  } else if (roleFormatted === 'teacher') {
+    window.location.href = '/teacher-profile';
+  } else {
+    console.error('Unknown role:', user.role);
+    alert('Cannot view profile for this user role');
+  }
+};
 
   const adminMenuItems = [
     {
@@ -249,21 +310,49 @@ const UserManagement = () => {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  // Fetch data with new approval endpoints
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+        
+        // Fetch all three lists in parallel
         const [usersRes, teacherRes, studentRes] = await Promise.allSettled([
           getUsers(),
-          getTeacherApprovals(),
-          fetch("/api/auth/student-approvals", { credentials: "include" }).then(r => r.ok ? r.json() : [])
+          fetch("http://localhost:5000/api/auth/teacher-approvals", { 
+            credentials: "include",
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }).then(r => r.ok ? r.json() : []),
+          fetch("http://localhost:5000/api/auth/student-approvals", { 
+            credentials: "include",
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }).then(r => r.ok ? r.json() : [])
         ]);
 
+        // Set users list (approved users from Student/Teacher collections)
         setUsers(usersRes.status === "fulfilled" ? usersRes.value || [] : []);
-        setTeacherApprovals(teacherRes.status === "fulfilled" ? teacherRes.value || [] : []);
-        setStudentApprovals(studentRes.status === "fulfilled" ? studentRes.value || [] : []);
+        
+        // Set approval lists (pending/rejected from User collection)
+        const teachers = teacherRes.status === "fulfilled" ? teacherRes.value || [] : [];
+        const students = studentRes.status === "fulfilled" ? studentRes.value || [] : [];
+        
+        console.log('📊 Fetched data:', { 
+          users: usersRes.status === "fulfilled" ? usersRes.value?.length : 0,
+          teachers: teachers.length, 
+          students: students.length 
+        });
+        
+        setTeacherApprovals(teachers);
+        setStudentApprovals(students);
       } catch (err) {
-        console.error("Error fetching data:", err);
+        console.error("❌ Error fetching data:", err);
       } finally {
         setLoading(false);
       }
@@ -281,27 +370,182 @@ const UserManagement = () => {
     });
   };
 
+  // Student approval handlers
   const handleApproveStudent = async (id) => {
     try {
-      const res = await fetch(`/api/auth/student-approvals/${id}/approve`, { method: "PUT", credentials: "include" });
-      if (res.ok) setStudentApprovals(prev => prev.map(a => a._id === id ? { ...a, status: "Approved" } : a));
-    } catch (err) { console.error(err); }
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/auth/student-approvals/${id}/approve`, { 
+        method: "PUT", 
+        credentials: "include",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (res.ok) {
+        console.log('✅ Student approved');
+        // Remove from approval list
+        setStudentApprovals(prev => prev.filter(a => a._id !== id));
+        // Refresh users list to show newly approved user
+        const usersRes = await getUsers();
+        setUsers(usersRes || []);
+        alert('Student approved successfully! They can now login and will appear in All Users tab.');
+      } else {
+        const error = await res.json();
+        console.error('❌ Approval failed:', error);
+        alert(error.message || 'Failed to approve student');
+      }
+    } catch (err) { 
+      console.error('❌ Error approving student:', err); 
+      alert('Error approving student');
+    }
   };
 
   const handleRejectStudent = async (id) => {
     try {
-      const res = await fetch(`/api/auth/student-approvals/${id}/reject`, { method: "PUT", credentials: "include" });
-      if (res.ok) setStudentApprovals(prev => prev.map(a => a._id === id ? { ...a, status: "Rejected" } : a));
-    } catch (err) { console.error(err); }
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/auth/student-approvals/${id}/reject`, { 
+        method: "PUT", 
+        credentials: "include",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (res.ok) {
+        console.log('❌ Student rejected');
+        // Update the status in the list
+        setStudentApprovals(prev => prev.map(a => 
+          a._id === id ? { ...a, approvalStatus: 'rejected', status: 'Inactive' } : a
+        ));
+        alert('Student rejected');
+      } else {
+        const error = await res.json();
+        console.error('❌ Rejection failed:', error);
+        alert(error.message || 'Failed to reject student');
+      }
+    } catch (err) { 
+      console.error('❌ Error rejecting student:', err);
+      alert('Error rejecting student');
+    }
   };
 
-  const filteredUsers = users.filter(u =>
-    (selectedRole === "All Roles" || u.role === selectedRole) &&
-    (u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || u.email?.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+// Replace the handleApproveTeacher function in usermgt.jsx with this fixed version:
 
-  const pendingTeacherApprovals = teacherApprovals.filter(a => !a.status).length;
-  const pendingStudentApprovals = studentApprovals.filter(a => !a.status).length;
+const handleApproveTeacher = async (id) => {
+  try {
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+    console.log('🔄 Approving teacher with ID:', id);
+    
+    const res = await fetch(`http://localhost:5000/api/auth/teacher-approvals/${id}/approve`, { 
+      method: "PUT", 
+      credentials: "include",
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('Response status:', res.status);
+    const responseData = await res.json();
+    console.log('Response data:', responseData);
+    
+    // Check if request was successful OR teacher already exists
+    if (res.ok) {
+      console.log('✅ Teacher approved successfully');
+      
+      // Remove from approval list
+      setTeacherApprovals(prev => prev.filter(a => a._id !== id));
+      
+      // Refresh users list to show the newly approved teacher
+      const usersRes = await getUsers();
+      setUsers(usersRes || []);
+      
+      alert('✅ Teacher approved successfully! They can now login and will appear in All Users tab.');
+    } else if (res.status === 400 && responseData.message?.includes('already exists')) {
+      // Teacher already exists - this is actually OK, just remove from pending list
+      console.log('✅ Teacher already approved, removing from pending list');
+      
+      // Remove from approval list
+      setTeacherApprovals(prev => prev.filter(a => a._id !== id));
+      
+      // Refresh users list
+      const usersRes = await getUsers();
+      setUsers(usersRes || []);
+      
+      alert('✅ This teacher was already approved! Removed from pending list.');
+    } else {
+      // Actual error
+      console.error('❌ Approval failed:', responseData);
+      alert(responseData.message || 'Failed to approve teacher');
+    }
+  } catch (err) { 
+    console.error('❌ Error approving teacher:', err);
+    alert(`Error approving teacher: ${err.message}`);
+  }
+};
+
+  const handleRejectTeacher = async (id) => {
+    try {
+      const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/auth/teacher-approvals/${id}/reject`, { 
+        method: "PUT", 
+        credentials: "include",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (res.ok) {
+        console.log('❌ Teacher rejected');
+        // Update the status in the list
+        setTeacherApprovals(prev => prev.map(a => 
+          a._id === id ? { ...a, approvalStatus: 'rejected', status: 'Inactive' } : a
+        ));
+        alert('Teacher rejected');
+      } else {
+        const error = await res.json();
+        console.error('❌ Rejection failed:', error);
+        alert(error.message || 'Failed to reject teacher');
+      }
+    } catch (err) { 
+      console.error('❌ Error rejecting teacher:', err);
+      alert('Error rejecting teacher');
+    }
+  };
+
+  // FIXED: Filter users based on role AND search query
+  const filteredUsers = users.filter(u => {
+    // Role filter - handle case-insensitive comparison
+    const userRole = u.role?.toLowerCase();
+    const selectedRoleLower = selectedRole.toLowerCase();
+    const roleMatch = selectedRole === "All Roles" || 
+                     userRole === selectedRoleLower ||
+                     u.role === selectedRole;
+    
+    // Search filter
+    const searchLower = searchQuery.toLowerCase();
+    const searchMatch = searchQuery === "" || 
+      u.name?.toLowerCase().includes(searchLower) || 
+      u.email?.toLowerCase().includes(searchLower);
+    
+    return roleMatch && searchMatch;
+  });
+
+  // Debug log to check what we're filtering
+  console.log('Total users:', users.length, 'Filtered users:', filteredUsers.length, 'Selected role:', selectedRole);
+  
+  // Debug: Log user roles if filter returns empty
+  if (users.length > 0 && filteredUsers.length === 0) {
+    console.log('All user roles:', users.map(u => u.role));
+    console.log('Selected role for filter:', selectedRole);
+  }
+
+  const pendingTeacherApprovals = teacherApprovals.filter(a => a.approvalStatus === 'pending').length;
+  const pendingStudentApprovals = studentApprovals.filter(a => a.approvalStatus === 'pending').length;
 
   if (loading) {
     return (
@@ -475,7 +719,7 @@ const UserManagement = () => {
                                 {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "N/A"}
                               </td>
                               <td className="px-8 py-5 text-base">
-                                <button onClick={() => openModal("view", u)} className="text-emerald-600 hover:text-emerald-800 font-semibold mr-6">View</button>
+                                <button onClick={() => handleViewUser(u)} className="text-emerald-600 hover:text-emerald-800 font-semibold mr-6">View</button>
                                 <button onClick={() => openModal("delete", u)} className="text-red-600 hover:text-red-800 font-semibold">Delete</button>
                               </td>
                             </tr>
@@ -487,90 +731,158 @@ const UserManagement = () => {
                 </>
               )}
 
+              {/* Teacher approvals tab */}
               {tab === "teacher-approvals" && (
-                <div className="p-10"><ApprovalTab approvals={teacherApprovals} title="Teacher Approval Requests" onApprove={approveTeacher} onReject={rejectTeacher} /></div>
+                <div className="p-10">
+                  <ApprovalTab 
+                    approvals={teacherApprovals} 
+                    title="Teacher Approval Requests" 
+                    onApprove={handleApproveTeacher} 
+                    onReject={handleRejectTeacher} 
+                  />
+                </div>
               )}
 
+              {/* Student approvals tab */}
               {tab === "student-approvals" && (
-                <div className="p-10"><ApprovalTab approvals={studentApprovals} title="Student Approval Requests" onApprove={handleApproveStudent} onReject={handleRejectStudent} /></div>
+                <div className="p-10">
+                  <ApprovalTab 
+                    approvals={studentApprovals} 
+                    title="Student Approval Requests" 
+                    onApprove={handleApproveStudent} 
+                    onReject={handleRejectStudent} 
+                  />
+                </div>
               )}
             </div>
           </div>
         </main>
       </div>
 
-      <Modal isOpen={modalOpen} onRequestClose={closeModal} className="bg-white rounded-2xl shadow-2xl max-w-lg mx-auto p-8 outline-none" overlayClassName="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" ariaHideApp={false}>
-        {modalType === "view" && <ViewUserModal user={selectedUser} onClose={closeModal} />}
-        {modalType === "delete" && <DeleteUserModal user={selectedUser} onSubmit={() => handleDeleteUser(selectedUser._id)} onCancel={closeModal} />}
-      </Modal>
+      {modalOpen && modalType === "delete" && (
+  <DeleteUserModal 
+    user={selectedUser} 
+    onSubmit={() => handleDeleteUser(selectedUser._id)} 
+    onCancel={closeModal} 
+  />
+)}
     </div>
   );
 };
 
-const ApprovalTab = ({ approvals = [], title, onApprove, onReject }) => (
-  <div>
-    <h2 className="text-3xl font-bold mb-4 text-gray-900">{title}</h2>
-    <p className="text-gray-600 mb-10 text-lg">Review and manage pending registration requests</p>
-    {approvals.length === 0 ? (
-      <div className="text-center py-32 text-gray-500 border-2 border-dashed border-gray-300 rounded-2xl text-xl font-medium">
-        No pending requests
-      </div>
-    ) : (
-      <div className="space-y-8">
-        {approvals.map(ap => (
-          <div key={ap._id} className="border rounded-2xl p-8 hover:shadow-xl transition bg-gradient-to-r from-emerald-50/50 to-white">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-bold text-2xl text-gray-900">{ap.name}</h3>
-                <p className="text-gray-700 mt-2 text-lg">{ap.email}</p>
-                <p className="text-gray-500 mt-3">Requested: {ap.createdAt ? new Date(ap.createdAt).toLocaleDateString() : "N/A"}</p>
-                {ap.qualifications && <p className="mt-6 text-gray-800 text-base"><strong className="font-bold">Qualifications:</strong> {ap.qualifications}</p>}
-              </div>
-              <div className="flex gap-4">
-                {!ap.status ? (
-                  <>
-                    <button onClick={() => onApprove(ap._id)} className="px-8 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-bold text-lg shadow-md">Approve</button>
-                    <button onClick={() => onReject(ap._id)} className="px-8 py-4 border-2 border-gray-300 rounded-xl hover:bg-gray-100 font-bold text-lg">Reject</button>
-                  </>
-                ) : ap.status === "Approved" ? (
-                  <span className="px-8 py-4 bg-green-100 text-green-700 rounded-xl font-bold text-xl">Approved</span>
-                ) : (
-                  <span className="px-8 py-4 bg-red-100 text-red-700 rounded-xl font-bold text-xl">Rejected</span>
-                )}
+// FIXED: Sort approvals to show pending first, approved in middle, rejected last
+const ApprovalTab = ({ approvals = [], title, onApprove, onReject }) => {
+  // Sort approvals: pending -> approved -> rejected
+  const sortedApprovals = [...approvals].sort((a, b) => {
+    const order = { 'pending': 1, 'approved': 2, 'rejected': 3 };
+    const statusA = a.approvalStatus || 'pending';
+    const statusB = b.approvalStatus || 'pending';
+    return order[statusA] - order[statusB];
+  });
+
+  return (
+    <div>
+      <h2 className="text-3xl font-bold mb-4 text-gray-900">{title}</h2>
+      <p className="text-gray-600 mb-10 text-lg">Review and manage pending registration requests</p>
+      {sortedApprovals.length === 0 ? (
+        <div className="text-center py-32 text-gray-500 border-2 border-dashed border-gray-300 rounded-2xl text-xl font-medium">
+          No pending requests
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {sortedApprovals.map(ap => (
+            <div key={ap._id} className="border rounded-2xl p-8 hover:shadow-xl transition bg-gradient-to-r from-emerald-50/50 to-white">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-bold text-2xl text-gray-900">{ap.name}</h3>
+                  <p className="text-gray-700 mt-2 text-lg">{ap.email}</p>
+                  <p className="text-gray-500 mt-3">Requested: {ap.createdAt ? new Date(ap.createdAt).toLocaleDateString() : "N/A"}</p>
+                  {ap.qualifications && <p className="mt-6 text-gray-800 text-base"><strong className="font-bold">Qualifications:</strong> {ap.qualifications}</p>}
+                  <div className="mt-4">
+                    <span className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                      ap.approvalStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                      ap.approvalStatus === 'approved' ? 'bg-green-100 text-green-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      Status: {ap.approvalStatus || 'pending'}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  {ap.approvalStatus === 'pending' || !ap.approvalStatus ? (
+                    <>
+                      <button onClick={() => onApprove(ap._id)} className="px-8 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-bold text-lg shadow-md">Approve</button>
+                      <button onClick={() => onReject(ap._id)} className="px-8 py-4 border-2 border-gray-300 rounded-xl hover:bg-gray-100 font-bold text-lg">Reject</button>
+                    </>
+                  ) : ap.approvalStatus === 'approved' ? (
+                    <span className="px-8 py-4 bg-green-100 text-green-700 rounded-xl font-bold text-xl">Approved</span>
+                  ) : (
+                    <span className="px-8 py-4 bg-red-100 text-red-700 rounded-xl font-bold text-xl">Rejected</span>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-);
-
-const ViewUserModal = ({ user, onClose }) => (
-  <div>
-    <h2 className="text-3xl font-bold mb-8 text-gray-900">User Profile</h2>
-    <div className="space-y-6 text-lg">
-      <p><strong className="text-gray-700">Name:</strong> {user.name}</p>
-      <p><strong className="text-gray-700">Email:</strong> {user.email}</p>
-      <p><strong className="text-gray-700">Role:</strong> <RoleTag role={user.role} /></p>
-      <p><strong className="text-gray-700">Status:</strong> <StatusTag status={user.status} /></p>
-      <p><strong className="text-gray-700">Joined:</strong> {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}</p>
+          ))}
+        </div>
+      )}
     </div>
-    <div className="mt-12 text-right">
-      <button onClick={onClose} className="px-10 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-bold text-xl">Close</button>
-    </div>
-  </div>
-);
+  );
+};
 
 const DeleteUserModal = ({ user, onSubmit, onCancel }) => (
-  <div>
-    <h2 className="text-3xl font-bold mb-6 text-red-600">Delete User</h2>
-    <p className="text-gray-700 mb-10 text-lg">Are you sure you want to permanently delete <strong className="font-bold">{user.name}</strong>? This action cannot be undone.</p>
-    <div className="flex justify-end gap-6">
-      <button onClick={onCancel} className="px-10 py-4 border-2 border-gray-300 rounded-xl hover:bg-gray-100 font-bold text-xl">Cancel</button>
-      <button onClick={onSubmit} className="px-10 py-4 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold text-xl">Delete User</button>
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+    <div className="bg-white rounded-lg max-w-sm w-full text-center shadow-xl overflow-hidden">
+      {/* Teal Background Header (matches your logout modal) */}
+      <div className="bg-teal-0 px-3 py-6">
+        {/* Checkmark Circle Icon */}
+        <div className="flex justify-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+            <svg
+              className="w-8 h-8 text-red-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      {/* White Content Area */}
+      <div className="p-6">
+        {/* Title */}
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Are you sure?</h2>
+        
+        {/* Description */}
+        <p className="text-gray-600 text-sm mb-6">
+          Do you want to permanently delete <strong className="font-semibold">{user?.name}</strong>?
+        </p>
+
+        {/* Action Buttons */}
+        <div className="flex gap-3">
+           <button
+          onClick={onCancel}
+          className="px-9 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-100 font-bold text-xl transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onSubmit}
+          className="px-8 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold text-xl transition-colors"
+        >
+          Delete User
+        </button>
+        </div>
+      </div>
     </div>
   </div>
 );
+
 
 export default UserManagement;

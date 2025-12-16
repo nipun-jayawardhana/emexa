@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import logo from "../assets/auth-pages-images/EMEXA Logo.png";
 import api from "../lib/api";
 import "./Form.css";
@@ -13,6 +13,17 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Show message from registration if exists
+  useEffect(() => {
+    if (location.state?.message) {
+      setSuccess(location.state.message);
+      if (location.state?.email) {
+        setEmail(location.state.email);
+      }
+    }
+  }, [location]);
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -44,11 +55,6 @@ export default function Login() {
       .post("/auth/login", { email, password })
       .then((res) => {
         console.log("✅ Login successful - FULL RESPONSE:", res);
-        console.log("👤 User object:", res.user);
-        console.log(
-          "🔍 User object keys:",
-          res.user ? Object.keys(res.user) : "no user"
-        );
 
         // CRITICAL FIX: Clear admin viewing flags for ALL logins
         console.log("🧹 Clearing admin preview flags...");
@@ -58,11 +64,7 @@ export default function Login() {
 
         // Check if user is admin - redirect to admin panel
         if (res.user?.role === "admin" || res.user?.role === "Admin") {
-          const adminName =
-            res.user?.name ||
-            res.user?.fullName ||
-            res.user?.full_name ||
-            "Admin";
+          const adminName = res.user?.name || "Admin";
 
           // Store admin token and user info
           localStorage.setItem("adminToken", res.token);
@@ -83,9 +85,7 @@ export default function Login() {
 
         // Regular user flow (students and teachers)
         const userRole = res.user?.role || "student";
-
-        // COMPREHENSIVE userName extraction - try ALL possible field names
-        let userName = "User"; // Default fallback
+        let userName = "User";
 
         if (res.user) {
           userName =
@@ -101,16 +101,6 @@ export default function Login() {
         }
 
         console.log("🔍 Extracted userName:", userName);
-        console.log(
-          "🔍 From field:",
-          res.user?.name
-            ? "name"
-            : res.user?.fullName
-            ? "fullName"
-            : res.user?.full_name
-            ? "full_name"
-            : "email fallback"
-        );
 
         // CRITICAL FIX: Clear adminToken for regular users
         localStorage.removeItem("adminToken");
@@ -131,7 +121,7 @@ export default function Login() {
           }
         }
 
-        // Save user data to BOTH localStorage and sessionStorage for compatibility
+        // Save user data
         if (res.user) {
           const userData = {
             user: JSON.stringify(res.user),
@@ -141,13 +131,11 @@ export default function Login() {
             userId: res.user.id || res.user._id,
           };
 
-          // Always save to localStorage for compatibility
           Object.keys(userData).forEach((key) => {
             localStorage.setItem(key, userData[key]);
             console.log(`💾 localStorage.${key} =`, userData[key]);
           });
 
-          // Also save to sessionStorage if not "remember me"
           if (!remember) {
             Object.keys(userData).forEach((key) => {
               sessionStorage.setItem(key, userData[key]);
@@ -156,18 +144,17 @@ export default function Login() {
 
           console.log("✅ User data saved successfully");
 
-          // --- Sync profile image into localStorage so other devices/tabs update ---
+          // Sync profile image
           try {
-            const storageKey = userRole === 'admin' ? 'adminProfileImage' : (userRole === 'teacher' ? 'teacherProfileImage' : 'studentProfileImage');
+            const storageKey = userRole === 'admin' ? 'adminProfileImage' : 
+                             (userRole === 'teacher' ? 'teacherProfileImage' : 'studentProfileImage');
             const eventName = `${storageKey}Changed`;
 
             const resProfileImage = res.user?.profileImage || res.user?.avatar || res.user?.image || null;
             if (resProfileImage) {
               localStorage.setItem(storageKey, resProfileImage);
               window.dispatchEvent(new CustomEvent(eventName, { detail: resProfileImage }));
-              console.log('Profile image updated from login response:', resProfileImage);
             } else if (res.token) {
-              // If login response didn't include profile image, fetch fresh profile
               fetch('http://localhost:5000/api/users/profile', {
                 headers: { Authorization: `Bearer ${res.token}` }
               })
@@ -177,7 +164,6 @@ export default function Login() {
                   if (fetched) {
                     localStorage.setItem(storageKey, fetched);
                     window.dispatchEvent(new CustomEvent(eventName, { detail: fetched }));
-                    console.log('Profile image fetched after login and saved:', fetched);
                   }
                 })
                 .catch(e => console.warn('Could not fetch profile after login:', e));
@@ -186,37 +172,17 @@ export default function Login() {
             console.warn('Error syncing profile image on login:', e);
           }
 
-          // --- Sync notification and privacy settings to localStorage ---
+          // Sync settings
           try {
             if (res.user?.notificationSettings) {
               localStorage.setItem('notificationSettings', JSON.stringify(res.user.notificationSettings));
-              console.log('✅ Notification settings saved:', res.user.notificationSettings);
             }
             if (res.user?.privacySettings) {
               localStorage.setItem('privacySettings', JSON.stringify(res.user.privacySettings));
-              console.log('✅ Privacy settings saved:', res.user.privacySettings);
             }
           } catch (e) {
             console.warn('Error syncing settings on login:', e);
           }
-
-          // VERIFICATION: Read back what we just saved
-          console.log("📦 VERIFICATION - What's in localStorage:");
-          console.log("  - userName:", localStorage.getItem("userName"));
-          console.log("  - userRole:", localStorage.getItem("userRole"));
-          console.log("  - adminToken:", localStorage.getItem("adminToken"));
-          console.log(
-            "  - adminViewingAs:",
-            localStorage.getItem("adminViewingAs")
-          );
-          console.log(
-            "  - user object:",
-            JSON.parse(localStorage.getItem("user") || "{}")
-          );
-          console.log(
-            "  - user object:",
-            JSON.parse(localStorage.getItem("user") || "{}")
-          );
         }
 
         // Show success message
@@ -228,20 +194,14 @@ export default function Login() {
 
         if (normalizedRole === "teacher") {
           dashboardPath = "/teacher-dashboard";
-          console.log("🎓 Redirecting to teacher dashboard");
         } else if (normalizedRole === "student") {
           dashboardPath = "/dashboard";
-          console.log("👨‍🎓 Redirecting to student dashboard");
         } else {
           dashboardPath = "/dashboard";
-          console.log("❓ Unknown role, redirecting to student dashboard");
         }
 
-        console.log(
-          `🚀 Navigating to ${dashboardPath} (role: ${normalizedRole})`
-        );
+        console.log(`🚀 Navigating to ${dashboardPath} (role: ${normalizedRole})`);
 
-        // Delay navigation slightly to show success message
         setTimeout(() => {
           navigate(dashboardPath, { replace: true });
         }, 1000);
@@ -251,9 +211,13 @@ export default function Login() {
 
         let errorMessage = "Login failed. Please check your credentials.";
 
-        if (err.isNetworkError) {
-          errorMessage =
-            "Cannot connect to server. Please check if backend is running.";
+        // Check for approval-related errors
+        if (err.pendingApproval) {
+          errorMessage = "⏳ Your account is pending admin approval. Please wait for approval before logging in.";
+        } else if (err.rejected) {
+          errorMessage = "❌ Your account registration was rejected. Please contact support.";
+        } else if (err.isNetworkError) {
+          errorMessage = "Cannot connect to server. Please check if backend is running.";
         } else if (err.message) {
           errorMessage = err.message;
         }
@@ -282,10 +246,10 @@ export default function Login() {
                 style={{
                   padding: "12px",
                   marginBottom: "16px",
-                  backgroundColor: "#d4edda",
-                  color: "#155724",
+                  backgroundColor: success.includes("pending") ? "#fff3cd" : "#d4edda",
+                  color: success.includes("pending") ? "#856404" : "#155724",
                   borderRadius: "8px",
-                  border: "1px solid #c3e6cb",
+                  border: success.includes("pending") ? "1px solid #ffeaa7" : "1px solid #c3e6cb",
                   textAlign: "center",
                   fontWeight: "500",
                 }}
@@ -304,14 +268,8 @@ export default function Login() {
                   setEmail(newEmail);
                   setErrors({});
 
-                  // Real-time validation
                   if (newEmail.trim()) {
-                    // Check basic format
-                    if (
-                      !/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
-                        newEmail
-                      )
-                    ) {
+                    if (!/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(newEmail)) {
                       setErrors((prev) => ({
                         ...prev,
                         email: "Please enter a valid email address",
@@ -321,109 +279,7 @@ export default function Login() {
                         ...prev,
                         email: "Email must be in lowercase only",
                       }));
-                    } else {
-                      // Validate TLD against whitelist
-                      const tld = newEmail.split(".").pop().toLowerCase();
-                      const validTLDs = [
-                        "com",
-                        "org",
-                        "net",
-                        "edu",
-                        "gov",
-                        "mil",
-                        "int",
-                        "co",
-                        "uk",
-                        "us",
-                        "ca",
-                        "au",
-                        "de",
-                        "fr",
-                        "jp",
-                        "cn",
-                        "in",
-                        "br",
-                        "ru",
-                        "za",
-                        "es",
-                        "it",
-                        "nl",
-                        "se",
-                        "no",
-                        "dk",
-                        "fi",
-                        "be",
-                        "ch",
-                        "at",
-                        "nz",
-                        "sg",
-                        "hk",
-                        "kr",
-                        "tw",
-                        "mx",
-                        "ar",
-                        "cl",
-                        "info",
-                        "biz",
-                        "io",
-                        "ai",
-                        "app",
-                        "dev",
-                        "tech",
-                        "online",
-                        "site",
-                        "website",
-                        "space",
-                        "store",
-                        "club",
-                        "xyz",
-                        "top",
-                        "pro",
-                        "name",
-                        "me",
-                        "tv",
-                        "cc",
-                        "ws",
-                        "mobi",
-                        "asia",
-                        "tel",
-                        "travel",
-                        "museum",
-                        "coop",
-                        "aero",
-                        "jobs",
-                        "cat",
-                      ];
-
-                      if (!validTLDs.includes(tld)) {
-                        setErrors((prev) => ({
-                          ...prev,
-                          email: "Please enter a valid email address",
-                        }));
-                      }
                     }
-                  }
-                }}
-                onBlur={(e) => {
-                  const emailValue = e.target.value.trim();
-                  if (
-                    emailValue &&
-                    !/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
-                      emailValue
-                    )
-                  ) {
-                    setErrors((prev) => ({
-                      ...prev,
-                      email: "Please enter a valid email address",
-                    }));
-                  } else if (
-                    emailValue &&
-                    emailValue !== emailValue.toLowerCase()
-                  ) {
-                    setErrors((prev) => ({
-                      ...prev,
-                      email: "Email must be in lowercase only",
-                    }));
                   }
                 }}
                 placeholder="Enter your email"
@@ -462,12 +318,6 @@ export default function Login() {
                     lineHeight: "1",
                     transition: "color 0.2s ease",
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = "#333";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = "#888";
-                  }}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? "👁️" : "👁️‍🗨️"}
@@ -484,16 +334,16 @@ export default function Login() {
                   padding: "12px",
                   marginTop: "8px",
                   marginBottom: "12px",
-                  backgroundColor: "#fee",
-                  color: "#c0392b",
+                  backgroundColor: errors.form.includes("pending") ? "#fff3cd" : "#fee",
+                  color: errors.form.includes("pending") ? "#856404" : "#c0392b",
                   borderRadius: "8px",
-                  border: "1px solid #f5c6cb",
+                  border: errors.form.includes("pending") ? "1px solid #ffeaa7" : "1px solid #f5c6cb",
                   textAlign: "center",
                   fontWeight: "500",
                   fontSize: "14px",
                 }}
               >
-                ❌ {errors.form}
+                {errors.form}
               </div>
             )}
 

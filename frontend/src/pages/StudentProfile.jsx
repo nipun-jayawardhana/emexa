@@ -228,128 +228,201 @@ useEffect(() => {
     }
   }, [userData]);
 
-  const fetchUserData = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const storedUserName = localStorage.getItem('userName');
-      const storedUserEmail = localStorage.getItem('userEmail');
+ // COMPLETE REPLACEMENT for fetchUserData function in StudentProfile.jsx
+// Find the existing fetchUserData function and replace it entirely with this:
 
-      if (!token && !adminToken) {
-        navigate('/login');
+const fetchUserData = async () => {
+  setLoading(true);
+  try {
+    const token = localStorage.getItem('token');
+    const adminToken = localStorage.getItem('adminToken');
+    const isAdminViewing = localStorage.getItem('adminViewingAs');
+    const viewingUserId = localStorage.getItem('adminViewingUserId');
+    
+    console.log('🔍 Fetch user data:', {
+      isAdminViewing,
+      viewingUserId,
+      hasToken: !!token,
+      hasAdminToken: !!adminToken
+    });
+
+    // ADMIN VIEWING SPECIFIC USER
+    if (isAdminViewing && adminToken && viewingUserId) {
+      console.log('👤 Admin viewing user ID:', viewingUserId);
+      
+      try {
+        // Fetch the specific user's profile by ID
+        const response = await axios.get(
+          `http://localhost:5000/api/users/${viewingUserId}`,
+          {
+            headers: { Authorization: `Bearer ${adminToken}` }
+          }
+        );
+
+        const user = response.data;
+        console.log('✅ Fetched user data for admin view:', user);
+        
+        // Set all user data
+        setUserData(user);
+        setFormData({
+          name: user.name || '',
+          email: user.email || '',
+          role: user.role || 'student'
+        });
+
+        // Set notification settings
+        if (user.notificationSettings) {
+          console.log('📋 Setting notification settings:', user.notificationSettings);
+          setNotificationSettings({
+            emailNotifications: user.notificationSettings.emailNotifications ?? true,
+            smsNotifications: user.notificationSettings.smsNotifications ?? false,
+            inAppNotifications: user.notificationSettings.inAppNotifications ?? true
+          });
+        }
+
+        // Set privacy settings
+        if (user.privacySettings) {
+          console.log('🔒 Setting privacy settings:', user.privacySettings);
+          setPrivacySettings({
+            emotionDataConsent: user.privacySettings.emotionDataConsent ?? true
+          });
+        }
+
+        // Set profile image
+        if (user.profileImage) {
+          console.log('🖼️ Setting profile image:', user.profileImage);
+          setProfileImage(user.profileImage);
+        }
+
+        setLoading(false);
+        return;
+        
+      } catch (error) {
+        console.error('❌ Error fetching user for admin:', error);
+        alert('Failed to load user profile. Returning to user management.');
+        
+        // Clear admin viewing flags and return to user management
+        localStorage.removeItem('adminViewingUserId');
+        localStorage.removeItem('adminViewingUserRole');
+        localStorage.removeItem('adminViewingAs');
+        
+        navigate('/admin/user-management');
         return;
       }
-
-      if (!isAdminViewing) {
-        try {
-          const response = await axios.get('http://localhost:5000/api/users/profile', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-
-          const user = response.data;
-          console.log('✅ Fetched user data from server:', user);
-          
-          // Set complete user data - this triggers useEffect to sync profileImage
-          setUserData(user);
-
-          // Set form data
-          setFormData({
-            name: user.name || storedUserName || '',
-            email: user.email || storedUserEmail || '',
-            role: user.role || 'student'
-          });
-
-          // CRITICAL: Set notification settings from server
-          if (user.notificationSettings) {
-            console.log('📋 Loading notification settings:', user.notificationSettings);
-            setNotificationSettings({
-              emailNotifications: user.notificationSettings.emailNotifications ?? true,
-              smsNotifications: user.notificationSettings.smsNotifications ?? false,
-              inAppNotifications: user.notificationSettings.inAppNotifications ?? true
-            });
-          }
-
-          // CRITICAL: Set privacy settings from server
-          if (user.privacySettings) {
-            console.log('🔒 Loading privacy settings:', user.privacySettings);
-            setPrivacySettings({
-              emotionDataConsent: user.privacySettings.emotionDataConsent ?? true
-            });
-          }
-
-        } catch (apiError) {
-          console.error('❌ API Error:', apiError);
-          console.log('Using fallback data from localStorage');
-          
-          const fallbackData = {
-            name: storedUserName || 'Student',
-            email: storedUserEmail || 'student@school.edu',
-            role: 'student',
-            profileImage: localStorage.getItem('studentProfileImage') || null,
-            recentActivity: [],
-            notificationSettings: {
-              emailNotifications: true,
-              smsNotifications: false,
-              inAppNotifications: true
-            },
-            privacySettings: {
-              emotionDataConsent: true
-            }
-          };
-
-          setUserData(fallbackData);
-          setFormData({
-            name: fallbackData.name,
-            email: fallbackData.email,
-            role: fallbackData.role
-          });
-          setNotificationSettings(fallbackData.notificationSettings);
-          setPrivacySettings(fallbackData.privacySettings);
-        }
-      } else {
-        // Mock data for admin viewing
-        const mockData = {
-          name: 'Anna Faris',
-          email: 'anna.faris@school.edu',
-          role: 'student',
-          profileImage: null,
-          recentActivity: [],
-          notificationSettings: {
-            emailNotifications: true,
-            smsNotifications: false,
-            inAppNotifications: true
-          },
-          privacySettings: {
-            emotionDataConsent: true
-          }
-        };
-        setUserData(mockData);
-        setFormData({
-          name: mockData.name,
-          email: mockData.email,
-          role: mockData.role
-        });
-        setNotificationSettings(mockData.notificationSettings);
-        setPrivacySettings(mockData.privacySettings);
-      }
-    } catch (error) {
-      console.error('Critical error:', error);
-      const fallbackImage = localStorage.getItem('studentProfileImage');
-      setFormData({
-        name: localStorage.getItem('userName') || 'Student',
-        email: 'student@school.edu',
-        role: 'student'
-      });
-      setUserData({
-        name: localStorage.getItem('userName') || 'Student',
-        email: 'student@school.edu',
-        role: 'student',
-        profileImage: fallbackImage
-      });
-    } finally {
-      setLoading(false);
     }
-  };
+
+    // NORMAL USER VIEWING THEIR OWN PROFILE
+    const storedUserName = localStorage.getItem('userName');
+    const storedUserEmail = localStorage.getItem('userEmail');
+
+    if (!token) {
+      console.log('❌ No token found, redirecting to login');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      console.log('👤 Fetching own profile');
+      const response = await axios.get('http://localhost:5000/api/users/profile', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const user = response.data;
+      console.log('✅ Fetched own profile data:', user);
+      
+      setUserData(user);
+      setFormData({
+        name: user.name || storedUserName || '',
+        email: user.email || storedUserEmail || '',
+        role: user.role || 'student'
+      });
+
+      // Set notification settings
+      if (user.notificationSettings) {
+        console.log('📋 Loading notification settings:', user.notificationSettings);
+        setNotificationSettings({
+          emailNotifications: user.notificationSettings.emailNotifications ?? true,
+          smsNotifications: user.notificationSettings.smsNotifications ?? false,
+          inAppNotifications: user.notificationSettings.inAppNotifications ?? true
+        });
+      }
+
+      // Set privacy settings
+      if (user.privacySettings) {
+        console.log('🔒 Loading privacy settings:', user.privacySettings);
+        setPrivacySettings({
+          emotionDataConsent: user.privacySettings.emotionDataConsent ?? true
+        });
+      }
+
+      // Set profile image
+      if (user.profileImage) {
+        console.log('🖼️ Loading profile image:', user.profileImage);
+        setProfileImage(user.profileImage);
+      }
+
+    } catch (apiError) {
+      console.error('❌ API Error:', apiError);
+      console.log('⚠️ Using fallback data from localStorage');
+      
+      const fallbackData = {
+        name: storedUserName || 'Student',
+        email: storedUserEmail || 'student@school.edu',
+        role: 'student',
+        profileImage: localStorage.getItem('studentProfileImage') || null,
+        recentActivity: [],
+        notificationSettings: {
+          emailNotifications: true,
+          smsNotifications: false,
+          inAppNotifications: true
+        },
+        privacySettings: {
+          emotionDataConsent: true
+        }
+      };
+
+      setUserData(fallbackData);
+      setFormData({
+        name: fallbackData.name,
+        email: fallbackData.email,
+        role: fallbackData.role
+      });
+      setNotificationSettings(fallbackData.notificationSettings);
+      setPrivacySettings(fallbackData.privacySettings);
+      
+      if (fallbackData.profileImage) {
+        setProfileImage(fallbackData.profileImage);
+      }
+    }
+    
+  } catch (error) {
+    console.error('💥 Critical error:', error);
+    
+    // Ultimate fallback
+    const fallbackImage = localStorage.getItem('studentProfileImage');
+    const fallbackName = localStorage.getItem('userName') || 'Student';
+    
+    setFormData({
+      name: fallbackName,
+      email: 'student@school.edu',
+      role: 'student'
+    });
+    
+    setUserData({
+      name: fallbackName,
+      email: 'student@school.edu',
+      role: 'student',
+      profileImage: fallbackImage
+    });
+    
+    if (fallbackImage) {
+      setProfileImage(fallbackImage);
+    }
+    
+  } finally {
+    setLoading(false);
+  }
+};
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prevData => {
@@ -385,75 +458,87 @@ useEffect(() => {
     });
   };
 
-  const handleSaveAccountInfo = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        console.warn('No token found, updating localStorage only');
-        localStorage.setItem('userName', formData.name);
-        localStorage.setItem('userEmail', formData.email);
-        setUserName(formData.name);
-        
-        setUserData(prev => ({
-          ...prev,
-          name: formData.name,
-          email: formData.email
-        }));
-        
-        alert('Profile updated successfully (local only)!');
-        return;
-      }
-      
-      const dataToSave = {
-        name: formData.name,
-        email: formData.email
-      };
-      
-      console.log('💾 Saving profile data:', dataToSave);
-      
-      const response = await axios.put(
-        'http://localhost:5000/api/users/update-profile',
-        dataToSave,
-        { 
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
-      console.log('✅ Profile update response:', response.data);
-      
-      if (response.data) {
-        localStorage.setItem('userName', dataToSave.name);
-        localStorage.setItem('userEmail', dataToSave.email);
-        setUserName(dataToSave.name);
-        
-        setUserData(prev => ({
-          ...prev,
-          name: dataToSave.name,
-          email: dataToSave.email
-        }));
-        
-        alert('Profile updated successfully!');
-      }
-    } catch (error) {
-      console.error('❌ Error saving profile:', error);
-      
+const handleSaveAccountInfo = async () => {
+  try {
+    // Check if admin is viewing
+    const isAdminViewing = localStorage.getItem('adminViewingAs');
+    const adminToken = localStorage.getItem('adminToken');
+    const viewingUserId = localStorage.getItem('adminViewingUserId');
+    
+    const token = isAdminViewing && adminToken ? adminToken : localStorage.getItem('token');
+    
+    if (!token) {
+      console.warn('No token found, updating localStorage only');
       localStorage.setItem('userName', formData.name);
-      localStorage.setItem('userEmail', formData.email);
       setUserName(formData.name);
       
       setUserData(prev => ({
         ...prev,
-        name: formData.name,
-        email: formData.email
+        name: formData.name
       }));
       
-      alert(error.response?.data?.message || 'Profile updated locally. Server sync failed.');
+      alert('Profile updated successfully (local only)!');
+      return;
     }
-  };
+    
+    // IMPORTANT: Only send name, NOT email (email cannot be changed)
+    const dataToSave = {
+      name: formData.name
+    };
+    
+    console.log('💾 Saving profile data:', dataToSave);
+    
+    let updateUrl = 'http://localhost:5000/api/users/update-profile';
+    
+    // If admin is viewing a specific user
+    if (isAdminViewing && viewingUserId) {
+      updateUrl = `http://localhost:5000/api/users/${viewingUserId}`;
+      console.log('👤 Admin updating user:', viewingUserId);
+    }
+    
+    const response = await axios.put(
+      updateUrl,
+      dataToSave,
+      { 
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    console.log('✅ Profile update response:', response.data);
+    
+    if (response.data) {
+      localStorage.setItem('userName', dataToSave.name);
+      setUserName(dataToSave.name);
+      
+      setUserData(prev => ({
+        ...prev,
+        name: dataToSave.name
+      }));
+      
+      // Dispatch event for header update
+      window.dispatchEvent(new CustomEvent('userNameChanged', { detail: dataToSave.name }));
+      
+      alert('Profile updated successfully!');
+    }
+  } catch (error) {
+    console.error('❌ Error saving profile:', error);
+    console.error('Error response:', error.response?.data);
+    
+    // Still update locally
+    localStorage.setItem('userName', formData.name);
+    setUserName(formData.name);
+    
+    setUserData(prev => ({
+      ...prev,
+      name: formData.name
+    }));
+    
+    alert(error.response?.data?.message || 'Profile updated locally. Server sync failed.');
+  }
+};
 
   const handleChangePassword = async ({ currentPassword, newPassword, confirmPassword }) => {
     if (newPassword !== confirmPassword) {
@@ -782,8 +867,6 @@ useEffect(() => {
     fileInputRef.current?.click();
   };
 
-  // FIXED: handleProfileImageChange for multi-device support
-  // FIXED: Profile image upload with better error handling
 const handleProfileImageChange = async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
@@ -791,10 +874,12 @@ const handleProfileImageChange = async (e) => {
   // Validate file
   if (file.size > 5 * 1024 * 1024) {
     alert('File size should be less than 5MB');
+    e.target.value = '';
     return;
   }
   if (!file.type.startsWith('image/')) {
     alert('Please select an image file');
+    e.target.value = '';
     return;
   }
 
@@ -806,8 +891,22 @@ const handleProfileImageChange = async (e) => {
     const formData = new FormData();
     formData.append('profile', file);
 
+    // Check if admin is viewing
+    const isAdminViewing = localStorage.getItem('adminViewingAs');
+    const viewingUserId = localStorage.getItem('adminViewingUserId');
+    const adminToken = localStorage.getItem('adminToken');
+    
+    // Add metadata
+    if (isAdminViewing && viewingUserId) {
+      formData.append('targetUserId', viewingUserId);
+      formData.append('userRole', 'student');
+      console.log('📤 Admin uploading image for student:', viewingUserId);
+    } else {
+      formData.append('userRole', 'student');
+    }
+
     // Get token
-    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+    const token = isAdminViewing && adminToken ? adminToken : localStorage.getItem('token');
     
     if (!token) {
       alert('Authentication required. Please log in again.');
@@ -824,17 +923,13 @@ const handleProfileImageChange = async (e) => {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
-        },
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          console.log(`Upload Progress: ${percentCompleted}%`);
         }
       }
     );
 
     console.log('✅ Upload response:', response.data);
 
-    if (response.data.success && response.data.profileImage) {
+    if (response.data && response.data.profileImage) {
       const cloudinaryUrl = response.data.profileImage;
       
       console.log('✅ Profile image URL:', cloudinaryUrl);
@@ -848,18 +943,17 @@ const handleProfileImageChange = async (e) => {
         profileImage: cloudinaryUrl
       }));
       
-      // Cache in localStorage
-      localStorage.setItem('studentProfileImage', cloudinaryUrl);
-      
-      // Notify header component
-      window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { 
-        detail: cloudinaryUrl 
-      }));
+      // Only cache in localStorage if not admin viewing
+      if (!isAdminViewing) {
+        localStorage.setItem('studentProfileImage', cloudinaryUrl);
+        
+        // Notify header component
+        window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { 
+          detail: cloudinaryUrl 
+        }));
+      }
       
       alert('✅ Profile picture updated successfully!');
-      
-      // Refresh user data to ensure everything is in sync
-      await fetchUserData();
     } else {
       console.error('❌ Invalid response:', response.data);
       alert('Upload completed but no image URL received');
@@ -868,22 +962,19 @@ const handleProfileImageChange = async (e) => {
     console.error('❌ Upload failed:', error);
     
     if (error.response) {
-      // Server responded with error
       console.error('Server error:', error.response.data);
       alert(`Upload failed: ${error.response.data.message || error.response.data.error || 'Server error'}`);
     } else if (error.request) {
-      // Request made but no response
       console.error('No response from server');
       alert('Upload failed: No response from server. Please check your connection.');
     } else {
-      // Error setting up request
       console.error('Request error:', error.message);
       alert(`Upload failed: ${error.message}`);
     }
   } finally {
     // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    if (e.target) {
+      e.target.value = '';
     }
   }
 };

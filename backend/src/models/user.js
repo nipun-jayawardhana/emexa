@@ -34,6 +34,18 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['student', 'teacher', 'admin'], default: 'student' },
   isActive: { type: Boolean, default: true },
   
+  // Approval status fields
+  approvalStatus: { 
+    type: String, 
+    enum: ['pending', 'approved', 'rejected'], 
+    default: 'pending' 
+  },
+  status: { 
+    type: String, 
+    enum: ['Active', 'Inactive', 'Pending'], 
+    default: 'Pending' 
+  },
+  
   // Profile settings
   profileImage: {
     type: String,
@@ -122,6 +134,13 @@ const userSchema = new mongoose.Schema({
 // Hash password before saving
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
+  
+  // Check if already hashed
+  if (this.password && (this.password.startsWith('$2b$') || this.password.startsWith('$2a$'))) {
+    console.log('🔑 User password already hashed, skipping');
+    return next();
+  }
+  
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
   next();
@@ -142,6 +161,7 @@ userSchema.methods.generateAuthToken = function() {
 // Index for faster queries
 userSchema.index({ email: 1 });
 userSchema.index({ role: 1 });
+userSchema.index({ approvalStatus: 1 });
 
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 export default User;
