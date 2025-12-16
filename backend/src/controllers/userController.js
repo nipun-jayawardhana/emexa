@@ -4,20 +4,53 @@ import Student from '../models/student.js';
 import Teacher from '../models/teacher.js';
 import bcrypt from 'bcrypt';
 
+// ============================================
+// GET ALL APPROVED USERS (FIXED VERSION)
+// ============================================
 export const getUsers = async (req, res) => {
   try {
+    console.log('🔍 GET /api/users called');
+    console.log('Query params:', req.query);
+    
     const { role, page, limit, sort } = req.query;
     const filter = {};
-    if (role) filter.role = role;
-    const options = { page: parseInt(page) || 1, limit: parseInt(limit) || 10, sort: sort || '-createdAt' };
+    if (role) {
+      filter.role = role;
+      console.log('Role filter applied:', role);
+    }
+    
+    const options = { 
+      page: parseInt(page) || 1, 
+      limit: parseInt(limit) || 1000, 
+      sort: sort || '-createdAt' 
+    };
+    
+    console.log('📋 Fetching users with filter:', filter);
+    console.log('Options:', options);
+    
     const result = await userService.getAllUsers(filter, options);
-    res.json(result);
+    
+    console.log('✅ Users fetched successfully:', {
+      totalUsers: result.total,
+      students: result.students?.length || 0,
+      teachers: result.teachers?.length || 0,
+      admins: result.admins?.length || 0
+    });
+    
+    // Return just the users array for frontend compatibility
+    res.status(200).json(result.users || []);
   } catch (err) {
-    console.error('Get users error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Get users error:', err);
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: err.message 
+    });
   }
 };
 
+// ============================================
+// CREATE USER
+// ============================================
 export const createUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -28,12 +61,14 @@ export const createUser = async (req, res) => {
     const result = await userService.registerUser({ name, email, password });
     res.status(201).json(result);
   } catch (err) {
-    console.error('Create user error:', err);
+    console.error('❌ Create user error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Dashboard functions
+// ============================================
+// DASHBOARD DATA
+// ============================================
 export const getDashboardData = async (req, res) => {
   try {
     let user = await User.findById(req.userId).select('-password');
@@ -60,12 +95,14 @@ export const getDashboardData = async (req, res) => {
       recentActivity: user.recentActivity || [],
     });
   } catch (error) {
-    console.error('Get dashboard data error:', error);
+    console.error('❌ Get dashboard data error:', error);
     res.status(500).json({ message: 'Error fetching dashboard data', error: error.message });
   }
 };
 
-// Profile functions
+// ============================================
+// GET PROFILE
+// ============================================
 export const getProfile = async (req, res) => {
   try {
     console.log('🔍 Getting profile for userId:', req.userId);
@@ -84,7 +121,7 @@ export const getProfile = async (req, res) => {
     }
     
     if (!user) {
-      console.error('❌ User not found in any collection. userId:', req.userId);
+      console.error('❌ User not found. userId:', req.userId);
       return res.status(404).json({ message: 'User not found' });
     }
 
@@ -111,7 +148,7 @@ export const getProfile = async (req, res) => {
       upcomingQuizzes: user.upcomingQuizzes || []
     };
 
-    console.log('📤 Sending profile data with image:', profileData.profileImage);
+    console.log('📤 Sending profile with image:', profileData.profileImage);
     res.status(200).json(profileData);
   } catch (error) {
     console.error('❌ Get profile error:', error);
@@ -119,7 +156,9 @@ export const getProfile = async (req, res) => {
   }
 };
 
-// Update profile information
+// ============================================
+// UPDATE PROFILE
+// ============================================
 export const updateProfile = async (req, res) => {
   try {
     const { name, email } = req.body;
@@ -163,12 +202,14 @@ export const updateProfile = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error updating profile:', error);
+    console.error('❌ Error updating profile:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// Change password
+// ============================================
+// CHANGE PASSWORD
+// ============================================
 export const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -197,11 +238,11 @@ export const changePassword = async (req, res) => {
     }
     
     if (!user) {
-      console.error('❌ User not found for password change. userId:', req.userId);
+      console.error('❌ User not found. userId:', req.userId);
       return res.status(404).json({ message: 'User not found' });
     }
 
-    console.log(`✅ User found in ${collectionName} collection for password change`);
+    console.log(`✅ User found in ${collectionName} collection`);
 
     const isMatch = await user.comparePassword(currentPassword);
     
@@ -221,7 +262,9 @@ export const changePassword = async (req, res) => {
   }
 };
 
-// Update notification settings
+// ============================================
+// UPDATE NOTIFICATION SETTINGS
+// ============================================
 export const updateNotificationSettings = async (req, res) => {
   try {
     const { emailNotifications, smsNotifications, inAppNotifications } = req.body;
@@ -247,12 +290,14 @@ export const updateNotificationSettings = async (req, res) => {
       notificationSettings: user.notificationSettings
     });
   } catch (error) {
-    console.error('Error updating notification settings:', error);
+    console.error('❌ Error updating notification settings:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// Update privacy settings
+// ============================================
+// UPDATE PRIVACY SETTINGS
+// ============================================
 export const updatePrivacySettings = async (req, res) => {
   try {
     const { emotionDataConsent } = req.body;
@@ -276,12 +321,14 @@ export const updatePrivacySettings = async (req, res) => {
       privacySettings: user.privacySettings
     });
   } catch (error) {
-    console.error('Error updating privacy settings:', error);
+    console.error('❌ Error updating privacy settings:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// Export user data
+// ============================================
+// EXPORT USER DATA
+// ============================================
 export const exportUserData = async (req, res) => {
   try {
     let user = await User.findById(req.userId).select('-password');
@@ -314,23 +361,25 @@ export const exportUserData = async (req, res) => {
 
     res.json(exportData);
   } catch (error) {
-    console.error('Error exporting user data:', error);
+    console.error('❌ Error exporting user data:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// FIXED: Upload profile image with success field - CRITICAL FIX
+// ============================================
+// UPLOAD PROFILE IMAGE (FIXED FOR ADMIN VIEWING)
+// ============================================
 export const uploadProfileImage = async (req, res) => {
   try {
     console.log('📸 ===== PROFILE IMAGE UPLOAD STARTED =====');
     console.log('userId:', req.userId);
     console.log('file:', req.file);
-    console.log('==========================================');
+    console.log('body:', req.body);
     
     if (!req.file) {
       console.error('❌ No file uploaded');
       return res.status(400).json({ 
-        success: false,  // ADDED
+        success: false,
         error: 'No file uploaded',
         message: 'Please select an image file' 
       });
@@ -340,26 +389,53 @@ export const uploadProfileImage = async (req, res) => {
     console.log('  - Filename:', req.file.filename);
     console.log('  - Path:', req.file.path);
     console.log('  - Size:', req.file.size);
-    console.log('  - Mimetype:', req.file.mimetype);
 
-    // Try all collections to find the user
-    let user = await User.findById(req.userId);
-    let collection = 'User';
+    // IMPORTANT: Check if admin is uploading for another user
+    const targetUserId = req.body.targetUserId || req.userId;
+    const targetRole = req.body.userRole;
+    
+    console.log('🎯 Target user:', targetUserId);
+    console.log('🎯 Target role:', targetRole);
+    console.log('🔐 Current user (uploader):', req.userId);
+    
+    // Find the target user
+    let user;
+    let collection;
+    
+    if (targetRole) {
+      // If role is specified, search in that collection first
+      if (targetRole === 'student') {
+        user = await Student.findById(targetUserId);
+        collection = 'Student';
+      } else if (targetRole === 'teacher') {
+        user = await Teacher.findById(targetUserId);
+        collection = 'Teacher';
+      } else if (targetRole === 'admin') {
+        user = await User.findById(targetUserId);
+        collection = 'User';
+      }
+    }
+    
+    // If not found with specified role, search all collections
+    if (!user) {
+      user = await User.findById(targetUserId);
+      collection = 'User';
+    }
     
     if (!user) {
-      user = await Student.findById(req.userId);
+      user = await Student.findById(targetUserId);
       collection = 'Student';
     }
     
     if (!user) {
-      user = await Teacher.findById(req.userId);
+      user = await Teacher.findById(targetUserId);
       collection = 'Teacher';
     }
     
     if (!user) {
-      console.error('❌ User not found in any collection for userId:', req.userId);
+      console.error('❌ User not found. targetUserId:', targetUserId);
       return res.status(404).json({ 
-        success: false,  // ADDED
+        success: false,
         error: 'User not found',
         message: 'User not found in database' 
       });
@@ -367,42 +443,37 @@ export const uploadProfileImage = async (req, res) => {
 
     console.log(`✅ User found in ${collection} collection: ${user.email}`);
 
-    // Cloudinary URL is already in req.file.path (provided by multer-storage-cloudinary)
     const imageUrl = req.file.path;
+    console.log('🔗 Cloudinary URL:', imageUrl);
 
-    console.log('🔗 Cloudinary image URL:', imageUrl);
-
-    // Save Cloudinary URL to user document
     user.profileImage = imageUrl;
     const savedUser = await user.save();
 
-    console.log(`✅ Profile image saved to ${collection}.`);
-    console.log(`   New profileImage:`, savedUser.profileImage);
-    console.log('==========================================\n');
+    console.log(`✅ Profile image saved to ${collection}`);
+    console.log('   New profileImage:', savedUser.profileImage);
+    console.log('   Is admin upload:', targetUserId !== req.userId);
 
-    // CRITICAL: Return success: true for frontend compatibility
     res.json({ 
-      success: true,  // THIS IS THE KEY FIX!
+      success: true,
       message: 'Profile image uploaded successfully',
       profileImage: savedUser.profileImage,
       user: {
         _id: savedUser._id,
         name: savedUser.name,
         email: savedUser.email,
+        role: savedUser.role,
         profileImage: savedUser.profileImage
       }
     });
   } catch (error) {
     console.error('❌ ===== ERROR UPLOADING PROFILE IMAGE =====');
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    console.error('==========================================\n');
+    console.error('Error:', error.message);
+    console.error('Stack:', error.stack);
     
     res.status(500).json({ 
-      success: false,  // ADDED
+      success: false,
       error: 'Internal server error',
-      message: error.message || 'Failed to upload profile image',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message || 'Failed to upload profile image'
     });
   }
 };

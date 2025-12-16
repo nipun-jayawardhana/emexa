@@ -1,44 +1,99 @@
 // frontend/src/services/user.service.js
 
-import api from './apiClient';
+import axios from 'axios';
 
-// Existing services
-export const userService = {
-  login: (payload) => api.post('/auth/login', payload).then(r => r.data),
-  me: () => api.get('/users/me').then(r => r.data),
+const API_URL = 'http://localhost:5000/api';
+
+// Get auth token from localStorage
+const getAuthToken = () => {
+  return localStorage.getItem('adminToken') || localStorage.getItem('token');
 };
 
-// User Management CRUD functions
-export const getAllUsers = () => api.get('/users').then(r => r.data);
-export const addUser = (payload) => api.post('/users', payload).then(r => r.data);
-export const updateUser = (id, payload) => api.put(`/users/${id}`, payload).then(r => r.data);
-export const deleteUser = (id) => api.delete(`/users/${id}`).then(r => r.data);
+// Get auth headers
+const getAuthHeaders = () => {
+  const token = getAuthToken();
+  return {
+    'Authorization': token ? `Bearer ${token}` : '',
+    'Content-Type': 'application/json'
+  };
+};
 
-export const getUsers = () => api.get('/users').then(r => r.data);
-export const getUserById = (id) => api.get(`/users/${id}`).then(r => r.data);
-
-// Teacher Approval functions
-export const getTeacherApprovals = () => {
-  return api.get('/users/teacher-approvals')  // ← REMOVE /api
-    .then(r => r.data)
-    .catch(err => {
-      console.error('Error fetching teacher approvals:', err);
+// Get all users (approved students, teachers, admins)
+export const getUsers = async () => {
+  try {
+    console.log('🌐 Calling GET /api/users...');
+    const response = await axios.get(`${API_URL}/users`, {
+      headers: getAuthHeaders(),
+      withCredentials: true
+    });
+    
+    console.log('📥 Response from /api/users:', response.data);
+    
+    // Backend returns: { users: [...], students: [...], teachers: [...], admins: [...], total: number }
+    // We need to extract the 'users' array
+    if (response.data && response.data.users) {
+      console.log('✅ Returning users array:', response.data.users.length);
+      return response.data.users;
+    } else if (Array.isArray(response.data)) {
+      console.log('✅ Response is already an array:', response.data.length);
+      return response.data;
+    } else {
+      console.warn('⚠️ Unexpected response structure:', response.data);
       return [];
-    });
+    }
+  } catch (error) {
+    console.error('❌ Error fetching users:', error.response?.data || error.message);
+    throw error;
+  }
 };
 
-export const approveTeacher = (id) => {
-  return api.put(`/users/teacher-approvals/${id}/approve`, {})
-    .then(r => r.data)
-    .catch(err => {
-      throw err;
+// Get user by ID
+export const getUserById = async (id) => {
+  try {
+    const response = await axios.get(`${API_URL}/users/${id}`, {
+      headers: getAuthHeaders(),
+      withCredentials: true
     });
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error fetching user:', error.response?.data || error.message);
+    throw error;
+  }
 };
 
-export const rejectTeacher = (id) => {
-  return api.put(`/users/teacher-approvals/${id}/reject`, {})
-    .then(r => r.data)
-    .catch(err => {
-      throw err;
+// Delete user
+export const deleteUser = async (id) => {
+  try {
+    console.log('🗑️ Deleting user:', id);
+    const response = await axios.delete(`${API_URL}/users/${id}`, {
+      headers: getAuthHeaders(),
+      withCredentials: true
     });
+    console.log('✅ User deleted successfully');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error deleting user:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Update user
+export const updateUser = async (id, userData) => {
+  try {
+    const response = await axios.put(`${API_URL}/users/${id}`, userData, {
+      headers: getAuthHeaders(),
+      withCredentials: true
+    });
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error updating user:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+export default {
+  getUsers,
+  getUserById,
+  deleteUser,
+  updateUser
 };

@@ -12,8 +12,7 @@ const formatTime12Hour = (time24) => {
   if (!time24) return "";
   const [hours, minutes] = time24.split(":");
   const hourNum = parseInt(hours);
-  const displayHour =
-    hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
+  const displayHour = hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
   const period = hourNum >= 12 ? "PM" : "AM";
   return `${displayHour}:${minutes} ${period}`;
 };
@@ -22,6 +21,7 @@ const StudentDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
   const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
   const [sharedQuizzes, setSharedQuizzes] = useState([]);
   const navigate = useNavigate();
@@ -29,6 +29,7 @@ const StudentDashboard = () => {
   
   const adminToken = localStorage.getItem('adminToken');
   const isAdminViewing = localStorage.getItem('adminViewingAs');
+  const viewingUserId = localStorage.getItem('adminViewingUserId');
 
   // Sync activeMenuItem with current location
   useEffect(() => {
@@ -42,49 +43,166 @@ const StudentDashboard = () => {
     setActiveMenuItem(menuItem);
   }, [location.pathname]);
 
+  // ============================================
+  // CRITICAL: Check if admin is viewing a specific student
+  // ============================================
   useEffect(() => {
-    fetchDashboardData();
-    fetchSharedQuizzes();
-    setUserName(localStorage.getItem("userName") || "Student");
+    const initializeDashboard = async () => {
+      const isAdminViewingStudent = localStorage.getItem('adminViewingAs');
+      const adminToken = localStorage.getItem('adminToken');
+      const viewingUserId = localStorage.getItem('adminViewingUserId');
+      const viewingUserName = localStorage.getItem('adminViewingUserName');
+      const viewingUserEmail = localStorage.getItem('adminViewingUserEmail');
+
+      console.log('🔍 Student Dashboard Initialize:', {
+        isAdminViewingStudent,
+        viewingUserId,
+        viewingUserName,
+        hasAdminToken: !!adminToken
+      });
+
+      // If admin is viewing a specific student
+      if (isAdminViewingStudent === 'student' && adminToken && viewingUserId) {
+        console.log('👤 Admin viewing student:', viewingUserName);
+        
+        try {
+          // Fetch the specific student's data by ID
+          const response = await axios.get(
+            `http://localhost:5000/api/users/${viewingUserId}`,
+            {
+              headers: { Authorization: `Bearer ${adminToken}` }
+            }
+          );
+
+          const studentData = response.data;
+          console.log('✅ Fetched student data for admin view:', studentData);
+
+          // Set the viewed student's information
+          setUserName(studentData.name || viewingUserName || 'Student');
+          setUserEmail(studentData.email || viewingUserEmail || '');
+          
+          // Store for Header component
+          localStorage.setItem('displayUserName', studentData.name);
+          localStorage.setItem('displayUserEmail', studentData.email);
+          
+          // Set dashboard data if available
+          if (studentData) {
+            setDashboardData({
+              name: studentData.name,
+              email: studentData.email,
+              totalQuizzes: studentData.totalQuizzes || 24,
+              averageScore: studentData.averageScore || 82,
+              studyTime: studentData.studyTime || 32,
+              upcomingQuizzes: studentData.upcomingQuizzes || [],
+              recentActivity: studentData.recentActivity || []
+            });
+          }
+
+          setLoading(false);
+          
+        } catch (error) {
+          console.error('❌ Error fetching student data for admin:', error);
+          alert('Failed to load student data. Returning to user management.');
+          
+          // Clear viewing flags
+          localStorage.removeItem('adminViewingUserId');
+          localStorage.removeItem('adminViewingUserName');
+          localStorage.removeItem('adminViewingUserEmail');
+          localStorage.removeItem('adminViewingAs');
+          localStorage.removeItem('displayUserName');
+          localStorage.removeItem('displayUserEmail');
+          
+          window.location.href = '/admin/user-management';
+        }
+      } else {
+        // Normal student viewing their own dashboard
+        console.log('👤 Student viewing own dashboard');
+        
+        const token = localStorage.getItem('token');
+        const storedUserName = localStorage.getItem('userName');
+        const storedUserEmail = localStorage.getItem('userEmail');
+        
+        if (!token) {
+          console.log('❌ No token found, redirecting to login');
+          navigate('/login');
+          return;
+        }
+        
+        setUserName(storedUserName || 'Student');
+        setUserEmail(storedUserEmail || '');
+        
+        // Fetch their own dashboard data
+        await fetchDashboardData();
+      }
+      
+      // Fetch shared quizzes for both cases
+      await fetchSharedQuizzes();
+    };
+
+    initializeDashboard();
+  }, []);
+
+  // Cleanup when leaving dashboard
+  useEffect(() => {
+    return () => {
+      const currentPath = window.location.pathname;
+      
+      // Only clear if navigating back to user management
+      if (currentPath === '/admin/user-management' || currentPath.includes('/admin')) {
+        console.log('🧹 Cleaning up admin viewing flags');
+        localStorage.removeItem('adminViewingUserId');
+        localStorage.removeItem('adminViewingUserName');
+        localStorage.removeItem('adminViewingUserEmail');
+        localStorage.removeItem('adminViewingUserRole');
+        localStorage.removeItem('adminViewingAs');
+        localStorage.removeItem('adminViewingUser');
+        localStorage.removeItem('displayUserName');
+        localStorage.removeItem('displayUserEmail');
+      }
+    };
   }, []);
 
   const fetchSharedQuizzes = async () => {
     try {
-      // Fetch shared quizzes from backend
       const response = await teacherQuizService.getSharedQuizzes();
-      console.log("Fetched shared quizzes from backend:", response);
+      console.log("📚 Fetched shared quizzes:", response);
 
       if (response.quizzes && response.quizzes.length > 0) {
         setSharedQuizzes(response.quizzes);
       }
     } catch (error) {
-      console.error("Error fetching shared quizzes:", error);
+      console.error("❌ Error fetching shared quizzes:", error);
     }
   };
 
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem("token");
-      if (!token && !adminToken) {
-        navigate("/login");
+      
+      if (!token) {
+        console.log('❌ No token for dashboard fetch');
         return;
       }
 
-      // Only fetch real data if not admin viewing
-      if (!isAdminViewing) {
-        const response = await axios.get(
-          "http://localhost:5000/api/users/dashboard",
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        setDashboardData(response.data);
-      }
+      console.log('📊 Fetching dashboard data...');
+      
+      const response = await axios.get(
+        "http://localhost:5000/api/users/dashboard",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      console.log('✅ Dashboard data fetched:', response.data);
+      setDashboardData(response.data);
+      
     } catch (error) {
-      console.error("Error fetching dashboard data:", error);
-      if (error.response?.status === 401 && !isAdminViewing) {
+      console.error("❌ Error fetching dashboard data:", error);
+      
+      if (error.response?.status === 401) {
+        console.log('⚠️ Unauthorized, clearing tokens');
         localStorage.removeItem("token");
         localStorage.removeItem("userName");
         navigate("/login");
@@ -109,6 +227,46 @@ const StudentDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="p-6">
         <div className="max-w-7xl">
+          {/* Show admin viewing banner */}
+          {isAdminViewing && adminToken && (
+            <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 text-yellow-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-yellow-800">
+                      Admin View Mode - Viewing: {userName || 'Student'}
+                    </p>
+                    <p className="text-xs text-yellow-700 mt-0.5">
+                      You are viewing this student's dashboard as an administrator
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    // Clear all viewing flags
+                    localStorage.removeItem('adminViewingUserId');
+                    localStorage.removeItem('adminViewingUserName');
+                    localStorage.removeItem('adminViewingUserEmail');
+                    localStorage.removeItem('adminViewingUserRole');
+                    localStorage.removeItem('adminViewingAs');
+                    localStorage.removeItem('adminViewingUser');
+                    localStorage.removeItem('displayUserName');
+                    localStorage.removeItem('displayUserEmail');
+                    
+                    // Navigate back to user management
+                    window.location.href = '/admin/user-management';
+                  }}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition text-sm font-medium"
+                >
+                  ← Back to User Management
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="mb-5">
             <h1 className="text-2xl font-bold text-gray-900">
               Student Dashboard
@@ -122,35 +280,24 @@ const StudentDashboard = () => {
             <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
               <div className="flex items-start gap-3 mb-3">
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
-                  <svg
-                    className="w-6 h-6 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                    />
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1">Total Students</p>
-                  <p className="text-3xl font-bold text-gray-900">24</p>
+                  <p className="text-xs text-gray-500 mb-1">Total Quizzes</p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {dashboardData?.totalQuizzes || 24}
+                  </p>
                 </div>
               </div>
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">Present today</span>
+                  <span className="text-gray-500">Completed</span>
                   <span className="font-semibold text-gray-900">22/24</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full"
-                    style={{ width: "92%" }}
-                  ></div>
+                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: "92%" }}></div>
                 </div>
               </div>
             </div>
@@ -158,23 +305,15 @@ const StudentDashboard = () => {
             <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
               <div className="flex items-start gap-3 mb-3">
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center shrink-0">
-                  <svg
-                    className="w-6 h-6 text-green-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                    />
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1">Average Progress</p>
-                  <p className="text-3xl font-bold text-gray-900">78%</p>
+                  <p className="text-xs text-gray-500 mb-1">Average Score</p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {dashboardData?.averageScore || 82}%
+                  </p>
                 </div>
               </div>
               <div className="space-y-1">
@@ -183,10 +322,7 @@ const StudentDashboard = () => {
                   <span className="font-semibold text-gray-900">80%</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div
-                    className="bg-green-500 h-2 rounded-full"
-                    style={{ width: "78%" }}
-                  ></div>
+                  <div className="bg-green-500 h-2 rounded-full" style={{ width: `${dashboardData?.averageScore || 82}%` }}></div>
                 </div>
               </div>
             </div>
@@ -194,23 +330,15 @@ const StudentDashboard = () => {
             <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
               <div className="flex items-start gap-3 mb-3">
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
-                  <svg
-                    className="w-6 h-6 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                    />
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1">Engagement Level</p>
-                  <p className="text-3xl font-bold text-gray-900">High</p>
+                  <p className="text-xs text-gray-500 mb-1">Study Time</p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {dashboardData?.studyTime || 32}h
+                  </p>
                 </div>
               </div>
               <div className="space-y-1">
@@ -219,10 +347,7 @@ const StudentDashboard = () => {
                   <span className="font-semibold text-green-600">+5%</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full"
-                    style={{ width: "85%" }}
-                  ></div>
+                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: "85%" }}></div>
                 </div>
               </div>
             </div>
@@ -239,33 +364,27 @@ const StudentDashboard = () => {
             </div>
             <div className="space-y-3">
               {(() => {
-                // Combine shared quizzes from teacher with existing quizzes
                 const existingQuizzes =
-                  dashboardData?.upcomingQuizzes &&
-                  dashboardData.upcomingQuizzes.length > 0
+                  dashboardData?.upcomingQuizzes && dashboardData.upcomingQuizzes.length > 0
                     ? dashboardData.upcomingQuizzes
                     : [
                         {
                           title: "Matrix",
                           date: "2025-10-20",
-                          description:
-                            "Prepare for your Matrix quiz by revising matrix operations, determinants, and inverse concepts to strengthen your problem-solving skills.",
+                          description: "Prepare for your Matrix quiz by revising matrix operations, determinants, and inverse concepts.",
                         },
                         {
                           title: "Vectors",
                           date: "2025-10-25",
-                          description:
-                            "Review vector basics, dot and cross products, and geometric interpretations to get ready for your Vectors quiz.",
+                          description: "Review vector basics, dot and cross products, and geometric interpretations.",
                         },
                         {
                           title: "Limits",
                           date: "2025-10-30",
-                          description:
-                            "Study the fundamentals of limits, continuity, and approaching values to perform well in your Limits quiz.",
+                          description: "Study the fundamentals of limits, continuity, and approaching values.",
                         },
                       ];
 
-                // Add shared quizzes from teacher
                 const allQuizzes = [...sharedQuizzes, ...existingQuizzes];
                 return allQuizzes;
               })().map((quiz, index) => (
@@ -285,18 +404,14 @@ const StudentDashboard = () => {
                       )}
                       <span className="text-blue-600 font-medium">
                         {(() => {
-                          const dateToShow =
-                            quiz.scheduleDate || quiz.dueDate || quiz.date;
+                          const dateToShow = quiz.scheduleDate || quiz.dueDate || quiz.date;
                           if (!dateToShow) return "No date set";
                           try {
-                            return new Date(dateToShow).toLocaleDateString(
-                              "en-US",
-                              {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              }
-                            );
+                            return new Date(dateToShow).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            });
                           } catch {
                             return "Invalid date";
                           }
@@ -304,26 +419,14 @@ const StudentDashboard = () => {
                       </span>
                       {quiz.scheduleDate && quiz.startTime && quiz.endTime && (
                         <span className="ml-1 text-gray-600">
-                          ({formatTime12Hour(quiz.startTime)} -{" "}
-                          {formatTime12Hour(quiz.endTime)})
-                        </span>
-                      )}
-                      {quiz.dueDate && (
-                        <span className="ml-2 text-orange-600 font-medium">
-                          📅 Due:{" "}
-                          {new Date(quiz.dueDate).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                          })}
+                          ({formatTime12Hour(quiz.startTime)} - {formatTime12Hour(quiz.endTime)})
                         </span>
                       )}
                     </p>
                     <p className="text-xs text-gray-600 leading-relaxed">
                       {quiz.description ||
                         (quiz.questions?.length
-                          ? `${quiz.questions.length} question${
-                              quiz.questions.length !== 1 ? "s" : ""
-                            } • Prepare for your ${quiz.title} quiz`
+                          ? `${quiz.questions.length} question${quiz.questions.length !== 1 ? "s" : ""}`
                           : `Prepare for your ${quiz.title} quiz`)}
                     </p>
                   </div>
@@ -335,9 +438,7 @@ const StudentDashboard = () => {
                           camera.start({ capture: false }).catch(() => {});
                         }
                       } catch (e) {}
-                      navigate(
-                        `/permission?quizId=${encodeURIComponent(targetId)}`
-                      );
+                      navigate(`/permission?quizId=${encodeURIComponent(targetId)}`);
                     }}
                     className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-600 transition whitespace-nowrap"
                   >
@@ -358,8 +459,7 @@ const StudentDashboard = () => {
               </button>
             </div>
             <div className="divide-y divide-gray-100">
-              {(dashboardData?.recentActivity &&
-              dashboardData.recentActivity.length > 0
+              {(dashboardData?.recentActivity && dashboardData.recentActivity.length > 0
                 ? dashboardData.recentActivity
                 : [
                     {
@@ -384,10 +484,7 @@ const StudentDashboard = () => {
                     },
                   ]
               ).map((activity, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between py-3 first:pt-0"
-                >
+                <div key={index} className="flex items-center justify-between py-3 first:pt-0">
                   <div>
                     <p className="font-semibold text-gray-900 text-sm">
                       {activity.type}
@@ -421,18 +518,8 @@ const StudentDashboard = () => {
               Personal Analytics
             </h2>
             <div className="flex flex-col items-center justify-center py-10">
-              <svg
-                className="w-12 h-12 text-gray-300 mb-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                />
+              <svg className="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
               <p className="text-gray-500 text-xs mb-3">
                 Your personal analytics will appear here
@@ -447,7 +534,7 @@ const StudentDashboard = () => {
     </div>
   );
 
-  // FIXED: Check both adminToken AND isAdminViewing
+  // Check if admin is viewing
   if (isAdminViewing && adminToken) {
     return (
       <AdminViewWrapper dashboardType="student">
