@@ -19,6 +19,7 @@ import QuizPage from "./pages/quizpage";
 import AdminLogin from "./pages/AdminLogin";
 import UserManagement from "./pages/usermgt";
 import TeacherDashboard from "./pages/TeacherDashboard";
+import TeacherCreateQuizWrapper from "./pages/TeacherCreateQuizWrapper";
 import Permission from "./pages/Permission";
 import WellnessCentre from "./pages/WellnessCentre";
 import RequireAuth from "./components/RequireAuth";
@@ -76,6 +77,16 @@ createRoot(document.getElementById("root")).render(
           }
         />
 
+        {/* NEW: Teacher Create Quiz Route */}
+        <Route
+          path="/teacher-create-quiz"
+          element={
+            <ProtectedRoute allowedRoles={["teacher", "admin"]}>
+              <TeacherCreateQuizWrapper />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Teacher Profile - Base route for both teacher and admin viewing */}
         <Route
           path="/teacher-profile"
@@ -116,7 +127,6 @@ createRoot(document.getElementById("root")).render(
         />
 
         {/* Legacy profile routes with userId parameter - redirect to base routes */}
-        {/* These maintain the localStorage data set by handleViewUser */}
         <Route
           path="/student-profile/:userId"
           element={<Navigate to="/profile" replace />}
