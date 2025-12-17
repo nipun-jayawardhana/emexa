@@ -1,0 +1,561 @@
+import React, { useState, useEffect } from "react";
+import camera from "../lib/camera";
+import { useNavigate, useLocation } from "react-router-dom";
+import axios from "axios";
+import teacherQuizService from "../services/teacherQuizService";
+import AdminViewWrapper from "../components/AdminViewWrapper";
+import Sidebar from "../components/sidebarorigin";
+import Header from "../components/headerorigin";
+
+// Helper function to convert 24-hour time to 12-hour AM/PM format
+const formatTime12Hour = (time24) => {
+  if (!time24) return "";
+  const [hours, minutes] = time24.split(":");
+  const hourNum = parseInt(hours);
+  const displayHour = hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
+  const period = hourNum >= 12 ? "PM" : "AM";
+  return `${displayHour}:${minutes} ${period}`;
+};
+
+const StudentDashboard = () => {
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
+  const [sharedQuizzes, setSharedQuizzes] = useState([]);
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  const adminToken = localStorage.getItem('adminToken');
+  const isAdminViewing = localStorage.getItem('adminViewingAs');
+  const viewingUserId = localStorage.getItem('adminViewingUserId');
+
+  // Sync activeMenuItem with current location
+  useEffect(() => {
+    const pathToMenuItem = {
+      "/dashboard": "dashboard",
+      "/wellness-centre": "wellness",
+      "/profile": "profile",
+    };
+    
+    const menuItem = pathToMenuItem[location.pathname] || "dashboard";
+    setActiveMenuItem(menuItem);
+  }, [location.pathname]);
+
+  // ============================================
+  // CRITICAL: Check if admin is viewing a specific student
+  // ============================================
+  useEffect(() => {
+    const initializeDashboard = async () => {
+      const isAdminViewingStudent = localStorage.getItem('adminViewingAs');
+      const adminToken = localStorage.getItem('adminToken');
+      const viewingUserId = localStorage.getItem('adminViewingUserId');
+      const viewingUserName = localStorage.getItem('adminViewingUserName');
+      const viewingUserEmail = localStorage.getItem('adminViewingUserEmail');
+
+      console.log('🔍 Student Dashboard Initialize:', {
+        isAdminViewingStudent,
+        viewingUserId,
+        viewingUserName,
+        hasAdminToken: !!adminToken
+      });
+
+      // If admin is viewing a specific student
+      if (isAdminViewingStudent === 'student' && adminToken && viewingUserId) {
+        console.log('👤 Admin viewing student:', viewingUserName);
+        
+        try {
+          // Fetch the specific student's data by ID
+          const response = await axios.get(
+            `http://localhost:5000/api/users/${viewingUserId}`,
+            {
+              headers: { Authorization: `Bearer ${adminToken}` }
+            }
+          );
+
+          const studentData = response.data;
+          console.log('✅ Fetched student data for admin view:', studentData);
+
+          // Set the viewed student's information
+          setUserName(studentData.name || viewingUserName || 'Student');
+          setUserEmail(studentData.email || viewingUserEmail || '');
+          
+          // Store for Header component
+          localStorage.setItem('displayUserName', studentData.name);
+          localStorage.setItem('displayUserEmail', studentData.email);
+          
+          // Set dashboard data if available
+          if (studentData) {
+            setDashboardData({
+              name: studentData.name,
+              email: studentData.email,
+              totalQuizzes: studentData.totalQuizzes || 24,
+              averageScore: studentData.averageScore || 82,
+              studyTime: studentData.studyTime || 32,
+              upcomingQuizzes: studentData.upcomingQuizzes || [],
+              recentActivity: studentData.recentActivity || []
+            });
+          }
+
+          setLoading(false);
+          
+        } catch (error) {
+          console.error('❌ Error fetching student data for admin:', error);
+          alert('Failed to load student data. Returning to user management.');
+          
+          // Clear viewing flags
+          localStorage.removeItem('adminViewingUserId');
+          localStorage.removeItem('adminViewingUserName');
+          localStorage.removeItem('adminViewingUserEmail');
+          localStorage.removeItem('adminViewingAs');
+          localStorage.removeItem('displayUserName');
+          localStorage.removeItem('displayUserEmail');
+          
+          window.location.href = '/admin/user-management';
+        }
+      } else {
+        // Normal student viewing their own dashboard
+        console.log('👤 Student viewing own dashboard');
+        
+        const token = localStorage.getItem('token');
+        const storedUserName = localStorage.getItem('userName');
+        const storedUserEmail = localStorage.getItem('userEmail');
+        
+        if (!token) {
+          console.log('❌ No token found, redirecting to login');
+          navigate('/login');
+          return;
+        }
+        
+        setUserName(storedUserName || 'Student');
+        setUserEmail(storedUserEmail || '');
+        
+        // Fetch their own dashboard data
+        await fetchDashboardData();
+      }
+      
+      // Fetch shared quizzes for both cases
+      await fetchSharedQuizzes();
+    };
+
+    initializeDashboard();
+  }, []);
+
+  // Cleanup when leaving dashboard
+  useEffect(() => {
+    return () => {
+      const currentPath = window.location.pathname;
+      
+      // Only clear if navigating back to user management
+      if (currentPath === '/admin/user-management' || currentPath.includes('/admin')) {
+        console.log('🧹 Cleaning up admin viewing flags');
+        localStorage.removeItem('adminViewingUserId');
+        localStorage.removeItem('adminViewingUserName');
+        localStorage.removeItem('adminViewingUserEmail');
+        localStorage.removeItem('adminViewingUserRole');
+        localStorage.removeItem('adminViewingAs');
+        localStorage.removeItem('adminViewingUser');
+        localStorage.removeItem('displayUserName');
+        localStorage.removeItem('displayUserEmail');
+      }
+    };
+  }, []);
+
+  const fetchSharedQuizzes = async () => {
+    try {
+      const response = await teacherQuizService.getSharedQuizzes();
+      console.log("📚 Fetched shared quizzes:", response);
+
+      if (response.quizzes && response.quizzes.length > 0) {
+        setSharedQuizzes(response.quizzes);
+      }
+    } catch (error) {
+      console.error("❌ Error fetching shared quizzes:", error);
+    }
+  };
+
+  const fetchDashboardData = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        console.log('❌ No token for dashboard fetch');
+        return;
+      }
+
+      console.log('📊 Fetching dashboard data...');
+      
+      const response = await axios.get(
+        "http://localhost:5000/api/users/dashboard",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      console.log('✅ Dashboard data fetched:', response.data);
+      setDashboardData(response.data);
+      
+    } catch (error) {
+      console.error("❌ Error fetching dashboard data:", error);
+      
+      if (error.response?.status === 401) {
+        console.log('⚠️ Unauthorized, clearing tokens');
+        localStorage.removeItem("token");
+        localStorage.removeItem("userName");
+        navigate("/login");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const DashboardContent = () => (
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-6">
+        <div className="max-w-7xl">
+          {/* Show admin viewing banner */}
+          {isAdminViewing && adminToken && (
+            <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 text-yellow-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-yellow-800">
+                      Admin View Mode - Viewing: {userName || 'Student'}
+                    </p>
+                    <p className="text-xs text-yellow-700 mt-0.5">
+                      You are viewing this student's dashboard as an administrator
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    // Clear all viewing flags
+                    localStorage.removeItem('adminViewingUserId');
+                    localStorage.removeItem('adminViewingUserName');
+                    localStorage.removeItem('adminViewingUserEmail');
+                    localStorage.removeItem('adminViewingUserRole');
+                    localStorage.removeItem('adminViewingAs');
+                    localStorage.removeItem('adminViewingUser');
+                    localStorage.removeItem('displayUserName');
+                    localStorage.removeItem('displayUserEmail');
+                    
+                    // Navigate back to user management
+                    window.location.href = '/admin/user-management';
+                  }}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition text-sm font-medium"
+                >
+                  ← Back to User Management
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="mb-5">
+            <h1 className="text-2xl font-bold text-gray-900">
+              Student Dashboard
+            </h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Welcome back! Here's an overview of your academic progress.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 mb-5">
+            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500 mb-1">Total Quizzes</p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {dashboardData?.totalQuizzes || 24}
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Completed</span>
+                  <span className="font-semibold text-gray-900">22/24</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: "92%" }}></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center shrink-0">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500 mb-1">Average Score</p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {dashboardData?.averageScore || 82}%
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Target</span>
+                  <span className="font-semibold text-gray-900">80%</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div className="bg-green-500 h-2 rounded-full" style={{ width: `${dashboardData?.averageScore || 82}%` }}></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500 mb-1">Study Time</p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {dashboardData?.studyTime || 32}h
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Weekly change</span>
+                  <span className="font-semibold text-green-600">+5%</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: "85%" }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg p-5 border border-gray-200 mb-5">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-base font-bold text-gray-900">
+                Upcoming Quizzes
+              </h2>
+              <button className="text-green-600 text-xs font-medium hover:underline">
+                View All
+              </button>
+            </div>
+            <div className="space-y-3">
+              {(() => {
+                const existingQuizzes =
+                  dashboardData?.upcomingQuizzes && dashboardData.upcomingQuizzes.length > 0
+                    ? dashboardData.upcomingQuizzes
+                    : [
+                        {
+                          title: "Matrix",
+                          date: "2025-10-20",
+                          description: "Prepare for your Matrix quiz by revising matrix operations, determinants, and inverse concepts.",
+                        },
+                        {
+                          title: "Vectors",
+                          date: "2025-10-25",
+                          description: "Review vector basics, dot and cross products, and geometric interpretations.",
+                        },
+                        {
+                          title: "Limits",
+                          date: "2025-10-30",
+                          description: "Study the fundamentals of limits, continuity, and approaching values.",
+                        },
+                      ];
+
+                const allQuizzes = [...sharedQuizzes, ...existingQuizzes];
+                return allQuizzes;
+              })().map((quiz, index) => (
+                <div
+                  key={index}
+                  className="flex items-start justify-between p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition"
+                >
+                  <div className="flex-1 pr-4">
+                    <h3 className="font-semibold text-gray-900 text-sm mb-0.5">
+                      {quiz.title}
+                    </h3>
+                    <p className="text-xs text-gray-500 mb-1.5">
+                      {quiz.subject && (
+                        <span className="text-teal-600 font-medium">
+                          {quiz.subject} •{" "}
+                        </span>
+                      )}
+                      <span className="text-blue-600 font-medium">
+                        {(() => {
+                          const dateToShow = quiz.scheduleDate || quiz.dueDate || quiz.date;
+                          if (!dateToShow) return "No date set";
+                          try {
+                            return new Date(dateToShow).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            });
+                          } catch {
+                            return "Invalid date";
+                          }
+                        })()}
+                      </span>
+                      {quiz.scheduleDate && quiz.startTime && quiz.endTime && (
+                        <span className="ml-1 text-gray-600">
+                          ({formatTime12Hour(quiz.startTime)} - {formatTime12Hour(quiz.endTime)})
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                      {quiz.description ||
+                        (quiz.questions?.length
+                          ? `${quiz.questions.length} question${quiz.questions.length !== 1 ? "s" : ""}`
+                          : `Prepare for your ${quiz.title} quiz`)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const targetId = quiz.id || `quiz-${index}`;
+                      try {
+                        if (camera && camera.isActive && !camera.isActive()) {
+                          camera.start({ capture: false }).catch(() => {});
+                        }
+                      } catch (e) {}
+                      navigate(`/permission?quizId=${encodeURIComponent(targetId)}`);
+                    }}
+                    className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-600 transition whitespace-nowrap"
+                  >
+                    Take Quiz
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg p-5 border border-gray-200 mb-5">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-base font-bold text-gray-900">
+                Recent Activity
+              </h2>
+              <button className="text-green-600 text-xs font-medium hover:underline">
+                View All
+              </button>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {(dashboardData?.recentActivity && dashboardData.recentActivity.length > 0
+                ? dashboardData.recentActivity
+                : [
+                    {
+                      type: "Completed Quiz",
+                      title: "Limits Basics",
+                      date: "2025-10-10",
+                      score: 85,
+                      status: "completed",
+                    },
+                    {
+                      type: "Started Quiz",
+                      title: "Trigonometry Fundamentals",
+                      date: "2025-10-09",
+                      status: "in-progress",
+                    },
+                    {
+                      type: "Viewed Results",
+                      title: "History Timeline",
+                      date: "2025-10-07",
+                      score: 78,
+                      status: "viewed",
+                    },
+                  ]
+              ).map((activity, index) => (
+                <div key={index} className="flex items-center justify-between py-3 first:pt-0">
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">
+                      {activity.type}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      {activity.title} •{" "}
+                      {new Date(activity.date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </div>
+                  {activity.score && (
+                    <span className="text-green-600 font-bold text-sm">
+                      {activity.score}%
+                    </span>
+                  )}
+                  {activity.status === "in-progress" && (
+                    <span className="text-yellow-600 font-medium text-xs">
+                      In Progress
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg p-5 border border-gray-200">
+            <h2 className="text-base font-bold text-gray-900 mb-4">
+              Personal Analytics
+            </h2>
+            <div className="flex flex-col items-center justify-center py-10">
+              <svg className="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <p className="text-gray-500 text-xs mb-3">
+                Your personal analytics will appear here
+              </p>
+              <button className="bg-green-500 text-white px-4 py-1.5 rounded-lg text-xs font-medium hover:bg-green-600 transition">
+                View Analytics
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Check if admin is viewing
+  if (isAdminViewing && adminToken) {
+    return (
+      <AdminViewWrapper dashboardType="student">
+        <DashboardContent />
+      </AdminViewWrapper>
+    );
+  }
+
+  // Regular student view
+  return (
+    <div className="min-h-screen bg-white">
+      <Header userName={userName} userRole="student" />
+      <Sidebar
+        activeMenuItem={activeMenuItem}
+        setActiveMenuItem={setActiveMenuItem}
+      />
+      <div className="ml-52 pt-14">
+        <DashboardContent />
+      </div>
+    </div>
+  );
+};
+
+export default StudentDashboard;
