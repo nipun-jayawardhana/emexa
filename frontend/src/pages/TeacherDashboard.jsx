@@ -1,16 +1,18 @@
 // frontend/src/pages/TeacherDashboard.jsx
-// FIXED VERSION - Resets to dashboard when admin views
+// FIXED VERSION - Proper Quiz Navigation Flow
 
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminViewWrapper from "../components/AdminViewWrapper";
 import Header from "../components/headerorigin";
 import Sidebar from "../components/sidebarorigin";
 import TeacherQuizzes from "./TeacherQuizzes";
 import TeacherCreateQuiz from "./TeacherCreateQuiz";
 import TeacherQuizDraft from "./TeacherQuizDraft";
-import TeacherProfile from "./TeacherProfile";
 
 const TeacherDashboard = () => {
+  const navigate = useNavigate();
+  
   // FIXED: Reset to dashboard when admin is viewing
   const adminToken = localStorage.getItem("adminToken");
   const isAdminViewing = localStorage.getItem("adminViewingAs");
@@ -53,6 +55,7 @@ const TeacherDashboard = () => {
     }
   }, [activeMenuItem, editingDraftId]);
 
+  // Teacher menu items with navigation
   const teacherMenuItems = [
     {
       id: "dashboard",
@@ -72,10 +75,13 @@ const TeacherDashboard = () => {
           />
         </svg>
       ),
+      onClick: () => {
+        setActiveMenuItem("dashboard");
+      }
     },
     {
       id: "quizzes",
-      label: "Quizzes",
+      label: "Quiz",
       icon: (
         <svg
           className="w-4 h-4"
@@ -91,6 +97,9 @@ const TeacherDashboard = () => {
           />
         </svg>
       ),
+      onClick: () => {
+        setActiveMenuItem("quizzes");
+      }
     },
     {
       id: "profile",
@@ -110,6 +119,10 @@ const TeacherDashboard = () => {
           />
         </svg>
       ),
+      onClick: () => {
+        setActiveMenuItem("profile");
+        navigate("/teacher-profile");
+      }
     },
   ];
 
@@ -134,8 +147,6 @@ const TeacherDashboard = () => {
             setEditingDraftId={setEditingDraftId}
           />
         );
-      case "profile":
-        return <TeacherProfile embedded={true} />;
       default:
         return <DashboardContent />;
     }
@@ -307,7 +318,6 @@ const DashboardContent = () => {
           Class Progress
         </h2>
         <div className="relative h-80 pl-8 pr-4 pt-2 pb-16">
-          {/* Y-axis labels */}
           <div className="absolute left-0 top-2 bottom-16 w-8 flex flex-col justify-between text-xs text-gray-600">
             <span>100</span>
             <span>75</span>
@@ -316,9 +326,7 @@ const DashboardContent = () => {
             <span>0</span>
           </div>
 
-          {/* Chart area with border */}
           <div className="absolute left-8 right-4 top-2 bottom-16 border-l border-b border-gray-400">
-            {/* Horizontal dotted grid lines */}
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
               <div className="border-t border-dotted border-gray-300"></div>
               <div className="border-t border-dotted border-gray-300"></div>
@@ -327,7 +335,6 @@ const DashboardContent = () => {
               <div className="border-t border-dotted border-gray-300"></div>
             </div>
 
-            {/* Vertical dotted grid lines */}
             <div className="absolute inset-0 flex justify-around pointer-events-none">
               <div className="border-l border-dotted border-gray-300 h-full"></div>
               <div className="border-l border-dotted border-gray-300 h-full"></div>
@@ -335,7 +342,6 @@ const DashboardContent = () => {
               <div className="border-l border-dotted border-gray-300 h-full"></div>
             </div>
 
-            {/* Bars container */}
             <div className="absolute inset-0 flex items-end justify-around px-8">
               {[
                 { label: "Week 1", completed: 65, target: 82 },
@@ -357,7 +363,6 @@ const DashboardContent = () => {
             </div>
           </div>
 
-          {/* X-axis labels */}
           <div className="absolute left-8 right-4 bottom-0 flex justify-around text-sm text-gray-700 font-medium">
             <span>Week 1</span>
             <span>Week 2</span>
@@ -366,7 +371,6 @@ const DashboardContent = () => {
           </div>
         </div>
 
-        {/* Legend */}
         <div className="flex justify-center items-center gap-8 mt-2">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-teal-700 rounded-sm"></div>
@@ -379,7 +383,7 @@ const DashboardContent = () => {
         </div>
       </div>
 
-      {/* Engagement Trend & Emotional State - Two Column Layout */}
+      {/* Engagement Trend & Emotional State */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Engagement Trend Chart */}
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
@@ -387,7 +391,6 @@ const DashboardContent = () => {
             Engagement Trend
           </h2>
           <div className="relative h-64 pl-8 pr-4 pt-2 pb-12">
-            {/* Y-axis labels */}
             <div className="absolute left-0 top-2 bottom-12 w-8 flex flex-col justify-between text-xs text-gray-600">
               <span>100</span>
               <span>75</span>
@@ -396,9 +399,7 @@ const DashboardContent = () => {
               <span>0</span>
             </div>
 
-            {/* Chart area with border */}
             <div className="absolute left-8 right-4 top-2 bottom-12 border-l border-b border-gray-400">
-              {/* Horizontal dotted grid lines */}
               <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
                 <div className="border-t border-dotted border-gray-300"></div>
                 <div className="border-t border-dotted border-gray-300"></div>
@@ -407,7 +408,6 @@ const DashboardContent = () => {
                 <div className="border-t border-dotted border-gray-300"></div>
               </div>
 
-              {/* Vertical dotted grid lines */}
               <div className="absolute inset-0 flex justify-around pointer-events-none">
                 <div className="border-l border-dotted border-gray-300 h-full"></div>
                 <div className="border-l border-dotted border-gray-300 h-full"></div>
@@ -415,19 +415,16 @@ const DashboardContent = () => {
                 <div className="border-l border-dotted border-gray-300 h-full"></div>
               </div>
 
-              {/* Line chart */}
               <svg
                 className="absolute inset-0 w-full h-full"
                 viewBox="0 0 100 100"
                 preserveAspectRatio="none"
               >
-                {/* Fill area under the line */}
                 <polygon
                   points="0,35 20,30 40,25 60,15 80,20 100,10 100,100 0,100"
                   fill="#0d9488"
                   opacity="0.1"
                 />
-                {/* Line path */}
                 <polyline
                   points="0,35 20,30 40,25 60,15 80,20 100,10"
                   fill="none"
@@ -437,60 +434,28 @@ const DashboardContent = () => {
                 />
               </svg>
 
-              {/* Data points overlay */}
               <div className="absolute inset-0">
-                <div
-                  className="absolute w-2 h-2 bg-teal-700 rounded-full"
-                  style={{
-                    left: "0%",
-                    top: "35%",
-                    transform: "translate(-50%, -50%)",
-                  }}
-                ></div>
-                <div
-                  className="absolute w-2 h-2 bg-teal-700 rounded-full"
-                  style={{
-                    left: "20%",
-                    top: "30%",
-                    transform: "translate(-50%, -50%)",
-                  }}
-                ></div>
-                <div
-                  className="absolute w-2 h-2 bg-teal-700 rounded-full"
-                  style={{
-                    left: "40%",
-                    top: "25%",
-                    transform: "translate(-50%, -50%)",
-                  }}
-                ></div>
-                <div
-                  className="absolute w-2 h-2 bg-teal-700 rounded-full"
-                  style={{
-                    left: "60%",
-                    top: "15%",
-                    transform: "translate(-50%, -50%)",
-                  }}
-                ></div>
-                <div
-                  className="absolute w-2 h-2 bg-teal-700 rounded-full"
-                  style={{
-                    left: "80%",
-                    top: "20%",
-                    transform: "translate(-50%, -50%)",
-                  }}
-                ></div>
-                <div
-                  className="absolute w-2 h-2 bg-teal-700 rounded-full"
-                  style={{
-                    left: "100%",
-                    top: "10%",
-                    transform: "translate(-50%, -50%)",
-                  }}
-                ></div>
+                {[
+                  { left: "0%", top: "35%" },
+                  { left: "20%", top: "30%" },
+                  { left: "40%", top: "25%" },
+                  { left: "60%", top: "15%" },
+                  { left: "80%", top: "20%" },
+                  { left: "100%", top: "10%" },
+                ].map((point, idx) => (
+                  <div
+                    key={idx}
+                    className="absolute w-2 h-2 bg-teal-700 rounded-full"
+                    style={{
+                      left: point.left,
+                      top: point.top,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                  ></div>
+                ))}
               </div>
             </div>
 
-            {/* X-axis labels */}
             <div className="absolute left-8 right-4 bottom-0 flex justify-around text-xs text-gray-600">
               <span>Mon</span>
               <span>Tue</span>
@@ -500,7 +465,6 @@ const DashboardContent = () => {
             </div>
           </div>
 
-          {/* Legend */}
           <div className="flex justify-center items-center mt-2">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-teal-700 rounded-full"></div>
@@ -516,22 +480,18 @@ const DashboardContent = () => {
           </h2>
           <div className="flex justify-center items-center h-64">
             <svg className="w-64 h-64" viewBox="0 0 200 200">
-              {/* Happy - 40% (Dark Teal - Top Right) */}
               <path
                 d="M 100,100 L 100,0 A 100,100 0 0,1 200,100 Z"
                 fill="#0f766e"
               />
-              {/* Confused - 30% (Light Green - Right) */}
               <path
                 d="M 100,100 L 200,100 A 100,100 0 0,1 170.7,170.7 Z"
                 fill="#86efac"
               />
-              {/* Frustrated - 20% (Teal - Bottom) */}
               <path
                 d="M 100,100 L 170.7,170.7 A 100,100 0 0,1 29.3,170.7 Z"
                 fill="#14b8a6"
               />
-              {/* Neutral - 10% (Yellow - Left) */}
               <path
                 d="M 100,100 L 29.3,170.7 A 100,100 0 0,1 100,0 Z"
                 fill="#fde047"
@@ -571,30 +531,10 @@ const DashboardContent = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            {
-              name: "Emma Thompson",
-              engagement: "High",
-              progress: 92,
-              image: "👩",
-            },
-            {
-              name: "Liam Johnson",
-              engagement: "Medium",
-              progress: 88,
-              image: "👨",
-            },
-            {
-              name: "Olivia Davis",
-              engagement: "High",
-              progress: 95,
-              image: "👩",
-            },
-            {
-              name: "Noah Williams",
-              engagement: "Medium",
-              progress: 85,
-              image: "👨",
-            },
+            { name: "Emma Thompson", engagement: "High", progress: 92, image: "👩" },
+            { name: "Liam Johnson", engagement: "Medium", progress: 88, image: "👨" },
+            { name: "Olivia Davis", engagement: "High", progress: 95, image: "👩" },
+            { name: "Noah Williams", engagement: "Medium", progress: 85, image: "👨" },
           ].map((student, index) => (
             <div
               key={index}
