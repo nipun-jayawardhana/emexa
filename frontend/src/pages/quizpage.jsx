@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
   Clock,
@@ -10,6 +10,7 @@ import {
   X,
   Flag,
 } from "lucide-react";
+import { io } from "socket.io-client";
 import teacherQuizService from "../services/teacherQuizService";
 import headerLogo from "../assets/headerlogo.png";
 import DownloadIcon from "../assets/download.png";
@@ -38,10 +39,120 @@ const QuizPage = () => {
   const [quizData, setQuizData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // AI Integration States
+  const [sessionId] = useState(
+    `quiz_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  );
+  const [aiHints, setAiHints] = useState({});
+  const [aiFeedback, setAiFeedback] = useState(null);
+  const [emotionSocket, setEmotionSocket] = useState(null);
+  const [webcamEnabled, setWebcamEnabled] = useState(false);
+  const videoRef = useRef(null);
+  const [hintsUsedCount, setHintsUsedCount] = useState(0);
+
   // Load quiz data on component mount
   useEffect(() => {
     loadQuizData();
+    initializeAI();
+
+    return () => {
+      // Cleanup on unmount
+      if (emotionSocket) {
+        emotionSocket.disconnect();
+      }
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+      }
+    };
   }, [quizId]);
+
+  // Initialize AI features (Socket.IO + Webcam if available)
+  const initializeAI = async () => {
+    try {
+      // Get user info from localStorage
+      const userStr = localStorage.getItem("user");
+      if (!userStr) return;
+
+      const user = JSON.parse(userStr);
+
+      // Connect to emotion tracking socket
+      const socket = io("http://localhost:5000/emotion", {
+        transports: ["websocket"],
+        reconnection: true,
+      });
+
+      socket.on("connect", () => {
+        console.log("🤖 AI: Connected to emotion tracking");
+        socket.emit("join-session", sessionId);
+      });
+
+      socket.on("emotion-detected", (data) => {
+        console.log(
+          "😊 AI: Emotion detected -",
+          data.emotion,
+          `(${Math.round(data.confidence * 100)}%)`
+        );
+      });
+
+      socket.on("emotion-error", (error) => {
+        console.error("❌ AI: Emotion error", error);
+      });
+
+      setEmotionSocket(socket);
+
+      // Try to enable webcam (optional - won't break if no camera)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 224, height: 224 },
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          setWebcamEnabled(true);
+          console.log("📷 AI: Webcam enabled for emotion tracking");
+        }
+      } catch (err) {
+        console.log("⚠️ AI: Webcam not available - manual mode enabled");
+        setWebcamEnabled(false);
+      }
+    } catch (error) {
+      console.error("AI initialization error:", error);
+    }
+  };
+
+  // Capture and send emotion snapshot every 60 seconds
+  useEffect(() => {
+    if (!webcamEnabled || !emotionSocket || quizSubmitted) return;
+
+    const userStr = localStorage.getItem("user");
+    if (!userStr) return;
+    const user = JSON.parse(userStr);
+
+    const captureEmotion = () => {
+      if (!videoRef.current) return;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 224;
+      canvas.height = 224;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(videoRef.current, 0, 0, 224, 224);
+      const base64Image = canvas.toDataURL("image/jpeg");
+
+      emotionSocket.emit("emotion-snapshot", {
+        image: base64Image,
+        userId: user._id,
+        sessionId: sessionId,
+        questionIndex: currentQuestion,
+      });
+    };
+
+    // Capture immediately on question change
+    captureEmotion();
+
+    // Then every 60 seconds
+    const interval = setInterval(captureEmotion, 60000);
+
+    return () => clearInterval(interval);
+  }, [webcamEnabled, emotionSocket, currentQuestion, quizSubmitted]);
 
   const loadQuizData = async () => {
     try {
@@ -257,8 +368,64 @@ const QuizPage = () => {
     }
   };
 
-  const handleBulbClick = () => {
-    setShowEmojiDialog(true);
+  const handleBulbClick = async () => {
+    // Check if AI hint already generated for this question
+    if (aiHints[currentQuestion]) {
+      setShowHints(true);
+      return;
+    }
+
+    // Generate AI hint
+    try {
+      const userStr = localStorage.getItem("user");
+      if (!userStr) {
+        setShowEmojiDialog(true);
+        return;
+      }
+
+      const user = JSON.parse(userStr);
+      const question = quizData.questions[currentQuestion];
+
+      const token = localStorage.getItem("token");
+      const response = await fetch("http://localhost:5000/api/hint", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: user._id,
+          sessionId: sessionId,
+          questionId: question.id,
+          questionIndex: currentQuestion,
+          questionText: question.text,
+          options: question.options || [],
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log("💡 AI Hint generated:", data.data.hint);
+
+        // Store AI hint
+        setAiHints({
+          ...aiHints,
+          [currentQuestion]: data.data.hint,
+        });
+
+        // Increment hints used count
+        if (!data.data.alreadyRequested) {
+          setHintsUsedCount((prev) => prev + 1);
+        }
+
+        setShowHints(true);
+      }
+    } catch (error) {
+      console.error("Error generating AI hint:", error);
+      // Fallback to emoji dialog
+      setShowEmojiDialog(true);
+    }
   };
 
   const handleEmojiClick = (emoji) => {
@@ -287,7 +454,54 @@ const QuizPage = () => {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // Generate AI feedback
+    try {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        const rawScore = calculateScore();
+
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:5000/api/feedback", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            userId: user._id,
+            quizId: quizId,
+            sessionId: sessionId,
+            rawScore: rawScore,
+            totalQuestions: quizData.questions.length,
+            answers: Object.entries(answers).map(([index, answer]) => ({
+              questionId: quizData.questions[index].id,
+              selectedAnswer: answer,
+              isCorrect: answer === quizData.questions[index].correctAnswer,
+            })),
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          console.log("🎯 AI Feedback generated:", data.data.feedback);
+          console.log(
+            "📊 Final Score:",
+            data.data.finalScore,
+            "/",
+            quizData.questions.length
+          );
+          console.log("💡 Hints Used:", data.data.hintsUsed);
+
+          setAiFeedback(data.data);
+        }
+      }
+    } catch (error) {
+      console.error("Error generating AI feedback:", error);
+    }
+
     setQuizSubmitted(true);
   };
 
@@ -680,8 +894,66 @@ const QuizPage = () => {
                 {score} out of {quizData.questions.length}
               </span>{" "}
               questions correctly
+              {aiFeedback && aiFeedback.hintsUsed > 0 && (
+                <span className="text-orange-600">
+                  {" "}
+                  (- {aiFeedback.hintsUsed} mark
+                  {aiFeedback.hintsUsed > 1 ? "s" : ""} for hints)
+                </span>
+              )}
             </p>
+            {aiFeedback && aiFeedback.finalScore !== undefined && (
+              <p className="text-gray-700">
+                <span className="font-bold">
+                  Final Score: {aiFeedback.finalScore} /{" "}
+                  {quizData.questions.length}
+                </span>
+              </p>
+            )}
           </div>
+
+          {/* AI Personalized Feedback */}
+          {aiFeedback && aiFeedback.feedback && (
+            <div className="bg-blue-50 border-l-4 border-blue-400 p-6 mb-8">
+              <div className="flex items-center mb-3">
+                <svg
+                  className="w-6 h-6 text-blue-500 mr-2"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                  <path
+                    fillRule="evenodd"
+                    d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <h3 className="text-xl font-bold text-gray-800">
+                  🤖 AI Personalized Feedback
+                </h3>
+              </div>
+              <p className="text-gray-700 leading-relaxed">
+                {aiFeedback.feedback}
+              </p>
+              {aiFeedback.emotionalSummary &&
+                aiFeedback.emotionalSummary.totalCaptures > 0 && (
+                  <div className="mt-4 pt-4 border-t border-blue-200">
+                    <p className="text-sm text-gray-600">
+                      <span className="font-semibold">Emotional Analysis:</span>{" "}
+                      {aiFeedback.emotionalSummary.mostCommonEmotion}
+                      {aiFeedback.emotionalSummary.confusedCount > 0 &&
+                        ` (confusion detected ${
+                          aiFeedback.emotionalSummary.confusedCount
+                        } time${
+                          aiFeedback.emotionalSummary.confusedCount > 1
+                            ? "s"
+                            : ""
+                        })`}
+                    </p>
+                  </div>
+                )}
+            </div>
+          )}
 
           {quizData.questions.map((question, index) => {
             const userAnswer = answers[index];
@@ -1079,38 +1351,72 @@ const QuizPage = () => {
               <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-6 border-2 border-yellow-200 mb-6">
                 <div className="flex items-center gap-2 mb-4">
                   <Lightbulb className="w-6 h-6 text-yellow-600" />
-                  <h3 className="font-semibold text-gray-800">Need a hint?</h3>
+                  <h3 className="font-semibold text-gray-800">
+                    {aiHints[currentQuestion]
+                      ? "🤖 AI-Generated Hint"
+                      : "Need a hint?"}
+                  </h3>
                 </div>
-                <p className="text-sm text-gray-600 mb-4">
-                  You have {question.hints.length} hints available. Each hint
-                  provides additional information.
-                </p>
 
-                <div className="space-y-3">
-                  {question.hints.map((hint, index) => (
-                    <div
-                      key={index}
-                      className="bg-white rounded-lg p-4 border border-gray-200"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold text-gray-700">
-                          Hint {index + 1}
-                        </span>
-                        {!revealedHints.includes(index) && (
-                          <button
-                            onClick={() => handleRevealHint(index)}
-                            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                          >
-                            Reveal
-                          </button>
-                        )}
-                      </div>
-                      {revealedHints.includes(index) && (
-                        <p className="text-gray-700">{hint}</p>
-                      )}
+                {/* AI Hint (if available) */}
+                {aiHints[currentQuestion] ? (
+                  <div className="bg-white rounded-lg p-4 border-2 border-blue-400 mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg
+                        className="w-5 h-5 text-blue-500"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                        <path
+                          fillRule="evenodd"
+                          d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <span className="font-semibold text-blue-700">
+                        AI Hint
+                      </span>
+                      <span className="text-xs text-orange-600 ml-auto">
+                        (-1 mark)
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    <p className="text-gray-700">{aiHints[currentQuestion]}</p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-600 mb-4">
+                      You have {question.hints.length} hints available. Each
+                      hint provides additional information.
+                    </p>
+
+                    <div className="space-y-3">
+                      {question.hints.map((hint, index) => (
+                        <div
+                          key={index}
+                          className="bg-white rounded-lg p-4 border border-gray-200"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold text-gray-700">
+                              Hint {index + 1}
+                            </span>
+                            {!revealedHints.includes(index) && (
+                              <button
+                                onClick={() => handleRevealHint(index)}
+                                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                              >
+                                Reveal
+                              </button>
+                            )}
+                          </div>
+                          {revealedHints.includes(index) && (
+                            <p className="text-gray-700">{hint}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -1181,6 +1487,15 @@ const QuizPage = () => {
           </div>
         </div>
       )}
+
+      {/* Hidden webcam video for AI emotion tracking */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ display: "none" }}
+      />
     </div>
   );
 };
