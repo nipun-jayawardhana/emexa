@@ -3,7 +3,10 @@ import {
   getQuizById, 
   getAllQuizzes, 
   submitQuizAnswers,
-  getQuizResults 
+  getQuizResults,
+  requestHint,        // AI hint generation
+  submitQuizWithAI    //  AI-powered quiz submission
+
 } from '../controllers/quizcontroller.js';
 import { protect } from '../middleware/auth.js';
 
@@ -20,5 +23,11 @@ router.post('/:quizId/submit', protect, submitQuizAnswers);
 
 // Get quiz results
 router.get('/:quizId/results', protect, getQuizResults);
+
+// Request AI-generated hint
+router.post('/hint/request', protect, requestHint);
+
+// Submit quiz with AI feedback
+router.post('/submit-ai', protect, submitQuizWithAI);
 
 export default router;
