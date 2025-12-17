@@ -1,3 +1,7 @@
+import HintUsage from '../models/hintUsage.js';
+import EmotionLog from '../models/emotionLog.js';
+import aiService from '../services/aiService.js';
+
 // Sample quiz data (replace with database queries later)
 const sampleQuizzes = {
   'matrix-quiz': {
@@ -95,7 +99,7 @@ export const getQuizById = async (req, res) => {
   }
 };
 
-// Submit quiz answers
+// Submit quiz answers (ORIGINAL - without AI)
 export const submitQuizAnswers = async (req, res) => {
   try {
     const { quizId } = req.params;
@@ -179,3 +183,172 @@ export const getQuizResults = async (req, res) => {
     });
   }
 };
+
+// Request AI-generated hint
+export const requestHint = async (req, res) => {
+  try {
+    const { userId, quizId, sessionId, questionIndex, question, options, requestType } = req.body;
+
+    // Validate required fields
+    if (!userId || !quizId || !sessionId || questionIndex === undefined || !question || !options) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields'
+      });
+    }
+
+    // Get recent emotion if available
+    let emotionalContext = null;
+    try {
+      const recentEmotion = await EmotionLog.findOne({
+        userId,
+        sessionId,
+        questionIndex
+      }).sort({ timestamp: -1 });
+
+      if (recentEmotion) {
+        emotionalContext = recentEmotion.emotion;
+      }
+    } catch (emotionError) {
+      console.log('Could not fetch recent emotion:', emotionError.message);
+      // Continue without emotional context
+    }
+
+    // Generate hint using AI
+    const hintText = await aiService.generateHint(question, options, emotionalContext);
+
+    // Save hint usage
+    const hintUsage = new HintUsage({
+      userId,
+      quizId,
+      sessionId,
+      questionIndex,
+      hintText,
+      requestType: requestType || 'manual'
+    });
+
+    await hintUsage.save();
+
+    res.json({
+      success: true,
+      data: {
+        hint: hintText,
+        penaltyApplied: true,
+        penaltyAmount: 1
+      }
+    });
+  } catch (error) {
+    console.error('Hint generation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate hint',
+      error: error.message
+    });
+  }
+};
+
+// Submit quiz with AI feedback
+export const submitQuizWithAI = async (req, res) => {
+  try {
+    const { userId, quizId, sessionId, answers } = req.body;
+
+    // Validate inputs
+    if (!userId || !quizId || !sessionId || !answers || !Array.isArray(answers)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: userId, quizId, sessionId, answers'
+      });
+    }
+
+    // TODO: Replace with database query
+    const quiz = sampleQuizzes[quizId];
+
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        message: 'Quiz not found'
+      });
+    }
+
+    // Calculate raw score
+    let correctAnswers = 0;
+    answers.forEach(answer => {
+      const question = quiz.questions[answer.questionIndex];
+      if (question && answer.answerIndex === question.correctAnswer) {
+        correctAnswers++;
+      }
+    });
+
+    const rawScore = correctAnswers;
+    const totalQuestions = quiz.questions.length;
+
+    // Get hint count
+    const hintsUsed = await HintUsage.countDocuments({ userId, sessionId });
+
+    // Calculate final score with penalty
+    const finalScore = Math.max(0, rawScore - hintsUsed);
+
+    // Get emotional summary
+    const emotions = await EmotionLog.find({ userId, sessionId });
+    const emotionalSummary = summarizeEmotions(emotions);
+
+    // Generate personalized feedback using AI
+    const feedback = await aiService.generateFeedback({
+      score: finalScore,
+      totalQuestions,
+      hintsUsed,
+      emotionalSummary
+    });
+
+    // TODO: Save quiz attempt to database
+    const quizAttempt = {
+      userId,
+      quizId,
+      sessionId,
+      rawScore,
+      hintsUsed,
+      finalScore,
+      emotionalSummary,
+      aiFeedback: feedback,
+      submittedAt: new Date()
+    };
+
+    res.json({
+      success: true,
+      data: {
+        rawScore,
+        hintsUsed,
+        finalScore,
+        totalQuestions,
+        percentage: ((finalScore / totalQuestions) * 100).toFixed(1),
+        feedback,
+        emotionalSummary
+      }
+    });
+  } catch (error) {
+    console.error('Quiz submission error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to submit quiz',
+      error: error.message
+    });
+  }
+};
+
+// HELPER FUNCTION
+function summarizeEmotions(emotions) {
+  if (!emotions || emotions.length === 0) {
+    return 'neutral throughout';
+  }
+
+  const emotionCounts = {};
+  emotions.forEach(log => {
+    emotionCounts[log.emotion] = (emotionCounts[log.emotion] || 0) + 1;
+  });
+
+  const sorted = Object.entries(emotionCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+
+  return sorted.map(([emotion]) => emotion).join(', ');
+}
