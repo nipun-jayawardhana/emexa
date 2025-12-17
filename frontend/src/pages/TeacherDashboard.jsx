@@ -1,5 +1,5 @@
 // frontend/src/pages/TeacherDashboard.jsx
-// FIXED VERSION - Proper Quiz Navigation Flow
+// FIXED VERSION - Proper Layout and Navigation
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -13,23 +13,24 @@ import TeacherQuizDraft from "./TeacherQuizDraft";
 const TeacherDashboard = () => {
   const navigate = useNavigate();
   
-  // FIXED: Reset to dashboard when admin is viewing
   const adminToken = localStorage.getItem("adminToken");
   const isAdminViewing = localStorage.getItem("adminViewingAs");
   
   const [activeMenuItem, setActiveMenuItem] = useState(() => {
-    // If admin is viewing, always start with dashboard
     if (isAdminViewing && adminToken) {
       return "dashboard";
     }
-    // Load from localStorage if available, otherwise default to "dashboard"
-    return localStorage.getItem("teacherActiveMenuItem") || "dashboard";
+    const saved = localStorage.getItem("teacherActiveMenuItem");
+    // Don't allow 'profile' as active menu item since it navigates away
+    if (saved === "profile") {
+      return "dashboard";
+    }
+    return saved || "dashboard";
   });
   
   const [userName, setUserName] = useState("");
   const [editingDraftId, setEditingDraftId] = useState(null);
 
-  // Save activeMenuItem to localStorage whenever it changes (but not for admin viewing)
   useEffect(() => {
     if (!isAdminViewing || !adminToken) {
       localStorage.setItem("teacherActiveMenuItem", activeMenuItem);
@@ -43,7 +44,6 @@ const TeacherDashboard = () => {
     }
   }, []);
 
-  // Clear editingDraftId when navigating to create-quiz without coming from draft
   useEffect(() => {
     if (activeMenuItem === "create-quiz" && !editingDraftId) {
       setEditingDraftId(null);
@@ -55,7 +55,6 @@ const TeacherDashboard = () => {
     }
   }, [activeMenuItem, editingDraftId]);
 
-  // Teacher menu items with navigation
   const teacherMenuItems = [
     {
       id: "dashboard",
@@ -120,7 +119,7 @@ const TeacherDashboard = () => {
         </svg>
       ),
       onClick: () => {
-        setActiveMenuItem("profile");
+        // Don't set activeMenuItem here - let profile page handle its own state
         navigate("/teacher-profile");
       }
     },
@@ -152,22 +151,18 @@ const TeacherDashboard = () => {
     }
   };
 
-  const PageLayout = ({ children }) => (
-    <div className="bg-gradient-to-br from-green-50 to-white min-h-screen">
-      {children}
-    </div>
-  );
-
-  // Check both adminToken AND isAdminViewing
+  // Admin viewing - wrap with AdminViewWrapper which handles layout
   if (isAdminViewing && adminToken) {
     return (
       <AdminViewWrapper dashboardType="teacher">
-        <PageLayout>{renderContent()}</PageLayout>
+        <div className="bg-gradient-to-br from-green-50 to-white min-h-screen">
+          {renderContent()}
+        </div>
       </AdminViewWrapper>
     );
   }
 
-  // Regular teacher view
+  // Regular teacher view with proper spacing
   return (
     <div className="bg-gradient-to-br from-green-50 to-white min-h-screen">
       <Header userName={userName} userRole="teacher" />
@@ -176,12 +171,15 @@ const TeacherDashboard = () => {
         setActiveMenuItem={setActiveMenuItem}
         menuItems={teacherMenuItems}
       />
-      <div className="ml-52 pt-14">{renderContent()}</div>
+      {/* Fixed: Added proper padding to account for sidebar and header */}
+      <div className="ml-64 pt-20 p-6">
+        {renderContent()}
+      </div>
     </div>
   );
 };
 
-// Dashboard Content Component - COMPLETE WITH ALL GRAPHS
+// Dashboard Content Component
 const DashboardContent = () => {
   return (
     <div className="p-6">
@@ -195,7 +193,7 @@ const DashboardContent = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {/* Total Students */}
-        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
           <div className="flex items-start gap-3 mb-3">
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
               <svg
@@ -234,7 +232,7 @@ const DashboardContent = () => {
         </div>
 
         {/* Average Progress */}
-        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
           <div className="flex items-start gap-3 mb-3">
             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center shrink-0">
               <svg
@@ -273,7 +271,7 @@ const DashboardContent = () => {
         </div>
 
         {/* Engagement Level */}
-        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
           <div className="flex items-start gap-3 mb-3">
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
               <svg
@@ -313,7 +311,7 @@ const DashboardContent = () => {
       </div>
 
       {/* Class Progress Chart */}
-      <div className="bg-white rounded-xl p-6 border border-gray-200 mb-6 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+      <div className="bg-white rounded-xl p-6 border border-gray-200 mb-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900 mb-6">
           Class Progress
         </h2>
@@ -386,7 +384,7 @@ const DashboardContent = () => {
       {/* Engagement Trend & Emotional State */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Engagement Trend Chart */}
-        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Engagement Trend
           </h2>
@@ -474,7 +472,7 @@ const DashboardContent = () => {
         </div>
 
         {/* Emotional State */}
-        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Emotional State
           </h2>
@@ -520,7 +518,7 @@ const DashboardContent = () => {
       </div>
 
       {/* Student Overview */}
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Student Overview
