@@ -1,5 +1,8 @@
 import fs from 'fs';
 import path from 'path';
+import EmotionLog from '../models/emotionLog.js';
+import aiService from '../services/aiService.js';
+
 
 export const postFrame = async (req, res) => {
   try {
@@ -34,4 +37,84 @@ export const postFrame = async (req, res) => {
   }
 };
 
-export default { postFrame };
+// AI Emotion Analysis
+
+export const analyzeEmotion = async (req, res) => {
+  try {
+    const { userId, quizId, sessionId, questionIndex, image } = req.body;
+
+    // Validate required fields
+    if (!userId || !quizId || !sessionId || questionIndex === undefined || !image) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: userId, quizId, sessionId, questionIndex, image'
+      });
+    }
+
+    // Analyze emotion using AI service
+    const emotionResult = await aiService.analyzeEmotion(image);
+
+    // Save to database
+    const emotionLog = new EmotionLog({
+      userId,
+      quizId,
+      sessionId,
+      questionIndex,
+      emotion: emotionResult.emotion,
+      confidence: emotionResult.confidence
+    });
+
+    await emotionLog.save();
+
+    res.json({
+      success: true,
+      data: {
+        emotion: emotionResult.emotion,
+        confidence: emotionResult.confidence
+      }
+    });
+  } catch (error) {
+    console.error('Emotion analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to analyze emotion',
+      error: error.message
+    });
+  }
+};
+
+
+export const getEmotionHistory = async (req, res) => {
+  try {
+    const { userId, sessionId } = req.params;
+
+    if (!userId || !sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing userId or sessionId'
+      });
+    }
+
+    const emotions = await EmotionLog.find({ userId, sessionId })
+      .sort({ timestamp: 1 })
+      .select('-__v');
+
+    res.json({
+      success: true,
+      data: emotions
+    });
+  } catch (error) {
+    console.error('Get emotion history error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch emotion history'
+    });
+  }
+};
+
+
+export default { 
+  postFrame,           
+  analyzeEmotion,      
+  getEmotionHistory    
+};
