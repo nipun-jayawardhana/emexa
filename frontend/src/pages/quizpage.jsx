@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
+import axios from "axios";
 import {
   Clock,
   Home,
@@ -15,8 +16,13 @@ import teacherQuizService from "../services/teacherQuizService";
 import headerLogo from "../assets/headerlogo.png";
 import DownloadIcon from "../assets/download.png";
 
+const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5000";
+
 const QuizPage = () => {
   const { quizId } = useParams();
+  const [searchParams] = useSearchParams();
+  const showResults = searchParams.get("results") === "true";
+
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
   const [timeOnQuestion, setTimeOnQuestion] = useState(0);
@@ -25,7 +31,7 @@ const QuizPage = () => {
   const [showHints, setShowHints] = useState(false);
   const [revealedHints, setRevealedHints] = useState([]);
   const [pendingHintRequest, setPendingHintRequest] = useState(null); // Store hint request details
-  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizSubmitted, setQuizSubmitted] = useState(showResults);
   const [quizStartTime] = useState(Date.now());
   const [totalTime, setTotalTime] = useState(0);
   const [activeFilter, setActiveFilter] = useState("all"); // Start with NO filter selected
@@ -728,6 +734,9 @@ const QuizPage = () => {
         // Use _id or id, whichever is available
         const userId = user._id || user.id;
 
+        // Calculate time taken
+        const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
+
         if (!userId) {
           console.error("❌ User ID not found in localStorage");
           setQuizSubmitted(true);
@@ -755,6 +764,7 @@ const QuizPage = () => {
             sessionId: sessionId,
             rawScore: rawScore,
             totalQuestions: quizData.questions.length,
+            timeTaken: timeTaken,
             answers: Object.entries(answers).map(([index, answer]) => ({
               questionId: quizData.questions[index].id,
               selectedAnswer: answer,

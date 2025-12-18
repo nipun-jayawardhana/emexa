@@ -71,8 +71,26 @@ studentSchema.pre('save', async function(next) {
 // Auto-generate student ID before saving
 studentSchema.pre('save', async function(next) {
   if (!this.studentId) {
-    const count = await mongoose.model('Student').countDocuments();
-    this.studentId = `STU${String(count + 1).padStart(5, '0')}`;
+    try {
+      // Find the highest existing student ID
+      const lastStudent = await mongoose.model('Student')
+        .findOne({}, { studentId: 1 })
+        .sort({ studentId: -1 })
+        .lean();
+      
+      let nextNumber = 1;
+      if (lastStudent && lastStudent.studentId) {
+        // Extract the number from the last student ID (e.g., "STU00066" -> 66)
+        const lastNumber = parseInt(lastStudent.studentId.replace('STU', ''), 10);
+        nextNumber = lastNumber + 1;
+      }
+      
+      this.studentId = `STU${String(nextNumber).padStart(5, '0')}`;
+    } catch (error) {
+      console.error('Error generating student ID:', error);
+      // Fallback to timestamp-based ID if there's an error
+      this.studentId = `STU${Date.now().toString().slice(-5)}`;
+    }
   }
   next();
 });
