@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
+import axios from "axios";
 import {
   Clock,
   Home,
@@ -14,8 +15,13 @@ import teacherQuizService from "../services/teacherQuizService";
 import headerLogo from "../assets/headerlogo.png";
 import DownloadIcon from "../assets/download.png";
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000';
+
 const QuizPage = () => {
   const { quizId } = useParams();
+  const [searchParams] = useSearchParams();
+  const showResults = searchParams.get('results') === 'true';
+  
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
   const [flaggedQuestions, setFlaggedQuestions] = useState(() => {
@@ -31,7 +37,7 @@ const QuizPage = () => {
   const [showEmojiDialog, setShowEmojiDialog] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [revealedHints, setRevealedHints] = useState([]);
-  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizSubmitted, setQuizSubmitted] = useState(showResults);
   const [quizStartTime] = useState(Date.now());
   const [totalTime, setTotalTime] = useState(0);
   const [activeFilter, setActiveFilter] = useState("all"); // Start with NO filter selected
@@ -287,8 +293,34 @@ const QuizPage = () => {
     }
   };
 
-  const handleSubmit = () => {
-    setQuizSubmitted(true);
+  const handleSubmit = async () => {
+    try {
+      // Calculate time taken
+      const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
+      
+      // Prepare answers array
+      const answersArray = quizData.questions.map((_, index) => answers[index]);
+      
+      const token = localStorage.getItem('token');
+      
+      // Submit to backend
+      const response = await axios.post(
+        `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
+        {
+          answers: answersArray,
+          timeTaken
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      console.log('✅ Quiz submitted:', response.data);
+      setQuizSubmitted(true);
+    } catch (error) {
+      console.error('❌ Error submitting quiz:', error);
+      alert('Failed to submit quiz. Please try again.');
+    }
   };
 
   const calculateScore = () => {

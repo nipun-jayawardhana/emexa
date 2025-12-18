@@ -37,8 +37,26 @@ teacherSchema.pre('save', async function(next) {
 // Auto-generate teacher ID before saving
 teacherSchema.pre('save', async function(next) {
   if (!this.teacherId) {
-    const count = await mongoose.model('Teacher').countDocuments();
-    this.teacherId = `TCH${String(count + 1).padStart(5, '0')}`;
+    try {
+      // Find the highest existing teacher ID
+      const lastTeacher = await mongoose.model('Teacher')
+        .findOne({}, { teacherId: 1 })
+        .sort({ teacherId: -1 })
+        .lean();
+      
+      let nextNumber = 1;
+      if (lastTeacher && lastTeacher.teacherId) {
+        // Extract the number from the last teacher ID (e.g., "TCH00066" -> 66)
+        const lastNumber = parseInt(lastTeacher.teacherId.replace('TCH', ''), 10);
+        nextNumber = lastNumber + 1;
+      }
+      
+      this.teacherId = `TCH${String(nextNumber).padStart(5, '0')}`;
+    } catch (error) {
+      console.error('Error generating teacher ID:', error);
+      // Fallback to timestamp-based ID if there's an error
+      this.teacherId = `TCH${Date.now().toString().slice(-5)}`;
+    }
   }
   next();
 });

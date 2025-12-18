@@ -20,6 +20,7 @@ import UserManagement from "./pages/usermgt";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import Permission from "./pages/Permission";
 import WellnessCentre from "./pages/WellnessCentre";
+import Notification from "./pages/Notification";
 import RequireAuth from "./components/RequireAuth";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -66,6 +67,16 @@ createRoot(document.getElementById("root")).render(
 
         {/* Permission Route */}
         <Route path="/permission" element={<Permission />} />
+
+        {/* Notification Route */}
+        <Route 
+          path="/notifications" 
+          element={
+            <ProtectedRoute allowedRoles={["student", "teacher", "admin"]}>
+              <Notification />
+            </ProtectedRoute>
+          } 
+        />
 
         {/* Teacher Routes - Accessible by teacher AND admin */}
         <Route
