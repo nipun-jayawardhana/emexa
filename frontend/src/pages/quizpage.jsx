@@ -129,7 +129,10 @@ const QuizPage = () => {
     const user = JSON.parse(userStr);
 
     const captureEmotion = () => {
-      if (!videoRef.current) return;
+      if (!videoRef.current) {
+        console.log("📸 AI: No video ref, skipping emotion capture");
+        return;
+      }
 
       const canvas = document.createElement("canvas");
       canvas.width = 224;
@@ -138,10 +141,30 @@ const QuizPage = () => {
       ctx.drawImage(videoRef.current, 0, 0, 224, 224);
       const base64Image = canvas.toDataURL("image/jpeg");
 
+      if (!base64Image || base64Image === "data:,") {
+        console.log("📸 AI: Invalid image data, skipping");
+        return;
+      }
+
+      if (!user.id || !sessionId || currentQuestion === undefined) {
+        console.log("📸 AI: Missing user/session data", {
+          userId: user.id,
+          sessionId,
+          questionIndex: currentQuestion,
+        });
+        return;
+      }
+
       emotionSocket.emit("emotion-snapshot", {
         image: base64Image,
-        userId: user._id,
+        userId: user.id,
         sessionId: sessionId,
+        questionIndex: currentQuestion,
+      });
+
+      console.log("📸 AI: Emotion snapshot sent", {
+        userId: user.id,
+        sessionId,
         questionIndex: currentQuestion,
       });
     };
@@ -149,8 +172,8 @@ const QuizPage = () => {
     // Capture immediately on question change
     captureEmotion();
 
-    // Then every 5 seconds
-    const interval = setInterval(captureEmotion, 5000);
+    // Then every 10 seconds
+    const interval = setInterval(captureEmotion, 10000);
 
     return () => clearInterval(interval);
   }, [webcamEnabled, emotionSocket, currentQuestion, quizSubmitted]);
@@ -326,12 +349,7 @@ const QuizPage = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeOnQuestion((prev) => prev + 1);
-      if (
-        timeOnQuestion >= 60 &&
-        !showBulb &&
-        !answers[currentQuestion] &&
-        webcamEnabled
-      ) {
+      if (timeOnQuestion >= 10 && !showBulb && !answers[currentQuestion]) {
         setShowBulb(true);
       }
     }, 1000);
@@ -387,9 +405,9 @@ const QuizPage = () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          userId: user._id,
+          userId: user.id,
           sessionId: sessionId,
-          questionId: question.id,
+          questionId: String(question.id),
           questionIndex: currentQuestion,
           questionText: question.text,
           options: question.options || [],
@@ -463,7 +481,7 @@ const QuizPage = () => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            userId: user._id,
+            userId: user.id,
             quizId: quizId,
             sessionId: sessionId,
             rawScore: rawScore,
@@ -1207,23 +1225,13 @@ const QuizPage = () => {
 
           {/* Question Card */}
           <div className="bg-white rounded-lg shadow-md p-8 relative">
-            {showBulb && webcamEnabled && (
+            {showBulb && (
               <button
                 onClick={handleBulbClick}
                 className="absolute top-6 right-6 animate-bounce"
                 title="AI Hint Available"
               >
                 <Lightbulb className="w-10 h-10 text-yellow-500 fill-yellow-200" />
-              </button>
-            )}
-
-            {!webcamEnabled && !showBulb && (
-              <button
-                onClick={handleBulbClick}
-                className="absolute top-6 right-6 bg-yellow-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-yellow-600 transition-colors"
-                title="Request AI Hint"
-              >
-                💡 Request Hint
               </button>
             )}
 
