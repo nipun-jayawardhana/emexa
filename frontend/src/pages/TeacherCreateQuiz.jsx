@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import axios from "axios";
 import teacherQuizService from "../services/teacherQuizService";
 
 const TeacherCreateQuiz = ({
@@ -11,12 +12,13 @@ const TeacherCreateQuiz = ({
   const [isGradeLevelOpen, setIsGradeLevelOpen] = useState(false);
   const [selectedGrades, setSelectedGrades] = useState([]);
   const [questions, setQuestions] = useState([]);
+  const [generatingHints, setGeneratingHints] = useState({});
 
-  // Use refs to track next available IDs
   const nextQuestionId = useRef(1);
   const nextOptionIds = useRef({});
 
-  // Load draft data if editing
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     const loadDraftForEditing = async () => {
       if (editingDraftId) {
@@ -31,9 +33,7 @@ const TeacherCreateQuiz = ({
             setAssignmentTitle(quiz.title || "");
             setSubject(quiz.subject || "");
 
-            // Convert gradeLevel array to selectedGrades format
             if (Array.isArray(quiz.gradeLevel)) {
-              // Map grade labels back to IDs
               const gradeMap = {
                 "1st Year 1st Sem": "1-1",
                 "1st Year 2nd Sem": "1-2",
@@ -55,14 +55,12 @@ const TeacherCreateQuiz = ({
             setQuestions(quiz.questions || []);
             console.log("📋 Loaded questions:", quiz.questions?.length || 0);
 
-            // Reset ID counters based on loaded questions
             if (quiz.questions && quiz.questions.length > 0) {
               const maxQuestionId = Math.max(
                 ...quiz.questions.map((q) => q.id)
               );
               nextQuestionId.current = maxQuestionId + 1;
 
-              // Reset option ID counters for each question
               quiz.questions.forEach((q) => {
                 if (q.options && q.options.length > 0) {
                   const maxOptionId = Math.max(
@@ -78,14 +76,11 @@ const TeacherCreateQuiz = ({
           alert("Failed to load quiz data: " + error.message);
         }
       } else {
-        // Reset form when not editing (editingDraftId is null/undefined)
         setAssignmentTitle("");
         setSubject("");
         setSelectedGrades([]);
         setQuestions([]);
         setIsGradeLevelOpen(false);
-
-        // Reset ID counters
         nextQuestionId.current = 1;
         nextOptionIds.current = {};
       }
@@ -106,33 +101,31 @@ const TeacherCreateQuiz = ({
   ];
 
   const selectGrade = (gradeId) => {
-    setSelectedGrades([gradeId]); // Single selection
-    setIsGradeLevelOpen(false); // Close dropdown after selection
+    setSelectedGrades([gradeId]);
+    setIsGradeLevelOpen(false);
   };
 
   const handleBackToDashboard = () => {
-    // Clear the editing draft ID when going back
     if (setEditingDraftId) {
       setEditingDraftId(null);
     }
-    // If editing a draft, go back to drafts page; otherwise go to quizzes
     setActiveMenuItem(editingDraftId ? "quiz-drafts" : "quizzes");
   };
 
   const addQuestion = () => {
     const questionId = nextQuestionId.current++;
-    nextOptionIds.current[questionId] = 3; // Start option IDs from 3 (after initial 2)
+    nextOptionIds.current[questionId] = 3;
 
     const newQuestion = {
       id: questionId,
-      type: "mcq", // Default to MCQ
+      type: "mcq",
       questionText: "",
       options: [
         { id: 1, text: "", isCorrect: false },
         { id: 2, text: "", isCorrect: false },
       ],
-      shortAnswer: "", // For short answer type
-      hints: ["", "", "", ""], // 4 hints for each question
+      shortAnswer: "",
+      hints: ["", "", "", ""],
     };
     setQuestions([...questions, newQuestion]);
   };
@@ -168,11 +161,76 @@ const TeacherCreateQuiz = ({
     );
   };
 
+  // 🤖 AI HINT GENERATION FUNCTION
+  const generateHintsWithAI = async (questionId) => {
+    const question = questions.find(q => q.id === questionId);
+    
+    if (!question || !question.questionText) {
+      alert("Please enter the question text first!");
+      return;
+    }
+
+    if (question.type === "mcq" && question.options.length < 2) {
+      alert("Please add answer options first!");
+      return;
+    }
+
+    setGeneratingHints({ ...generatingHints, [questionId]: true });
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      const response = await axios.post(
+        `${API_URL}/api/quiz/hint/request`,
+        {
+          userId: localStorage.getItem('userId') || 'teacher-id',
+          quizId: 'temp-quiz-id',
+          sessionId: `teacher-session-${Date.now()}`,
+          questionIndex: 0,
+          question: question.questionText,
+          options: question.options.map(opt => opt.text),
+          requestType: 'teacher-generation'
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const generatedHint = response.data.data.hint;
+      
+      setQuestions(
+        questions.map((q) => {
+          if (q.id === questionId) {
+            return {
+              ...q,
+              hints: [
+                generatedHint,
+                q.hints[1] || "",
+                q.hints[2] || "",
+                q.hints[3] || ""
+              ]
+            };
+          }
+          return q;
+        })
+      );
+
+      alert("✅ AI hint generated! You can edit it or add more hints manually.");
+    } catch (error) {
+      console.error("Error generating hint:", error);
+      alert("Failed to generate hint: " + (error.response?.data?.message || error.message));
+    } finally {
+      setGeneratingHints({ ...generatingHints, [questionId]: false });
+    }
+  };
+
   const addAnswerOption = (questionId) => {
     setQuestions(
       questions.map((q) => {
         if (q.id === questionId) {
-          // Initialize counter for this question if not exists
           if (!nextOptionIds.current[questionId]) {
             nextOptionIds.current[questionId] = q.options.length + 1;
           }
@@ -239,7 +297,6 @@ const TeacherCreateQuiz = ({
   };
 
   const handleCreateAssignment = async () => {
-    // Validate that required fields are filled
     if (!assignmentTitle || !subject || selectedGrades.length === 0) {
       alert(
         "Please fill in all assignment details (Title, Subject, and Grade Level)"
@@ -253,17 +310,15 @@ const TeacherCreateQuiz = ({
     }
 
     try {
-      // Format grade levels for display
       const gradeLabels = gradeOptions
         .filter((g) => selectedGrades.includes(g.id))
         .map((g) => g.label);
       const firstGrade = gradeLabels[0] || "";
 
-      // Prepare quiz data for backend
       const quizData = {
         title: assignmentTitle,
         subject: subject.charAt(0).toUpperCase() + subject.slice(1),
-        gradeLevel: [firstGrade], // Send as array to match backend schema
+        gradeLevel: [firstGrade],
         questions: questions.map((q) => ({
           id: q.id,
           type: q.type,
@@ -278,15 +333,12 @@ const TeacherCreateQuiz = ({
 
       console.log("Saving quiz to database:", quizData);
 
-      // Save to backend
       if (editingDraftId) {
-        // Update existing quiz
         await teacherQuizService.updateQuiz(editingDraftId, quizData);
         alert(
           "✅ Assignment Updated Successfully!\n\nYour quiz has been updated and saved as a draft."
         );
       } else {
-        // Create new quiz
         const response = await teacherQuizService.createQuiz(quizData);
         console.log("Quiz created:", response);
         alert(
@@ -294,12 +346,10 @@ const TeacherCreateQuiz = ({
         );
       }
 
-      // Clear editing draft ID
       if (setEditingDraftId) {
         setEditingDraftId(null);
       }
 
-      // Navigate to quiz drafts
       setActiveMenuItem("quiz-drafts");
     } catch (error) {
       console.error("Error saving quiz:", error);
@@ -312,7 +362,6 @@ const TeacherCreateQuiz = ({
 
   return (
     <div className="p-6">
-      {/* Back Button and Header */}
       <div className="mb-6">
         <button
           onClick={handleBackToDashboard}
@@ -356,9 +405,7 @@ const TeacherCreateQuiz = ({
         </div>
       </div>
 
-      {/* Form Container */}
       <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        {/* Assignment Title */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Assignment Title
@@ -372,7 +419,6 @@ const TeacherCreateQuiz = ({
           />
         </div>
 
-        {/* Subject */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Subject
@@ -386,9 +432,7 @@ const TeacherCreateQuiz = ({
           />
         </div>
 
-        {/* Grade Level */}
         <div>
-          {/* Grade Level Dropdown */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Grade Level
@@ -425,7 +469,6 @@ const TeacherCreateQuiz = ({
               </svg>
             </button>
 
-            {/* Dropdown Menu */}
             {isGradeLevelOpen && (
               <div className="w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto z-10 absolute">
                 <div className="p-2">
@@ -470,7 +513,6 @@ const TeacherCreateQuiz = ({
         </div>
       </div>
 
-      {/* Questions & Hints Card */}
       <div className="bg-white rounded-xl p-8 border border-gray-200 shadow-sm mt-4">
         <h2 className="text-lg font-bold text-gray-900 mb-6">
           Questions & Hints
@@ -505,7 +547,6 @@ const TeacherCreateQuiz = ({
               </button>
             </div>
 
-            {/* Question Text */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Question Text
@@ -521,7 +562,6 @@ const TeacherCreateQuiz = ({
               />
             </div>
 
-            {/* MCQ Answer Options */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Answer Options (click to mark as correct)
@@ -619,11 +659,34 @@ const TeacherCreateQuiz = ({
               </button>
             </div>
 
-            {/* Hints */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Hints (up to 4)
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Hints (up to 4)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => generateHintsWithAI(question.id)}
+                  disabled={generatingHints[question.id]}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {generatingHints[question.id] ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      Generate with AI
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="space-y-2">
                 {[0, 1, 2, 3].map((hintIndex) => (
                   <input
@@ -644,7 +707,6 @@ const TeacherCreateQuiz = ({
           </div>
         ))}
 
-        {/* Add Question Button */}
         <button
           onClick={addQuestion}
           className="flex items-center gap-2 text-teal-600 hover:text-teal-700 font-medium text-sm mb-6"
@@ -665,7 +727,6 @@ const TeacherCreateQuiz = ({
           Add Question
         </button>
 
-        {/* Action Buttons */}
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
           <button
             onClick={handleBackToDashboard}
