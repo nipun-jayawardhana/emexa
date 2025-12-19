@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   Check,
   X,
-  Flag,
 } from "lucide-react";
 import { io } from "socket.io-client";
 import teacherQuizService from "../services/teacherQuizService";
@@ -19,14 +18,6 @@ const QuizPage = () => {
   const { quizId } = useParams();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
-  const [flaggedQuestions, setFlaggedQuestions] = useState(() => {
-    try {
-      const saved = localStorage.getItem("flaggedQuestions");
-      return saved ? JSON.parse(saved) : [];
-    } catch (err) {
-      return [];
-    }
-  });
   const [timeOnQuestion, setTimeOnQuestion] = useState(0);
   const [showBulb, setShowBulb] = useState(false);
   const [showEmojiDialog, setShowEmojiDialog] = useState(false);
@@ -100,18 +91,28 @@ const QuizPage = () => {
 
       setEmotionSocket(socket);
 
-      // Try to enable webcam (optional - won't break if no camera)
+      // Explicitly request webcam permission for emotion tracking
       try {
+        console.log(
+          "📷 AI: Requesting webcam permission for emotion tracking..."
+        );
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: 224, height: 224 },
         });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           setWebcamEnabled(true);
-          console.log("📷 AI: Webcam enabled for emotion tracking");
+          console.log(
+            "✅ AI: Webcam permission granted - emotion tracking active"
+          );
         }
       } catch (err) {
-        console.log("⚠️ AI: Webcam not available - manual mode enabled");
+        console.log(
+          "⚠️ AI: Webcam permission denied - falling back to manual mode"
+        );
+        console.log(
+          "💡 Students can still request hints manually using the 'Request Hint' button"
+        );
         setWebcamEnabled(false);
       }
     } catch (error) {
@@ -148,8 +149,8 @@ const QuizPage = () => {
     // Capture immediately on question change
     captureEmotion();
 
-    // Then every 60 seconds
-    const interval = setInterval(captureEmotion, 60000);
+    // Then every 5 seconds
+    const interval = setInterval(captureEmotion, 5000);
 
     return () => clearInterval(interval);
   }, [webcamEnabled, emotionSocket, currentQuestion, quizSubmitted]);
@@ -325,7 +326,12 @@ const QuizPage = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeOnQuestion((prev) => prev + 1);
-      if (timeOnQuestion >= 60 && !showBulb && !answers[currentQuestion]) {
+      if (
+        timeOnQuestion >= 60 &&
+        !showBulb &&
+        !answers[currentQuestion] &&
+        webcamEnabled
+      ) {
         setShowBulb(true);
       }
     }, 1000);
@@ -351,21 +357,8 @@ const QuizPage = () => {
     setRevealedHints([]);
   }, [currentQuestion]);
 
-  // Persist flagged questions to localStorage
-  useEffect(() => {
-    localStorage.setItem("flaggedQuestions", JSON.stringify(flaggedQuestions));
-  }, [flaggedQuestions]);
-
   const handleAnswerSelect = (optionIndex) => {
     setAnswers({ ...answers, [currentQuestion]: optionIndex });
-  };
-
-  const handleToggleFlag = (index) => {
-    if (flaggedQuestions.includes(index)) {
-      setFlaggedQuestions(flaggedQuestions.filter((q) => q !== index));
-    } else {
-      setFlaggedQuestions([...flaggedQuestions, index]);
-    }
   };
 
   const handleBulbClick = async () => {
@@ -525,7 +518,6 @@ const QuizPage = () => {
   const matchesFilter = (index) => {
     const answered = answers[index] !== undefined;
     const isCurrent = index === currentQuestion;
-    const isFlagged = flaggedQuestions.includes(index);
 
     if (activeFilter === "all") return true;
     if (activeFilter === "current") return isCurrent;
@@ -534,9 +526,6 @@ const QuizPage = () => {
 
     return true;
   };
-
-  // Count flagged questions
-  const flaggedCount = flaggedQuestions.length;
 
   const handleFilterClick = (filter) => {
     // Always switch to the clicked filter (don't toggle off)
@@ -1079,7 +1068,6 @@ const QuizPage = () => {
           {quizData.questions.map((_, index) => {
             const answered = answers[index] !== undefined;
             const isCurrent = index === currentQuestion;
-            const isFlagged = flaggedQuestions.includes(index);
             const highlightQuestion = matchesFilter(index);
 
             return (
@@ -1107,18 +1095,12 @@ const QuizPage = () => {
                       ? "opacity-40"
                       : ""
                   }
-                  ${isFlagged ? "ring-2 ring-orange-400" : ""}
                 `}
               >
                 {index + 1}
-                {answered && !isCurrent && !isFlagged && (
+                {answered && !isCurrent && (
                   <div className="absolute -top-1 -right-1 bg-teal-700 rounded-full w-4 h-4 flex items-center justify-center">
                     <Check className="w-3 h-3 text-white" strokeWidth={3} />
-                  </div>
-                )}
-                {isFlagged && (
-                  <div className="absolute -top-1 -right-1 bg-orange-500 rounded-full w-4 h-4 flex items-center justify-center">
-                    <Flag className="w-2.5 h-2.5 text-white fill-white" />
                   </div>
                 )}
               </button>
@@ -1174,28 +1156,6 @@ const QuizPage = () => {
             ></div>
             <span className="text-sm text-gray-700">Unanswered</span>
           </button>
-          <button
-            onClick={() => handleFilterClick("flagged")}
-            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "flagged"
-                ? "bg-orange-200"
-                : "hover:bg-orange-50"
-            }`}
-          >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "flagged"
-                  ? "bg-orange-500"
-                  : "bg-white border-2 border-orange-500"
-              }`}
-            ></div>
-            <span className="text-sm text-gray-700">Flagged</span>
-            {flaggedCount > 0 && (
-              <span className="ml-auto text-xs font-bold bg-orange-500 text-white rounded-full px-2 py-0.5">
-                {flaggedCount}
-              </span>
-            )}
-          </button>
         </div>
 
         <button
@@ -1247,12 +1207,23 @@ const QuizPage = () => {
 
           {/* Question Card */}
           <div className="bg-white rounded-lg shadow-md p-8 relative">
-            {showBulb && (
+            {showBulb && webcamEnabled && (
               <button
                 onClick={handleBulbClick}
                 className="absolute top-6 right-6 animate-bounce"
+                title="AI Hint Available"
               >
                 <Lightbulb className="w-10 h-10 text-yellow-500 fill-yellow-200" />
+              </button>
+            )}
+
+            {!webcamEnabled && !showBulb && (
+              <button
+                onClick={handleBulbClick}
+                className="absolute top-6 right-6 bg-yellow-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-yellow-600 transition-colors"
+                title="Request AI Hint"
+              >
+                💡 Request Hint
               </button>
             )}
 
@@ -1262,34 +1233,6 @@ const QuizPage = () => {
                   Question {question.id}
                 </h2>
               </div>
-              <button
-                onClick={() => handleToggleFlag(currentQuestion)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors"
-                title={
-                  flaggedQuestions.includes(currentQuestion)
-                    ? "Unflag this question"
-                    : "Flag this question for review"
-                }
-              >
-                <Flag
-                  className={`w-5 h-5 transition-colors ${
-                    flaggedQuestions.includes(currentQuestion)
-                      ? "text-orange-500 fill-orange-500"
-                      : "text-gray-400 hover:text-orange-500"
-                  }`}
-                />
-                <span
-                  className={`text-sm font-medium ${
-                    flaggedQuestions.includes(currentQuestion)
-                      ? "text-orange-600"
-                      : "text-gray-600"
-                  }`}
-                >
-                  {flaggedQuestions.includes(currentQuestion)
-                    ? "Flagged"
-                    : "Flag"}
-                </span>
-              </button>
             </div>
             <p className="text-lg text-gray-700 mb-8">{question.text}</p>
 
