@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
+import { io } from 'socket.io-client';
+import camera from '../lib/camera';
 import {
   Clock,
   Home,
@@ -9,13 +11,20 @@ import {
   Check,
   X,
   Flag,
+  Video,
+  VideoOff,
 } from "lucide-react";
 import teacherQuizService from "../services/teacherQuizService";
 import headerLogo from "../assets/headerlogo.png";
 import DownloadIcon from "../assets/download.png";
+import axios from "axios";
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const QuizPage = () => {
   const { quizId } = useParams();
+  
+  // Original states
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
   const [flaggedQuestions, setFlaggedQuestions] = useState(() => {
@@ -34,109 +43,21 @@ const QuizPage = () => {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizStartTime] = useState(Date.now());
   const [totalTime, setTotalTime] = useState(0);
-  const [activeFilter, setActiveFilter] = useState("all"); // Start with NO filter selected
+  const [activeFilter, setActiveFilter] = useState("all");
   const [quizData, setQuizData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [hintsUsedCount, setHintsUsedCount] = useState(0);
+  const [sessionId] = useState(`quiz-${Date.now()}`);
+  const [generatingHint, setGeneratingHint] = useState(false);
 
-  // Load quiz data on component mount
-  useEffect(() => {
-    loadQuizData();
-  }, [quizId]);
+  // NEW: Emotion tracking states
+  const [emotionTracking, setEmotionTracking] = useState(false);
+  const [currentEmotion, setCurrentEmotion] = useState(null);
+  const [emotionHistory, setEmotionHistory] = useState([]);
+  const socketRef = useRef(null);
+  const mountedRef = useRef(true);
 
-  const loadQuizData = async () => {
-    try {
-      console.log("Quiz Page - Loading quiz with ID:", quizId);
-      console.log("Quiz Page - URL:", window.location.href);
-
-      // Get quiz ID from URL path parameter
-      if (quizId) {
-        try {
-          // Try to load from backend first
-          const response = await teacherQuizService.getSharedQuizzes();
-          console.log("Quiz Page - All shared quizzes from backend:", response);
-
-          const teacherQuiz = response.quizzes.find((q) => {
-            console.log(
-              `Comparing quiz._id (${q._id}) with quizId (${quizId})`
-            );
-            return String(q._id) === String(quizId) || q._id == quizId;
-          });
-
-          console.log("Quiz Page - Found teacher quiz:", teacherQuiz);
-
-          if (teacherQuiz) {
-            console.log(
-              "Quiz Page - Teacher quiz questions:",
-              teacherQuiz.questions
-            );
-
-            if (teacherQuiz.questions && teacherQuiz.questions.length > 0) {
-              // Convert teacher quiz format to quiz page format
-              const formattedQuestions = teacherQuiz.questions.map(
-                (q, index) => ({
-                  id: index + 1,
-                  text: q.questionText,
-                  type: q.type, // 'mcq' or 'short'
-                  options:
-                    q.type === "mcq" ? q.options.map((opt) => opt.text) : [],
-                  correctAnswer:
-                    q.type === "mcq"
-                      ? q.options.findIndex((opt) => opt.isCorrect)
-                      : null,
-                  hints: q.hints || ["", "", "", ""],
-                  shortAnswer: q.shortAnswer || "",
-                })
-              );
-
-              console.log(
-                "Quiz Page - Formatted questions:",
-                formattedQuestions
-              );
-
-              setQuizData({
-                title: teacherQuiz.title,
-                subject: teacherQuiz.subject,
-                questions: formattedQuestions,
-              });
-              setLoading(false);
-              console.log(
-                "Quiz Page - Successfully loaded teacher quiz from backend!"
-              );
-              return;
-            } else {
-              console.warn("Quiz Page - Teacher quiz found but no questions!");
-            }
-          } else {
-            console.warn(
-              "Quiz Page - No matching teacher quiz found for ID:",
-              quizId
-            );
-          }
-        } catch (apiError) {
-          console.error("Quiz Page - Error loading from backend:", apiError);
-        }
-      } else {
-        console.warn("Quiz Page - No quizId provided in URL");
-      }
-
-      // Fallback to default sample quiz
-      console.log("Quiz Page - Falling back to sample Biology quiz");
-      setQuizData({
-        title: "Introduction to Biology",
-        questions: sampleQuestions,
-      });
-      setLoading(false);
-    } catch (error) {
-      console.error("Error loading quiz:", error);
-      // Fallback to default sample quiz
-      setQuizData({
-        title: "Introduction to Biology",
-        questions: sampleQuestions,
-      });
-      setLoading(false);
-    }
-  };
-
+  // Sample questions data
   const sampleQuestions = [
     {
       id: 1,
@@ -209,6 +130,81 @@ const QuizPage = () => {
       ],
     },
   ];
+  // NEW: Socket.IO connection for emotion tracking
+  useEffect(() => {
+    console.log('🎮 Quiz: Initializing emotion tracking...');
+    
+    const socket = io(API_URL, {
+      transports: ['polling', 'websocket'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    socket.on('connect', () => {
+      console.log('✅ Quiz: Emotion socket connected:', socket.id);
+    });
+
+    socket.on('emotion-result', (data) => {
+      console.log('😊 Quiz: Emotion detected:', data);
+      
+      if (mountedRef.current) {
+        setCurrentEmotion(data);
+        setEmotionHistory(prev => [...prev, { ...data, timestamp: Date.now() }]);
+      }
+    });
+
+    socket.on('emotion-error', (error) => {
+      console.error('❌ Quiz: Emotion error:', error);
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.log('🔌 Quiz: Socket disconnected:', reason);
+    });
+
+    socketRef.current = socket;
+
+    return () => {
+      console.log('🧹 Quiz: Cleaning up socket');
+      mountedRef.current = false;
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, []);
+
+  // NEW: Check if camera is running
+  useEffect(() => {
+    const checkCamera = () => {
+      const cameraActive = camera.isActive();
+      console.log('📹 Quiz: Camera active?', cameraActive);
+      setEmotionTracking(cameraActive);
+      
+      if (cameraActive) {
+        console.log('✅ Quiz: Emotion tracking enabled');
+      } else {
+        console.log('ℹ️ Quiz: Emotion tracking disabled (camera not active)');
+      }
+    };
+
+    checkCamera();
+    setTimeout(checkCamera, 1000);
+  }, []);
+
+  // NEW: Cleanup camera when quiz ends
+  useEffect(() => {
+    return () => {
+      console.log('🧹 Quiz ended: Stopping camera');
+      if (camera.isActive()) {
+        camera.stop();
+      }
+    };
+  }, []);
+
+  // Load quiz data on component mount
+  useEffect(() => {
+    loadQuizData();
+  }, [quizId]);
 
   // Timer effect for current question
   useEffect(() => {
@@ -244,7 +240,90 @@ const QuizPage = () => {
   useEffect(() => {
     localStorage.setItem("flaggedQuestions", JSON.stringify(flaggedQuestions));
   }, [flaggedQuestions]);
+  // Load quiz data function
+  const loadQuizData = async () => {
+    try {
+      console.log("Quiz Page - Loading quiz with ID:", quizId);
 
+      if (quizId) {
+        try {
+          const response = await teacherQuizService.getSharedQuizzes();
+          console.log("Quiz Page - All shared quizzes from backend:", response);
+
+          const teacherQuiz = response.quizzes.find((q) => {
+            return String(q._id) === String(quizId) || q._id == quizId;
+          });
+
+          if (teacherQuiz && teacherQuiz.questions && teacherQuiz.questions.length > 0) {
+            const formattedQuestions = teacherQuiz.questions.map((q, index) => ({
+              id: index + 1,
+              text: q.questionText,
+              type: q.type,
+              options: q.type === "mcq" ? q.options.map((opt) => opt.text) : [],
+              correctAnswer: q.type === "mcq" ? q.options.findIndex((opt) => opt.isCorrect) : null,
+              hints: q.hints || ["", "", "", ""],
+              shortAnswer: q.shortAnswer || "",
+            }));
+
+            setQuizData({
+              title: teacherQuiz.title,
+              subject: teacherQuiz.subject,
+              questions: formattedQuestions,
+            });
+            setLoading(false);
+            return;
+          }
+        } catch (apiError) {
+          console.error("Quiz Page - Error loading from backend:", apiError);
+        }
+      }
+
+      setQuizData({
+        title: "Introduction to Biology",
+        questions: sampleQuestions,
+      });
+      setLoading(false);
+    } catch (error) {
+      console.error("Error loading quiz:", error);
+      setQuizData({
+        title: "Introduction to Biology",
+        questions: sampleQuestions,
+      });
+      setLoading(false);
+    }
+  };
+
+  const calculateScore = () => {
+    let correct = 0;
+    quizData.questions.forEach((q, index) => {
+      if (answers[index] === q.correctAnswer) {
+        correct++;
+      }
+    });
+    return correct;
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const matchesFilter = (index) => {
+    const answered = answers[index] !== undefined;
+    const isCurrent = index === currentQuestion;
+    const isFlagged = flaggedQuestions.includes(index);
+
+    if (activeFilter === "all") return true;
+    if (activeFilter === "current") return isCurrent;
+    if (activeFilter === "answered") return answered;
+    if (activeFilter === "unanswered") return !answered;
+    if (activeFilter === "flagged") return isFlagged;
+
+    return true;
+  };
+
+  const flaggedCount = flaggedQuestions.length;
   const handleAnswerSelect = (optionIndex) => {
     setAnswers({ ...answers, [currentQuestion]: optionIndex });
   };
@@ -265,14 +344,44 @@ const QuizPage = () => {
     if (emoji === "confused" || emoji === "frustrated") {
       setShowHints(true);
     } else {
-      // For happy, neutral, excited - don't show hints
       setShowHints(false);
     }
     setShowEmojiDialog(false);
   };
 
-  const handleRevealHint = (index) => {
-    setRevealedHints([...revealedHints, index]);
+  const handleRevealHint = async (index) => {
+    const question = quizData.questions[currentQuestion];
+    if (question.hints?.[index]?.trim()) {
+      setRevealedHints([...revealedHints, index]);
+      setHintsUsedCount(hintsUsedCount + 1);
+      return;
+    }
+    setGeneratingHint(true);
+    try {
+      const response = await axios.post(`${API_URL}/api/quiz/hint/request`, {
+        userId: localStorage.getItem('userId'),
+        quizId, 
+        sessionId, 
+        questionIndex: currentQuestion,
+        question: question.text, 
+        options: question.options || [],
+        requestType: 'manual'
+      }, { 
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      const updatedQuestions = [...quizData.questions];
+      if (!updatedQuestions[currentQuestion].hints) 
+        updatedQuestions[currentQuestion].hints = ["", "", "", ""];
+      updatedQuestions[currentQuestion].hints[index] = response.data.data.hint;
+      setQuizData({ ...quizData, questions: updatedQuestions });
+      setRevealedHints([...revealedHints, index]);
+      setHintsUsedCount(hintsUsedCount + 1);
+    } catch (error) {
+      alert("Failed to generate hint");
+    } finally { 
+      setGeneratingHint(false); 
+    }
   };
 
   const handleNext = () => {
@@ -287,50 +396,36 @@ const QuizPage = () => {
     }
   };
 
-  const handleSubmit = () => {
-    setQuizSubmitted(true);
+  const handleSubmit = async () => {
+    try {
+      const response = await axios.post(`${API_URL}/api/quiz/submit-ai`, {
+        userId: localStorage.getItem('userId'),
+        quizId, 
+        sessionId,
+        answers: Object.entries(answers).map(([qIndex, aIndex]) => ({
+          questionIndex: parseInt(qIndex), 
+          answerIndex: aIndex
+        }))
+      }, { 
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      sessionStorage.setItem('aiFeedback', response.data.data.feedback);
+      sessionStorage.setItem('emotionalSummary', response.data.data.emotionalSummary || '');
+      sessionStorage.setItem('hintsUsed', response.data.data.hintsUsed);
+      sessionStorage.setItem('finalScore', response.data.data.finalScore);
+      setQuizSubmitted(true);
+    } catch (error) {
+      console.error(error);
+      setQuizSubmitted(true);
+    }
   };
-
-  const calculateScore = () => {
-    let correct = 0;
-    quizData.questions.forEach((q, index) => {
-      if (answers[index] === q.correctAnswer) {
-        correct++;
-      }
-    });
-    return correct;
-  };
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  // Check if question matches current filter
-  const matchesFilter = (index) => {
-    const answered = answers[index] !== undefined;
-    const isCurrent = index === currentQuestion;
-    const isFlagged = flaggedQuestions.includes(index);
-
-    if (activeFilter === "all") return true;
-    if (activeFilter === "current") return isCurrent;
-    if (activeFilter === "answered") return answered;
-    if (activeFilter === "unanswered") return !answered;
-
-    return true;
-  };
-
-  // Count flagged questions
-  const flaggedCount = flaggedQuestions.length;
 
   const handleFilterClick = (filter) => {
-    // Always switch to the clicked filter (don't toggle off)
     setActiveFilter(filter);
   };
 
   const handleDownloadPDF = () => {
-    // Create a printable version
     const printWindow = window.open("", "_blank");
     const score = calculateScore();
     const percentage = Math.round((score / quizData.questions.length) * 100);
@@ -341,126 +436,42 @@ const QuizPage = () => {
       <head>
         <title>Quiz Results - ${quizData.title}</title>
         <style>
-          body { 
-            font-family: Arial, sans-serif; 
-            padding: 40px; 
-            max-width: 800px; 
-            margin: 0 auto;
-          }
-          .header { 
-            background: #0f766e; 
-            color: white; 
-            padding: 20px; 
-            margin: -40px -40px 30px -40px;
-            border-radius: 8px 8px 0 0;
-          }
+          body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
+          .header { background: #0f766e; color: white; padding: 20px; margin: -40px -40px 30px -40px; border-radius: 8px 8px 0 0; }
           .header h1 { margin: 0; font-size: 24px; }
           .success { text-align: center; margin-bottom: 30px; }
           .success h2 { color: #047857; margin-bottom: 10px; }
-          .summary { 
-            background: #f0fdfa; 
-            padding: 20px; 
-            border-radius: 8px; 
-            margin-bottom: 30px;
-          }
-          .summary-title { 
-            font-size: 18px; 
-            font-weight: bold; 
-            margin-bottom: 15px;
-            color: #1f2937;
-          }
-          .summary-grid { 
-            display: grid; 
-            grid-template-columns: repeat(3, 1fr); 
-            gap: 20px; 
-            text-align: center;
-          }
-          .summary-item label { 
-            display: block; 
-            font-size: 12px; 
-            color: #6b7280; 
-            margin-bottom: 5px;
-          }
-          .summary-item value { 
-            display: block; 
-            font-weight: bold; 
-            color: #1f2937;
-          }
-          .score-box { 
-            background: #fef2f2; 
-            border-left: 4px solid #ef4444; 
-            padding: 20px; 
-            margin-bottom: 30px;
-          }
-          .score-header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 15px;
-          }
+          .summary { background: #f0fdfa; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+          .summary-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #1f2937; }
+          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center; }
+          .summary-item label { display: block; font-size: 12px; color: #6b7280; margin-bottom: 5px; }
+          .summary-item value { display: block; font-weight: bold; color: #1f2937; }
+          .score-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 20px; margin-bottom: 30px; }
+          .score-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
           .score-header h3 { margin: 0; font-size: 20px; }
-          .score-percentage { 
-            font-size: 36px; 
-            font-weight: bold; 
-            color: #ef4444;
-          }
-          .question-box { 
-            border: 1px solid #e5e7eb; 
-            border-radius: 8px; 
-            padding: 20px; 
-            margin-bottom: 20px;
-            page-break-inside: avoid;
-          }
-          .question-header { 
-            display: flex; 
-            justify-content: space-between; 
-            margin-bottom: 15px;
-          }
-          .question-title { 
-            font-weight: bold; 
-            color: #1f2937; 
-            flex: 1;
-          }
-          .answer-box { 
-            padding: 12px; 
-            border-radius: 8px; 
-            margin-bottom: 10px;
-          }
+          .score-percentage { font-size: 36px; font-weight: bold; color: #ef4444; }
+          .question-box { border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 20px; page-break-inside: avoid; }
+          .question-header { display: flex; justify-content: space-between; margin-bottom: 15px; }
+          .question-title { font-weight: bold; color: #1f2937; flex: 1; }
+          .answer-box { padding: 12px; border-radius: 8px; margin-bottom: 10px; }
           .correct-answer { background: #f0fdf4; }
           .wrong-answer { background: #fef2f2; }
           .explanation { background: #eff6ff; }
-          .answer-label { 
-            font-size: 12px; 
-            color: #6b7280; 
-            margin-bottom: 5px;
-          }
-          .answer-text { 
-            font-weight: 500; 
-            margin: 0;
-          }
+          .answer-label { font-size: 12px; color: #6b7280; margin-bottom: 5px; }
+          .answer-text { font-weight: 500; margin: 0; }
           .correct-text { color: #166534; }
           .wrong-text { color: #991b1b; }
           .explanation-text { color: #1e40af; }
-          .status-icon { 
-            font-size: 20px; 
-            margin-left: 10px;
-          }
-          @media print {
-            body { padding: 20px; }
-            .header { margin: -20px -20px 20px -20px; }
-          }
+          .status-icon { font-size: 20px; margin-left: 10px; }
+          @media print { body { padding: 20px; } .header { margin: -20px -20px 20px -20px; } }
         </style>
       </head>
       <body>
-        <div class="header">
-          <h1>Quiz Results: ${quizData.title}</h1>
-        </div>
-        
+        <div class="header"><h1>Quiz Results: ${quizData.title}</h1></div>
         <div class="success">
           <h2>Quiz Successfully Submitted!</h2>
           <p>Thank you for completing the quiz. Your responses have been recorded.</p>
         </div>
-        
         <div class="summary">
           <div class="summary-title">⭐ Quiz Summary</div>
           <div class="summary-grid">
@@ -474,125 +485,62 @@ const QuizPage = () => {
             </div>
             <div class="summary-item">
               <label>Questions Answered:</label>
-              <value>${Object.keys(answers).length} of ${
-      quizData.questions.length
-    }</value>
+              <value>${Object.keys(answers).length} of ${quizData.questions.length}</value>
             </div>
           </div>
         </div>
-        
         <div class="score-box">
           <div class="score-header">
             <h3>Your Score</h3>
             <div class="score-percentage">${percentage}%</div>
           </div>
-          <p>You answered <strong>${score} out of ${
-      quizData.questions.length
-    }</strong> questions correctly</p>
+          <p>You answered <strong>${score} out of ${quizData.questions.length}</strong> questions correctly</p>
         </div>
-        
-        ${quizData.questions
-          .map((question, index) => {
-            const userAnswer = answers[index];
-            const isCorrect =
-              question.type === "mcq"
-                ? userAnswer === question.correctAnswer
-                : false;
-
-            return `
+        ${quizData.questions.map((question, index) => {
+          const userAnswer = answers[index];
+          const isCorrect = question.type === "mcq" ? userAnswer === question.correctAnswer : false;
+          return `
             <div class="question-box">
               <div class="question-header">
-                <div class="question-title">
-                  Question ${question.id}: ${question.text}
-                </div>
-                ${
-                  question.type === "mcq"
-                    ? `<span class="status-icon">${
-                        isCorrect ? "✓" : "✗"
-                      }</span>`
-                    : ""
-                }
+                <div class="question-title">Question ${question.id}: ${question.text}</div>
+                ${question.type === "mcq" ? `<span class="status-icon">${isCorrect ? "✓" : "✗"}</span>` : ""}
               </div>
-              
-              ${
-                userAnswer !== undefined && userAnswer !== ""
-                  ? `
-                <div class="answer-box ${
-                  question.type === "mcq"
-                    ? isCorrect
-                      ? "correct-answer"
-                      : "wrong-answer"
-                    : "explanation"
-                }">
+              ${userAnswer !== undefined && userAnswer !== "" ? `
+                <div class="answer-box ${question.type === "mcq" ? (isCorrect ? "correct-answer" : "wrong-answer") : "explanation"}">
                   <div class="answer-label">Your Answer:</div>
-                  <p class="answer-text ${
-                    question.type === "mcq"
-                      ? isCorrect
-                        ? "correct-text"
-                        : "wrong-text"
-                      : "explanation-text"
-                  }">
-                    ${
-                      question.type === "mcq"
-                        ? question.options[userAnswer]
-                        : userAnswer
-                    }
+                  <p class="answer-text ${question.type === "mcq" ? (isCorrect ? "correct-text" : "wrong-text") : "explanation-text"}">
+                    ${question.type === "mcq" ? question.options[userAnswer] : userAnswer}
                   </p>
                 </div>
-              `
-                  : ""
-              }
-              
-              ${
-                question.type === "mcq" && !isCorrect
-                  ? `
+              ` : ""}
+              ${question.type === "mcq" && !isCorrect ? `
                 <div class="answer-box correct-answer">
                   <div class="answer-label">Correct Answer:</div>
-                  <p class="answer-text correct-text">${
-                    question.options[question.correctAnswer]
-                  }</p>
+                  <p class="answer-text correct-text">${question.options[question.correctAnswer]}</p>
                 </div>
-              `
-                  : ""
-              }
-              
-              ${
-                question.type === "short" && question.shortAnswer
-                  ? `
+              ` : ""}
+              ${question.type === "short" && question.shortAnswer ? `
                 <div class="answer-box correct-answer">
                   <div class="answer-label">Expected Answer:</div>
                   <p class="answer-text correct-text">${question.shortAnswer}</p>
                 </div>
-              `
-                  : ""
-              }
-              
+              ` : ""}
               <div class="answer-box explanation">
                 <div class="answer-label">Explanation:</div>
-                <p class="answer-text explanation-text">${
-                  question.hints && question.hints[3]
-                    ? question.hints[3]
-                    : "No explanation available"
-                }</p>
+                <p class="answer-text explanation-text">${question.hints && question.hints[3] ? question.hints[3] : "No explanation available"}</p>
               </div>
             </div>
           `;
-          })
-          .join("")}
+        }).join("")}
       </body>
       </html>
     `;
 
     printWindow.document.write(htmlContent);
     printWindow.document.close();
-
-    // Automatically trigger print dialog with PDF option
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
+    setTimeout(() => { printWindow.print(); }, 250);
   };
-
-  // Show loading state
+  // Loading state
   if (loading || !quizData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-50 flex items-center justify-center p-4">
@@ -604,17 +552,20 @@ const QuizPage = () => {
     );
   }
 
+  // Results/Submission screen
   if (quizSubmitted) {
     const score = calculateScore();
     const percentage = Math.round((score / quizData.questions.length) * 100);
+    const aiFeedback = sessionStorage.getItem('aiFeedback');
+    const emotionalSummary = sessionStorage.getItem('emotionalSummary');
+    const hintsUsed = sessionStorage.getItem('hintsUsed') || hintsUsedCount;
+    const finalScore = sessionStorage.getItem('finalScore') || score;
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-8">
           <div className="bg-teal-700 text-white px-6 py-4 rounded-t-xl -mx-8 -mt-8 mb-8">
-            <h2 className="text-2xl font-bold">
-              Quiz Results: {quizData.title}
-            </h2>
+            <h2 className="text-2xl font-bold">Quiz Results: {quizData.title}</h2>
           </div>
 
           <div className="text-center mb-8">
@@ -625,41 +576,47 @@ const QuizPage = () => {
               Quiz Successfully Submitted!
             </h3>
             <p className="text-gray-600">
-              Thank you for completing the quiz. Your responses have been
-              recorded.
+              Thank you for completing the quiz. Your responses have been recorded.
             </p>
           </div>
 
+          {aiFeedback && (
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 mb-8 border-2 border-purple-200">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">🤖</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-800">AI Personalized Feedback</h3>
+              </div>
+              <p className="text-gray-700 leading-relaxed mb-4">{aiFeedback}</p>
+              {emotionalSummary && (
+                <div className="bg-white rounded-lg p-4 border border-purple-200">
+                  <p className="text-sm font-medium text-purple-800">
+                    Emotional Pattern: {emotionalSummary}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-xl p-6 mb-8">
             <div className="flex items-center justify-center mb-4">
-              <svg
-                className="w-8 h-8 text-yellow-500 mr-2"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
+              <svg className="w-8 h-8 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
               </svg>
-              <h4 className="text-xl font-semibold text-gray-800">
-                Quiz Summary
-              </h4>
+              <h4 className="text-xl font-semibold text-gray-800">Quiz Summary</h4>
             </div>
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
                 <p className="text-gray-600 text-sm mb-1">Date Submitted:</p>
-                <p className="font-semibold text-gray-800">
-                  {new Date().toLocaleDateString()}
-                </p>
+                <p className="font-semibold text-gray-800">{new Date().toLocaleDateString()}</p>
               </div>
               <div>
                 <p className="text-gray-600 text-sm mb-1">Time Taken:</p>
-                <p className="font-semibold text-gray-800">
-                  {Math.floor(totalTime / 60)} minutes
-                </p>
+                <p className="font-semibold text-gray-800">{Math.floor(totalTime / 60)} minutes</p>
               </div>
               <div>
-                <p className="text-gray-600 text-sm mb-1">
-                  Questions Answered:
-                </p>
+                <p className="text-gray-600 text-sm mb-1">Questions Answered:</p>
                 <p className="font-semibold text-gray-800">
                   {Object.keys(answers).length} of {quizData.questions.length}
                 </p>
@@ -670,76 +627,64 @@ const QuizPage = () => {
           <div className="bg-red-50 border-l-4 border-red-400 p-6 mb-8">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-gray-800">Your Score</h3>
-              <div className="text-5xl font-bold text-red-500">
-                {percentage}%
-              </div>
+              <div className="text-5xl font-bold text-red-500">{percentage}%</div>
             </div>
-            <p className="text-gray-700 mb-4">
-              You answered{" "}
-              <span className="font-bold">
-                {score} out of {quizData.questions.length}
-              </span>{" "}
-              questions correctly
-            </p>
+            <div className="space-y-2">
+              <p className="text-gray-700">
+                <span className="font-semibold">Raw Score:</span> {score} / {quizData.questions.length}
+              </p>
+              <p className="text-gray-700">
+                <span className="font-semibold">Hints Used:</span> {hintsUsed}
+                {hintsUsed > 0 && <span className="text-red-600"> (-{hintsUsed} marks)</span>}
+              </p>
+              <p className="text-gray-900 font-bold text-lg">
+                Final Score: {finalScore} / {quizData.questions.length}
+              </p>
+            </div>
           </div>
 
+          {/* Question review section - continues in Part 6 */}
+          {/* Continuing from Part 5 - Question review in results */}
           {quizData.questions.map((question, index) => {
             const userAnswer = answers[index];
-            const isCorrect =
-              question.type === "mcq"
-                ? userAnswer === question.correctAnswer
-                : false;
+            const isCorrect = question.type === "mcq" ? userAnswer === question.correctAnswer : false;
 
             return (
-              <div
-                key={question.id}
-                className="mb-6 border rounded-lg p-6 bg-white shadow-sm"
-              >
+              <div key={question.id} className="mb-6 border rounded-lg p-6 bg-white shadow-sm">
                 <div className="flex items-start justify-between mb-4">
                   <h4 className="font-semibold text-gray-800 flex-1">
                     Question {question.id}: {question.text}
                   </h4>
-                  {question.type === "mcq" &&
-                    (isCorrect ? (
+                  {question.type === "mcq" && (
+                    isCorrect ? (
                       <Check className="w-6 h-6 text-green-500 flex-shrink-0 ml-4" />
                     ) : (
                       <X className="w-6 h-6 text-red-500 flex-shrink-0 ml-4" />
-                    ))}
+                    )
+                  )}
                 </div>
 
                 <div className="space-y-3">
                   {userAnswer !== undefined && userAnswer !== "" && (
-                    <div
-                      className={`p-3 rounded-lg ${
-                        question.type === "mcq"
-                          ? isCorrect
-                            ? "bg-green-50"
-                            : "bg-red-50"
-                          : "bg-blue-50"
-                      }`}
-                    >
+                    <div className={`p-3 rounded-lg ${
+                      question.type === "mcq"
+                        ? isCorrect ? "bg-green-50" : "bg-red-50"
+                        : "bg-blue-50"
+                    }`}>
                       <p className="text-sm text-gray-600 mb-1">Your Answer:</p>
-                      <p
-                        className={`font-medium ${
-                          question.type === "mcq"
-                            ? isCorrect
-                              ? "text-green-800"
-                              : "text-red-800"
-                            : "text-blue-800"
-                        }`}
-                      >
-                        {question.type === "mcq"
-                          ? question.options[userAnswer]
-                          : userAnswer}
+                      <p className={`font-medium ${
+                        question.type === "mcq"
+                          ? isCorrect ? "text-green-800" : "text-red-800"
+                          : "text-blue-800"
+                      }`}>
+                        {question.type === "mcq" ? question.options[userAnswer] : userAnswer}
                       </p>
                     </div>
                   )}
 
                   {question.type === "mcq" && !isCorrect && (
                     <div className="p-3 rounded-lg bg-teal-50">
-                      <p className="text-sm text-gray-600 mb-1">
-                        Correct Answer:
-                      </p>
+                      <p className="text-sm text-gray-600 mb-1">Correct Answer:</p>
                       <p className="font-medium text-teal-800">
                         {question.options[question.correctAnswer]}
                       </p>
@@ -748,21 +693,15 @@ const QuizPage = () => {
 
                   {question.type === "short" && question.shortAnswer && (
                     <div className="p-3 rounded-lg bg-teal-50">
-                      <p className="text-sm text-gray-600 mb-1">
-                        Expected Answer:
-                      </p>
-                      <p className="font-medium text-teal-800">
-                        {question.shortAnswer}
-                      </p>
+                      <p className="text-sm text-gray-600 mb-1">Expected Answer:</p>
+                      <p className="font-medium text-teal-800">{question.shortAnswer}</p>
                     </div>
                   )}
 
                   <div className="p-3 rounded-lg bg-blue-50">
                     <p className="text-sm text-gray-600 mb-1">Explanation:</p>
                     <p className="text-blue-800">
-                      {question.hints && question.hints[3]
-                        ? question.hints[3]
-                        : "No explanation available"}
+                      {question.hints && question.hints[3] ? question.hints[3] : "No explanation available"}
                     </p>
                   </div>
                 </div>
@@ -776,11 +715,7 @@ const QuizPage = () => {
               className="flex items-center gap-2 bg-teal-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-teal-800 transition-colors"
             >
               Download as PDF
-              <img
-                src={DownloadIcon}
-                alt="download icon"
-                className="w-5 h-5 object-contain"
-              />
+              <img src={DownloadIcon} alt="download icon" className="w-5 h-5 object-contain" />
             </button>
             <button
               onClick={() => (window.location.href = "/dashboard")}
@@ -795,10 +730,50 @@ const QuizPage = () => {
     );
   }
 
+  // Main Quiz UI (when not submitted)
   const question = quizData.questions[currentQuestion];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-50 flex">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-50 flex relative">
+      {/* NEW: Emotion indicator (top-right corner) */}
+      {emotionTracking && currentEmotion && (
+        <div className="fixed top-4 right-4 bg-white shadow-lg rounded-lg p-4 z-50 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">
+              {currentEmotion.emotion === 'happy' && '😊'}
+              {currentEmotion.emotion === 'sad' && '😢'}
+              {currentEmotion.emotion === 'angry' && '😠'}
+              {currentEmotion.emotion === 'fearful' && '😨'}
+              {currentEmotion.emotion === 'surprised' && '😮'}
+              {currentEmotion.emotion === 'disgusted' && '🤢'}
+              {currentEmotion.emotion === 'neutral' && '😐'}
+            </span>
+            <div>
+              <div className="text-xs font-medium text-gray-500">Emotion Detected</div>
+              <div className="text-sm font-bold capitalize text-gray-800">
+                {currentEmotion.emotion}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Emotion tracking status indicator */}
+      <div className="fixed bottom-4 right-4 z-40">
+        {emotionTracking ? (
+          <div className="bg-green-500 text-white px-3 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm">
+            <Video className="w-4 h-4" />
+            <span>Emotion Tracking Active</span>
+          </div>
+        ) : (
+          <div className="bg-gray-400 text-white px-3 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm">
+            <VideoOff className="w-4 h-4" />
+            <span>Manual Mode</span>
+          </div>
+        )}
+      </div>
+
+      {/* Sidebar - continues in Part 7 */}
       {/* Left Sidebar */}
       <div className="w-64 bg-green-100 p-6 flex flex-col">
         <h2 className="text-xl font-bold text-gray-800 mb-6">Questions</h2>
@@ -825,16 +800,8 @@ const QuizPage = () => {
                       ? "bg-white text-teal-700 border-2 border-teal-700"
                       : "bg-white text-gray-400 border-2 border-gray-200"
                   }
-                  ${
-                    highlightQuestion && !isCurrent && activeFilter !== "all"
-                      ? "bg-teal-50"
-                      : ""
-                  }
-                  ${
-                    !highlightQuestion && activeFilter !== "all"
-                      ? "opacity-40"
-                      : ""
-                  }
+                  ${highlightQuestion && !isCurrent && activeFilter !== "all" ? "bg-teal-50" : ""}
+                  ${!highlightQuestion && activeFilter !== "all" ? "opacity-40" : ""}
                   ${isFlagged ? "ring-2 ring-orange-400" : ""}
                 `}
               >
@@ -861,62 +828,45 @@ const QuizPage = () => {
               activeFilter === "current" ? "bg-green-200" : "hover:bg-green-50"
             }`}
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "current"
-                  ? "bg-green-500"
-                  : "bg-white border-2 border-teal-700"
-              }`}
-            ></div>
+            <div className={`w-4 h-4 rounded ${
+              activeFilter === "current" ? "bg-green-500" : "bg-white border-2 border-teal-700"
+            }`}></div>
             <span className="text-sm text-gray-700">Current question</span>
           </button>
+          
           <button
             onClick={() => handleFilterClick("answered")}
             className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
               activeFilter === "answered" ? "bg-green-200" : "hover:bg-green-50"
             }`}
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "answered"
-                  ? "bg-green-500"
-                  : "bg-white border-2 border-teal-700"
-              }`}
-            ></div>
+            <div className={`w-4 h-4 rounded ${
+              activeFilter === "answered" ? "bg-green-500" : "bg-white border-2 border-teal-700"
+            }`}></div>
             <span className="text-sm text-gray-700">Answered</span>
           </button>
+          
           <button
             onClick={() => handleFilterClick("unanswered")}
             className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "unanswered"
-                ? "bg-green-200"
-                : "hover:bg-green-50"
+              activeFilter === "unanswered" ? "bg-green-200" : "hover:bg-green-50"
             }`}
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "unanswered"
-                  ? "bg-green-500"
-                  : "bg-white border-2 border-teal-700"
-              }`}
-            ></div>
+            <div className={`w-4 h-4 rounded ${
+              activeFilter === "unanswered" ? "bg-green-500" : "bg-white border-2 border-teal-700"
+            }`}></div>
             <span className="text-sm text-gray-700">Unanswered</span>
           </button>
+          
           <button
             onClick={() => handleFilterClick("flagged")}
             className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "flagged"
-                ? "bg-orange-200"
-                : "hover:bg-orange-50"
+              activeFilter === "flagged" ? "bg-orange-200" : "hover:bg-orange-50"
             }`}
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "flagged"
-                  ? "bg-orange-500"
-                  : "bg-white border-2 border-orange-500"
-              }`}
-            ></div>
+            <div className={`w-4 h-4 rounded ${
+              activeFilter === "flagged" ? "bg-orange-500" : "bg-white border-2 border-orange-500"
+            }`}></div>
             <span className="text-sm text-gray-700">Flagged</span>
             {flaggedCount > 0 && (
               <span className="ml-auto text-xs font-bold bg-orange-500 text-white rounded-full px-2 py-0.5">
@@ -935,24 +885,19 @@ const QuizPage = () => {
 
         <div className="mt-auto">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <img
-              src={headerLogo}
-              alt="EMEXA Logo"
-              className="w-50 h-50 object-contain"
-            />
+            <img src={headerLogo} alt="EMEXA Logo" className="w-50 h-50 object-contain" />
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main content area - continues in Part 8 */}
+      {/* Main Content Area */}
       <div className="flex-1 p-8">
         <div className="max-w-4xl mx-auto">
-          {/* Header */}
+          {/* Quiz Header */}
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <div className="flex items-center justify-between mb-2">
-              <h1 className="text-2xl font-bold text-gray-800">
-                {quizData.title}
-              </h1>
+              <h1 className="text-2xl font-bold text-gray-800">{quizData.title}</h1>
               <div className="flex items-center gap-2 text-teal-700">
                 <Clock className="w-5 h-5" />
                 <span className="font-semibold">{formatTime(totalTime)}</span>
@@ -962,14 +907,17 @@ const QuizPage = () => {
               <div
                 className="h-full bg-teal-600 transition-all duration-300"
                 style={{
-                  width: `${
-                    ((currentQuestion + 1) / quizData.questions.length) * 100
-                  }%`,
+                  width: `${((currentQuestion + 1) / quizData.questions.length) * 100}%`,
                 }}
               ></div>
             </div>
             <p className="text-sm text-gray-600 mt-2">
               {currentQuestion + 1} / {quizData.questions.length} Questions
+              {hintsUsedCount > 0 && (
+                <span className="ml-4 text-orange-600 font-semibold">
+                  Hints Used: {hintsUsedCount}
+                </span>
+              )}
             </p>
           </div>
 
@@ -1013,15 +961,14 @@ const QuizPage = () => {
                       : "text-gray-600"
                   }`}
                 >
-                  {flaggedQuestions.includes(currentQuestion)
-                    ? "Flagged"
-                    : "Flag"}
+                  {flaggedQuestions.includes(currentQuestion) ? "Flagged" : "Flag"}
                 </span>
               </button>
             </div>
+            
             <p className="text-lg text-gray-700 mb-8">{question.text}</p>
 
-            {/* Options for MCQ or Text Input for Short Answer */}
+            {/* Answer Options - MCQ or Short Answer */}
             {question.type === "mcq" ? (
               <div className="space-y-4 mb-8">
                 {question.options.map((option, index) => (
@@ -1082,8 +1029,7 @@ const QuizPage = () => {
                   <h3 className="font-semibold text-gray-800">Need a hint?</h3>
                 </div>
                 <p className="text-sm text-gray-600 mb-4">
-                  You have {question.hints.length} hints available. Each hint
-                  provides additional information.
+                  You have {question.hints.length} hints available. Each hint provides additional information.
                 </p>
 
                 <div className="space-y-3">
@@ -1093,15 +1039,14 @@ const QuizPage = () => {
                       className="bg-white rounded-lg p-4 border border-gray-200"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold text-gray-700">
-                          Hint {index + 1}
-                        </span>
+                        <span className="font-semibold text-gray-700">Hint {index + 1}</span>
                         {!revealedHints.includes(index) && (
                           <button
                             onClick={() => handleRevealHint(index)}
-                            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                            disabled={generatingHint}
+                            className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
                           >
-                            Reveal
+                            {generatingHint ? "Generating..." : "Reveal"}
                           </button>
                         )}
                       </div>
@@ -1114,7 +1059,7 @@ const QuizPage = () => {
               </div>
             )}
 
-            {/* Navigation */}
+            {/* Navigation Buttons */}
             <div className="flex items-center justify-between pt-6 border-t">
               <button
                 onClick={handlePrevious}
@@ -1181,6 +1126,23 @@ const QuizPage = () => {
           </div>
         </div>
       )}
+
+      {/* Add CSS animation for fade-in */}
+      <style>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 };
