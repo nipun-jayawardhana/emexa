@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Header from "../components/headerorigin";
 import Sidebar from "../components/sidebarorigin";
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const WellnessCentre = () => {
   const navigate = useNavigate();
@@ -10,6 +13,8 @@ const WellnessCentre = () => {
   const [selectedMood, setSelectedMood] = useState(null);
   const [showMessage, setShowMessage] = useState(false);
   const [userName, setUserName] = useState("");
+  const [aiRecommendation, setAiRecommendation] = useState(null);
+  const [loadingRecommendation, setLoadingRecommendation] = useState(false);
 
   useEffect(() => {
     const storedUserName = localStorage.getItem("userName") || sessionStorage.getItem("userName");
@@ -107,10 +112,10 @@ const WellnessCentre = () => {
     setSelectedMood(index);
     setShowMessage(true);
     
-    // Save mood to backend
+    // Save mood
     try {
-      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-      const response = await fetch("http://localhost:5000/api/wellness/mood", {
+      const token = localStorage.getItem("token");
+      await fetch("http://localhost:5000/api/wellness/mood", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -121,12 +126,29 @@ const WellnessCentre = () => {
           emoji: moods[index].emoji,
         }),
       });
-
-      if (!response.ok) {
-        console.error("Failed to save mood");
-      }
     } catch (error) {
       console.error("Error saving mood:", error);
+    }
+
+    // Get AI recommendation
+    setLoadingRecommendation(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.post(
+        `${API_URL}/api/wellness/recommendation`,
+        {
+          mood: moods[index].label,
+          emoji: moods[index].emoji,
+          timeOfDay: new Date().getHours()
+        },
+        { headers: { 'Authorization': `Bearer ${token}` }}
+      );
+      setAiRecommendation(response.data.recommendation || moods[index].message);
+    } catch (error) {
+      console.error("Error:", error);
+      setAiRecommendation(moods[index].message);
+    } finally {
+      setLoadingRecommendation(false);
     }
   };
 
@@ -170,22 +192,26 @@ const WellnessCentre = () => {
 
           {/* Mood Message - Shows after selection */}
           {showMessage && selectedMood !== null && (
-            <div className={`mt-6 p-4 rounded-lg border-2 ${moods[selectedMood].messageColor} animate-fade-in`}>
+            <div className={`mt-6 p-4 rounded-lg border-2 ${moods[selectedMood].messageColor}`}>
               <div className="flex items-start gap-3">
                 <span className="text-3xl">{moods[selectedMood].emoji}</span>
                 <div className="flex-1">
                   <h3 className="font-semibold text-lg mb-1">
                     You're feeling {moods[selectedMood].label}
                   </h3>
-                  <p className="text-sm leading-relaxed">
-                    {moods[selectedMood].message}
-                  </p>
+                  {loadingRecommendation ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                      <p className="text-sm">Getting personalized tip...</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm leading-relaxed">
+                      {aiRecommendation || moods[selectedMood].message}
+                    </p>
+                  )}
                 </div>
-                <button
-                  onClick={() => setShowMessage(false)}
-                  className="text-gray-500 hover:text-gray-700 transition"
-                  aria-label="Close message"
-                >
+                <button onClick={() => setShowMessage(false)}
+                  className="text-gray-500 hover:text-gray-700">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
