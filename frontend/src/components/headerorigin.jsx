@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import LogoIcon from '../assets/headerlogo.png';
+import axios from 'axios';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000';
 
 const Header = ({ userName, userRole }) => {
   const navigate = useNavigate();
   const [profileImage, setProfileImage] = useState(null);
   const [displayName, setDisplayName] = useState(userName);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const handleLogout = () => {
     // Show confirmation dialog
@@ -17,6 +21,37 @@ const Header = ({ userName, userRole }) => {
       navigate("/login");
     }
   };
+
+  const handleNotificationClick = () => {
+    navigate('/notifications');
+  };
+
+  // Fetch unread notification count
+  const fetchUnreadCount = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token || (userRole !== 'student' && userRole !== 'teacher')) return;
+
+      const response = await axios.get(`${API_BASE}/api/notifications/unread-count`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setUnreadCount(response.data.count);
+      }
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+    }
+  };
+
+  // Poll for unread count every 1 second (for students and teachers)
+  useEffect(() => {
+    if (userRole === 'student' || userRole === 'teacher') {
+      fetchUnreadCount();
+      const interval = setInterval(fetchUnreadCount, 1000); // Changed to 1 second
+      return () => clearInterval(interval);
+    }
+  }, [userRole]);
 
   // Load profile image from localStorage and listen for changes
   useEffect(() => {
@@ -94,7 +129,10 @@ const Header = ({ userName, userRole }) => {
         {/* Right side icons */}
         <div className="flex items-center space-x-1">
           {/* Notifications */}
-          <button className="p-2 hover:bg-gray-100 rounded-lg transition">
+          <button 
+            onClick={handleNotificationClick}
+            className="p-2 hover:bg-gray-100 rounded-lg transition relative"
+          >
             <svg
               className="w-5 h-5 text-gray-600"
               fill="none"
@@ -108,6 +146,11 @@ const Header = ({ userName, userRole }) => {
                 d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
               />
             </svg>
+            {(userRole === 'student' || userRole === 'teacher') && unreadCount > 0 && (
+              <span className="absolute top-1 right-1 bg-red-500 text-white text-xs font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-1">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </button>
 
           {/* Help */}

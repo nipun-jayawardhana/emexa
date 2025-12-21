@@ -9,7 +9,8 @@ import {
   scheduleQuiz,
   deleteQuiz,
   permanentDeleteQuiz,
-  getQuizStats
+  getQuizStats,
+  submitQuizAnswers
 } from '../controllers/teacherQuizController.js';
 import { protect } from '../middleware/auth.middleware.js';
 
@@ -59,5 +60,8 @@ router.delete('/:id/permanent', permanentDeleteQuiz);  // Permanent delete (admi
 
 // Scheduling
 router.post('/:id/schedule', scheduleQuiz);            // Schedule a quiz
+
+// Student submission
+router.post('/:id/submit', submitQuizAnswers);         // Submit quiz answers (students)
 
 export default router;
