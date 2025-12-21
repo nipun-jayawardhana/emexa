@@ -186,3 +186,47 @@ export const getUnreadCount = async (req, res) => {
     });
   }
 };
+
+// Create data export notification for teacher
+export const createDataExportNotification = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const { fileName } = req.body;
+
+    // Only teachers can export data
+    if (userRole !== 'teacher') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only teachers can export data'
+      });
+    }
+
+    const notification = await Notification.create({
+      recipientId: userId,
+      recipientRole: 'teacher',
+      type: 'data_export',
+      title: 'Data Export Complete',
+      description: `Your personal data has been successfully exported as ${fileName}`,
+      status: 'completed',
+      isRead: false,
+      metadata: {
+        fileName,
+        exportDate: new Date().toISOString()
+      }
+    });
+
+    console.log('✅ Data export notification created:', notification._id);
+
+    res.json({
+      success: true,
+      notification
+    });
+  } catch (error) {
+    console.error('❌ Error creating data export notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create notification'
+    });
+  }
+};
