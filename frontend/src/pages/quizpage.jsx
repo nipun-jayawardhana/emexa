@@ -38,6 +38,8 @@ const QuizPage = () => {
   const [aiFeedback, setAiFeedback] = useState(null);
   const [emotionSocket, setEmotionSocket] = useState(null);
   const [webcamEnabled, setWebcamEnabled] = useState(false);
+  const [cameraPermissionLoading, setCameraPermissionLoading] = useState(true);
+  const [videoStream, setVideoStream] = useState(null);
   const videoRef = useRef(null);
   const [hintsUsedCount, setHintsUsedCount] = useState(0);
 
@@ -54,8 +56,32 @@ const QuizPage = () => {
       if (videoRef.current && videoRef.current.srcObject) {
         videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
       }
+      if (videoStream) {
+        videoStream.getTracks().forEach((track) => track.stop());
+      }
     };
   }, [quizId]);
+
+  // Attach video stream to element when it becomes available
+  useEffect(() => {
+    if (videoRef.current && videoStream && !videoRef.current.srcObject) {
+      videoRef.current.srcObject = videoStream;
+      console.log("📹 Video stream attached to element (delayed)");
+    }
+  }, [videoStream]);
+
+  // Log final camera permission status when state updates
+  useEffect(() => {
+    if (!cameraPermissionLoading) {
+      console.log(
+        `🎯 CAMERA PERMISSION FINAL: ${
+          webcamEnabled
+            ? "✅ ALLOWED - AI hints available"
+            : "❌ DENIED - Teacher hints only"
+        }`
+      );
+    }
+  }, [cameraPermissionLoading, webcamEnabled]);
 
   // Initialize AI features (Socket.IO + Webcam if available)
   const initializeAI = async () => {
@@ -92,6 +118,7 @@ const QuizPage = () => {
       setEmotionSocket(socket);
 
       // Explicitly request webcam permission for emotion tracking
+      setCameraPermissionLoading(true);
       try {
         console.log(
           "📷 AI: Requesting webcam permission for emotion tracking..."
@@ -99,21 +126,33 @@ const QuizPage = () => {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: 224, height: 224 },
         });
+
+        // Set webcam enabled immediately when permission is granted
+        setWebcamEnabled(true);
+        setVideoStream(stream);
+        console.log(
+          "✅ AI: Webcam permission granted - emotion tracking active - AI hints enabled"
+        );
+
+        // Attach stream to video element if available
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          setWebcamEnabled(true);
-          console.log(
-            "✅ AI: Webcam permission granted - emotion tracking active"
-          );
+          console.log("📹 Video stream attached to element");
         }
       } catch (err) {
         console.log(
-          "⚠️ AI: Webcam permission denied - falling back to manual mode"
+          "⚠️ AI: Webcam permission denied - falling back to manual mode - teacher hints only"
         );
         console.log(
           "💡 Students can still request hints manually using the 'Request Hint' button"
         );
         setWebcamEnabled(false);
+      } finally {
+        setCameraPermissionLoading(false);
+        // Note: webcamEnabled state update is async, so we log based on permission status
+        console.log(
+          `🎯 CAMERA PERMISSION CHECK: Permission request completed. State will update shortly.`
+        );
       }
     } catch (error) {
       console.error("AI initialization error:", error);
@@ -180,31 +219,17 @@ const QuizPage = () => {
 
   const loadQuizData = async () => {
     try {
-      console.log("Quiz Page - Loading quiz with ID:", quizId);
-      console.log("Quiz Page - URL:", window.location.href);
-
       // Get quiz ID from URL path parameter
       if (quizId) {
         try {
           // Try to load from backend first
           const response = await teacherQuizService.getSharedQuizzes();
-          console.log("Quiz Page - All shared quizzes from backend:", response);
 
           const teacherQuiz = response.quizzes.find((q) => {
-            console.log(
-              `Comparing quiz._id (${q._id}) with quizId (${quizId})`
-            );
             return String(q._id) === String(quizId) || q._id == quizId;
           });
 
-          console.log("Quiz Page - Found teacher quiz:", teacherQuiz);
-
           if (teacherQuiz) {
-            console.log(
-              "Quiz Page - Teacher quiz questions:",
-              teacherQuiz.questions
-            );
-
             if (teacherQuiz.questions && teacherQuiz.questions.length > 0) {
               // Convert teacher quiz format to quiz page format
               const formattedQuestions = teacherQuiz.questions.map(
@@ -223,20 +248,12 @@ const QuizPage = () => {
                 })
               );
 
-              console.log(
-                "Quiz Page - Formatted questions:",
-                formattedQuestions
-              );
-
               setQuizData({
                 title: teacherQuiz.title,
                 subject: teacherQuiz.subject,
                 questions: formattedQuestions,
               });
               setLoading(false);
-              console.log(
-                "Quiz Page - Successfully loaded teacher quiz from backend!"
-              );
               return;
             } else {
               console.warn("Quiz Page - Teacher quiz found but no questions!");
@@ -255,7 +272,6 @@ const QuizPage = () => {
       }
 
       // Fallback to default sample quiz
-      console.log("Quiz Page - Falling back to sample Biology quiz");
       setQuizData({
         title: "Introduction to Biology",
         questions: sampleQuestions,
@@ -380,62 +396,155 @@ const QuizPage = () => {
   };
 
   const handleBulbClick = async () => {
-    // Check if AI hint already generated for this question
+    // Wait for camera permission to be determined
+    if (cameraPermissionLoading) {
+      console.log("⏳ Camera permission still loading, please wait...");
+      alert("Please wait while we check camera permissions...");
+      return;
+    }
+
+    const question = quizData.questions[currentQuestion];
+
+    console.log("🔍 Bulb clicked - Current question:", question);
+    console.log("🔍 Camera enabled:", webcamEnabled);
+    console.log("🔍 Hints available:", question.hints);
+
+    // First, check if AI hint already generated for this question (in memory)
     if (aiHints[currentQuestion]) {
+      console.log("✅ AI hint already exists in memory, showing it");
       setShowHints(true);
       return;
     }
 
-    // Generate AI hint
-    try {
-      const userStr = localStorage.getItem("user");
-      if (!userStr) {
-        setShowEmojiDialog(true);
-        return;
-      }
+    // Check local storage for previously generated hint
+    const localStorageKey = `hint_${quizId}_${question.id}`;
+    const cachedHints = localStorage.getItem(localStorageKey);
 
-      const user = JSON.parse(userStr);
-      const question = quizData.questions[currentQuestion];
-
-      const token = localStorage.getItem("token");
-      const response = await fetch("http://localhost:5000/api/hint", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId: user.id,
-          sessionId: sessionId,
-          questionId: String(question.id),
-          questionIndex: currentQuestion,
-          questionText: question.text,
-          options: question.options || [],
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        console.log("💡 AI Hint generated:", data.data.hint);
-
-        // Store AI hint
+    if (cachedHints && webcamEnabled) {
+      console.log("💾 Found cached AI hints in local storage");
+      // Load from local storage (parse as array if it's JSON)
+      try {
+        const parsedHints = JSON.parse(cachedHints);
         setAiHints({
           ...aiHints,
-          [currentQuestion]: data.data.hint,
+          [currentQuestion]: Array.isArray(parsedHints)
+            ? parsedHints
+            : [cachedHints],
         });
+      } catch (e) {
+        // If not JSON, treat as single hint
+        setAiHints({
+          ...aiHints,
+          [currentQuestion]: [cachedHints],
+        });
+      }
+      setShowHints(true);
+      return;
+    }
 
-        // Increment hints used count
-        if (!data.data.alreadyRequested) {
-          setHintsUsedCount((prev) => prev + 1);
+    // Check if teacher hints are available (non-empty)
+    const hasTeacherHints =
+      question.hints &&
+      question.hints.some((hint) => hint && hint.trim() !== "");
+
+    console.log("🔍 Has teacher hints?", hasTeacherHints);
+
+    // 🎯 MAIN LOGIC: Camera permission determines hint type
+    // ✅ Camera ALLOWED → AI hints (with teacher fallback)
+    // ❌ Camera DENIED → Teacher hints only
+
+    console.log(
+      `🎯 HINT LOGIC: Camera ${webcamEnabled ? "ALLOWED" : "DENIED"} → ${
+        webcamEnabled ? "AI hints with teacher fallback" : "Teacher hints only"
+      }`
+    );
+
+    if (webcamEnabled) {
+      // 🎥 CAMERA ALLOWED: Generate AI hint first
+      console.log("🎥 Camera allowed - generating AI hint...");
+      try {
+        const userStr = localStorage.getItem("user");
+        if (!userStr) {
+          setShowEmojiDialog(true);
+          return;
         }
 
-        setShowHints(true);
+        const user = JSON.parse(userStr);
+
+        const token = localStorage.getItem("token");
+        const response = await fetch("http://localhost:5000/api/hint", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            userId: user.id,
+            sessionId: sessionId,
+            questionId: String(question.id),
+            questionIndex: currentQuestion,
+            questionText: question.text,
+            options: question.options || [],
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          console.log("🤖 AI Hints generated:", data.data.hints);
+
+          // Save to local storage as JSON array
+          localStorage.setItem(
+            localStorageKey,
+            JSON.stringify(data.data.hints || [data.data.hint])
+          );
+          console.log("💾 AI hints saved to local storage");
+
+          // Store AI hints in state (as array)
+          setAiHints({
+            ...aiHints,
+            [currentQuestion]: data.data.hints || [data.data.hint],
+          });
+
+          // Increment hints used count
+          if (!data.data.alreadyRequested) {
+            setHintsUsedCount((prev) => prev + 1);
+          }
+
+          setShowHints(true);
+        } else {
+          // AI failed - fallback to teacher hints if available
+          console.error("🤖 AI Error:", data.message);
+          if (hasTeacherHints) {
+            console.log("📚 AI failed, falling back to teacher hints");
+            setShowHints(true);
+          } else {
+            alert(
+              data.message || "Unable to generate hint. No hints available."
+            );
+          }
+        }
+      } catch (error) {
+        console.error("🤖 AI generation error:", error);
+        // Fallback to teacher hints if available
+        if (hasTeacherHints) {
+          console.log("📚 AI error, falling back to teacher hints");
+          setShowHints(true);
+        } else {
+          alert("Error: Could not generate hint. No hints available.");
+        }
       }
-    } catch (error) {
-      console.error("Error generating AI hint:", error);
-      // Fallback to emoji dialog
-      setShowEmojiDialog(true);
+    } else {
+      // 🚫 CAMERA DENIED: Show teacher hints only
+      console.log("🚫 Camera denied - showing teacher hints only");
+      if (hasTeacherHints) {
+        console.log("📚 Displaying teacher-created hints");
+        setShowHints(true);
+      } else {
+        alert(
+          "No hints available for this question. Please ask your teacher to add hints."
+        );
+      }
     }
   };
 
@@ -1226,13 +1335,44 @@ const QuizPage = () => {
           {/* Question Card */}
           <div className="bg-white rounded-lg shadow-md p-8 relative">
             {showBulb && (
-              <button
-                onClick={handleBulbClick}
-                className="absolute top-6 right-6 animate-bounce"
-                title="AI Hint Available"
-              >
-                <Lightbulb className="w-10 h-10 text-yellow-500 fill-yellow-200" />
-              </button>
+              <div className="absolute top-6 right-6 flex flex-col items-center gap-1">
+                <button
+                  onClick={handleBulbClick}
+                  className="animate-bounce"
+                  title={
+                    cameraPermissionLoading
+                      ? "Checking camera permissions..."
+                      : webcamEnabled
+                      ? "AI Hint Available (Camera Enabled)"
+                      : "Teacher Hints Available (Camera Disabled)"
+                  }
+                  disabled={cameraPermissionLoading}
+                >
+                  <Lightbulb
+                    className={`w-10 h-10 ${
+                      cameraPermissionLoading
+                        ? "text-gray-400 fill-gray-200"
+                        : "text-yellow-500 fill-yellow-200"
+                    }`}
+                  />
+                </button>
+                {/* Hint type indicator */}
+                <div
+                  className={`text-xs px-2 py-1 rounded-full font-medium ${
+                    cameraPermissionLoading
+                      ? "bg-gray-100 text-gray-600 border border-gray-300"
+                      : webcamEnabled
+                      ? "bg-blue-100 text-blue-700 border border-blue-300"
+                      : "bg-green-100 text-green-700 border border-green-300"
+                  }`}
+                >
+                  {cameraPermissionLoading
+                    ? "⏳ Loading"
+                    : webcamEnabled
+                    ? "🤖 AI"
+                    : "📚 Teacher"}
+                </div>
+              </div>
             )}
 
             <div className="flex items-start justify-between mb-6">
@@ -1304,67 +1444,90 @@ const QuizPage = () => {
                   <Lightbulb className="w-6 h-6 text-yellow-600" />
                   <h3 className="font-semibold text-gray-800">
                     {aiHints[currentQuestion]
-                      ? "🤖 AI-Generated Hint"
-                      : "Need a hint?"}
+                      ? "🤖 AI-Generated Hints"
+                      : webcamEnabled
+                      ? "🤖 AI Hints Available"
+                      : "📚 Teacher Hints"}
                   </h3>
                 </div>
 
-                {/* AI Hint (if available) */}
+                {/* AI Hints (if available) */}
                 {aiHints[currentQuestion] ? (
-                  <div className="bg-white rounded-lg p-4 border-2 border-blue-400 mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <svg
-                        className="w-5 h-5 text-blue-500"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
+                  <div className="space-y-3">
+                    {(Array.isArray(aiHints[currentQuestion])
+                      ? aiHints[currentQuestion]
+                      : [aiHints[currentQuestion]]
+                    ).map((hint, index) => (
+                      <div
+                        key={index}
+                        className="bg-white rounded-lg p-4 border-2 border-blue-400"
                       >
-                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                        <path
-                          fillRule="evenodd"
-                          d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                      <span className="font-semibold text-blue-700">
-                        AI Hint
-                      </span>
-                      <span className="text-xs text-orange-600 ml-auto">
-                        (-1 mark)
-                      </span>
-                    </div>
-                    <p className="text-gray-700">{aiHints[currentQuestion]}</p>
+                        <div className="flex items-center gap-2 mb-2">
+                          <svg
+                            className="w-5 h-5 text-blue-500"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                            <path
+                              fillRule="evenodd"
+                              d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <span className="font-semibold text-blue-700">
+                            AI Hint {index + 1}
+                          </span>
+                          {index === 0 && (
+                            <span className="text-xs text-orange-600 ml-auto">
+                              (-1 mark)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-gray-700">{hint}</p>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <>
                     <p className="text-sm text-gray-600 mb-4">
-                      You have {question.hints.length} hints available. Each
-                      hint provides additional information.
+                      You have{" "}
+                      {
+                        question.hints.filter(
+                          (hint) => hint && hint.trim() !== ""
+                        ).length
+                      }{" "}
+                      hints available. Each hint provides additional
+                      information.
                     </p>
 
                     <div className="space-y-3">
-                      {question.hints.map((hint, index) => (
-                        <div
-                          key={index}
-                          className="bg-white rounded-lg p-4 border border-gray-200"
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-semibold text-gray-700">
-                              Hint {index + 1}
-                            </span>
-                            {!revealedHints.includes(index) && (
-                              <button
-                                onClick={() => handleRevealHint(index)}
-                                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                              >
-                                Reveal
-                              </button>
+                      {question.hints
+                        .map((hint, index) => ({ hint, index }))
+                        .filter(({ hint }) => hint && hint.trim() !== "")
+                        .map(({ hint, index }) => (
+                          <div
+                            key={index}
+                            className="bg-white rounded-lg p-4 border border-gray-200"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-semibold text-gray-700">
+                                Hint {index + 1}
+                              </span>
+                              {!revealedHints.includes(index) && (
+                                <button
+                                  onClick={() => handleRevealHint(index)}
+                                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                >
+                                  Reveal
+                                </button>
+                              )}
+                            </div>
+                            {revealedHints.includes(index) && (
+                              <p className="text-gray-700">{hint}</p>
                             )}
                           </div>
-                          {revealedHints.includes(index) && (
-                            <p className="text-gray-700">{hint}</p>
-                          )}
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   </>
                 )}

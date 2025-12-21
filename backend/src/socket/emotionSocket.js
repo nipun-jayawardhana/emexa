@@ -1,8 +1,5 @@
-import { HfInference } from '@huggingface/inference';
 import EmotionLog from '../models/emotionLog.js';
-
-// Initialize Hugging Face client
-const hf = new HfInference(process.env.HF_API_KEY);
+import { getHfClient } from '../utils/hfClient.js';
 
 // Create a WebSocket server that receives webcam snapshots
 // every 1 minute, sends them to the emotion detection API,
@@ -31,46 +28,60 @@ export const initializeEmotionSocket = (io) => {
         const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
         const imageBuffer = Buffer.from(base64Data, 'base64');
 
-        // Call Hugging Face emotion recognition
-        const result = await hf.imageClassification({
-          data: imageBuffer,
-          model: 'dima806/facial_emotions_image_detection'
-        });
-
-        if (!result || result.length === 0) {
+        // Check if HF client is available
+        const hfClient = getHfClient();
+        if (!hfClient) {
           socket.emit('emotion-error', {
-            message: 'Failed to detect emotion'
+            message: 'Emotion detection not available - API key not configured'
           });
           return;
         }
 
-        // Get top prediction
-        const topPrediction = result[0];
-        const emotion = topPrediction.label.toLowerCase();
-        const confidence = topPrediction.score;
+        // Call Hugging Face emotion recognition
+        try {
+          const result = await hfClient.imageClassification({
+            data: imageBuffer,
+            model: 'dima806/facial_emotions_image_detection'
+          });
 
-        // Save to database (NOT the image)
-        const emotionLog = new EmotionLog({
-          userId,
-          sessionId,
-          questionIndex,
-          emotion,
-          confidence,
-          timestamp: new Date()
-        });
+          if (!result || result.length === 0) {
+            socket.emit('emotion-error', {
+              message: 'Failed to detect emotion'
+            });
+            return;
+          }
 
-        await emotionLog.save();
+          // Get top prediction
+          const topPrediction = result[0];
+          const emotion = topPrediction.label.toLowerCase();
+          const confidence = topPrediction.score;
 
-        // Send result back to client
-        socket.emit('emotion-detected', {
-          emotion,
-          confidence,
-          questionIndex,
-          timestamp: emotionLog.timestamp
-        });
+          // Save to database (NOT the image)
+          const emotionLog = new EmotionLog({
+            userId,
+            sessionId,
+            questionIndex,
+            emotion,
+            confidence,
+            timestamp: new Date()
+          });
 
-        console.log(`😊 Emotion detected for user ${userId}: ${emotion} (${Math.round(confidence * 100)}%)`);
+          await emotionLog.save();
 
+          // Send result back to client
+          socket.emit('emotion-detected', {
+            emotion,
+            confidence,
+            questionIndex,
+            timestamp: emotionLog.timestamp
+          });
+
+          console.log(`😊 Emotion detected for user ${userId}: ${emotion} (${Math.round(confidence * 100)}%)`);
+        } catch (classificationError) {
+          // Image classification failed - this is okay, just skip emotion detection
+          console.log(`⚠️ Emotion classification skipped: ${classificationError.message}`);
+          // Don't emit error to client, it's not critical
+        }
       } catch (error) {
         console.error('Emotion detection error:', error);
         socket.emit('emotion-error', {

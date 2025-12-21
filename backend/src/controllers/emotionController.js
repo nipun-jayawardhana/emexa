@@ -2,7 +2,9 @@ import { HfInference } from '@huggingface/inference';
 import EmotionLog from '../models/emotionLog.js';
 
 // Initialize Hugging Face client
-const hf = new HfInference(process.env.HF_API_KEY);
+const hf = process.env.HF_API_KEY && process.env.HF_API_KEY !== 'hf_dummy_key_for_testing' 
+  ? new HfInference(process.env.HF_API_KEY) 
+  : null;
 
 // Create an Express API endpoint that receives a base64 image,
 // sends it to Hugging Face emotion recognition model using axios,
@@ -24,6 +26,14 @@ export const detectEmotion = async (req, res) => {
     // Convert base64 to buffer
     const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
     const imageBuffer = Buffer.from(base64Data, 'base64');
+
+    // Check if HF client is available
+    if (!hf) {
+      return res.status(503).json({
+        success: false,
+        message: 'Emotion detection not available - API key not configured'
+      });
+    }
 
     // Call Hugging Face emotion recognition model
     // Using a popular emotion detection model

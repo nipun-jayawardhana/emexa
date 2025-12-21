@@ -4,7 +4,9 @@ import EmotionLog from '../models/emotionLog.js';
 import HintUsage from '../models/hintUsage.js';
 
 // Initialize Hugging Face client
-const hf = new HfInference(process.env.HF_API_KEY);
+const hf = process.env.HF_API_KEY && process.env.HF_API_KEY !== 'hf_dummy_key_for_testing' 
+  ? new HfInference(process.env.HF_API_KEY) 
+  : null;
 
 // Create an API endpoint that generates personalized quiz feedback
 // using Hugging Face text generation.
@@ -74,6 +76,14 @@ Provide personalized feedback that:
 4. Encourages continued learning
 
 Feedback:`;
+
+    // Check if HF client is available
+    if (!hf) {
+      return res.status(503).json({
+        success: false,
+        message: 'Feedback generation not available - API key not configured'
+      });
+    }
 
     // Generate feedback using Hugging Face
     const response = await hf.textGeneration({

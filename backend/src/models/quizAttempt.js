@@ -56,7 +56,6 @@ const quizAttemptSchema = new mongoose.Schema({
 
 // Index for efficient queries
 quizAttemptSchema.index({ userId: 1, quizId: 1 });
-quizAttemptSchema.index({ sessionId: 1 });
 
 const QuizAttempt = mongoose.model('QuizAttempt', quizAttemptSchema);
 

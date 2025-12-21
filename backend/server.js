@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
-dotenv.config(); // MUST BE FIRST!
+dotenv.config({ path: './.env' }); // MUST BE FIRST!
+console.log('🔍 .env loaded, MONGO_URI:', process.env.MONGO_URI ? 'SET' : 'NOT SET');
 
 import express from 'express';
 import { createServer } from 'http';
