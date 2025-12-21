@@ -154,7 +154,7 @@ app.get('/health', (req, res) => {
       huggingFaceConfigured: !!process.env.HUGGINGFACE_API_KEY,
       apiKeyLength: process.env.HUGGINGFACE_API_KEY?.length,
       apiKeyPrefix: process.env.HUGGINGFACE_API_KEY?.substring(0, 10),
-      emotionModel: 'trpakov/vit-face-expression (hardcoded)',
+      emotionModel: 'CLIP (openai/clip-vit-base-patch32)',
       textModelUrl: process.env.TEXT_MODEL_URL || 'not configured'
     },
     websocket: {
@@ -188,7 +188,7 @@ app.get('/api/test-ai', async (req, res) => {
       aiServiceAvailable: connected,
       apiKeyConfigured: !!process.env.HUGGINGFACE_API_KEY,
       apiKeyLength: process.env.HUGGINGFACE_API_KEY?.length,
-      emotionModel: 'trpakov/vit-face-expression',
+      emotionModel: 'CLIP (openai/clip-vit-base-patch32)',
       textModel: process.env.TEXT_MODEL_URL?.split('/').pop() || 'not configured'
     });
   } catch (error) {
@@ -237,7 +237,7 @@ server.listen(PORT, HOST, () => {
   console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`☁️  Cloudinary: ${process.env.CLOUDINARY_CLOUD_NAME ? '✅ ' + process.env.CLOUDINARY_CLOUD_NAME : '❌ Not configured'}`);
   console.log(`🤖 Hugging Face API: ${process.env.HUGGINGFACE_API_KEY ? '✅ Configured' : '❌ Missing - Add HUGGINGFACE_API_KEY to .env'}`);
-  console.log(`🎭 Emotion Model: ✅ trpakov/vit-face-expression (hardcoded)`);
+  console.log('🎭 Emotion Model: ✅ CLIP (openai/clip-vit-base-patch32)');
   console.log(`💬 Text Model: ${process.env.TEXT_MODEL_URL ? '✅ ' + process.env.TEXT_MODEL_URL.split('/').pop() : '❌ Using default'}`);
   console.log(`🔌 WebSocket: ✅ Ready (Socket.IO v4)`);
   console.log('='.repeat(60));

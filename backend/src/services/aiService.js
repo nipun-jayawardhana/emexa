@@ -2,19 +2,21 @@ import axios from 'axios';
 
 class AIService {
   constructor() {
-    this.apiKey = process.env.HUGGINGFACE_API_KEY;
+    // Get API key dynamically each time (not cached)
+    this.getApiKey = () => process.env.HUGGINGFACE_API_KEY;
+    
     this.textModelUrl = process.env.TEXT_MODEL_URL || 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1';
     
-    // Use a PROVEN WORKING emotion model
-    this.emotionModelUrl = 'https://api-inference.huggingface.co/models/Xenova/facial_emotions_image_detection';
+    // Use CLIP for zero-shot emotion classification - FREE and WORKING!
+    this.emotionModelUrl = 'https://api-inference.huggingface.co/models/openai/clip-vit-base-patch32';
     
     console.log('🤖 AI Service initialized');
-    console.log('🔑 API Key configured:', !!this.apiKey);
-    if (this.apiKey) {
-      console.log('🔑 API Key length:', this.apiKey.length);
-      console.log('🔑 API Key prefix:', this.apiKey.substring(0, 10) + '...');
+    console.log('🔑 API Key configured:', !!this.getApiKey());
+    if (this.getApiKey()) {
+      console.log('🔑 API Key length:', this.getApiKey().length);
+      console.log('🔑 API Key prefix:', this.getApiKey().substring(0, 10) + '...');
     }
-    console.log('🎭 Emotion Model: Xenova/facial_emotions_image_detection');
+    console.log('🎭 Emotion Model: CLIP (openai/clip-vit-base-patch32)');
   }
 
   sleep(ms) {
@@ -23,16 +25,30 @@ class AIService {
 
   async analyzeEmotion(base64Image) {
     try {
-      if (!this.apiKey) {
+      const apiKey = this.getApiKey(); // Get fresh API key
+      
+      if (!apiKey) {
         throw new Error('HUGGINGFACE_API_KEY not configured');
       }
 
-      console.log('🎭 Starting emotion analysis...');
+      console.log('🎭 Starting emotion analysis with CLIP zero-shot...');
+      console.log('🔑 Using API key:', apiKey.substring(0, 10) + '...');
 
       const imageData = base64Image.replace(/^data:image\/\w+;base64,/, '');
       const buffer = Buffer.from(imageData, 'base64');
 
-      console.log('🤖 Using model: Xenova/facial_emotions_image_detection');
+      console.log('🤖 Using model: CLIP (openai/clip-vit-base-patch32)');
+
+      // Define emotion labels for CLIP
+      const emotionLabels = [
+        'a photo of a happy person',
+        'a photo of a sad person',
+        'a photo of an angry person',
+        'a photo of a fearful person',
+        'a photo of a surprised person',
+        'a photo of a disgusted person',
+        'a photo of a neutral person'
+      ];
 
       // Try up to 3 times with wait for model loading
       for (let attempt = 1; attempt <= 3; attempt++) {
@@ -41,11 +57,16 @@ class AIService {
 
           const response = await axios.post(
             this.emotionModelUrl,
-            buffer,
+            {
+              inputs: buffer.toString('base64'),
+              parameters: {
+                candidate_labels: emotionLabels
+              }
+            },
             {
               headers: {
-                'Authorization': `Bearer ${this.apiKey}`,
-                'Content-Type': 'application/octet-stream',
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
               },
               timeout: 60000,
             }
@@ -53,50 +74,37 @@ class AIService {
 
           console.log('📊 Raw response:', JSON.stringify(response.data).substring(0, 300));
 
-          let emotions = response.data;
+          let results = response.data;
           
-          // Handle array of emotions
-          if (Array.isArray(emotions) && emotions.length > 0) {
-            // Sort by score to get top emotion
-            const sortedEmotions = emotions.sort((a, b) => b.score - a.score);
-            const topEmotion = sortedEmotions[0];
+          // CLIP returns array of {label, score} objects
+          if (Array.isArray(results) && results.length > 0) {
+            // Sort by score
+            const sortedResults = results.sort((a, b) => b.score - a.score);
+            const topResult = sortedResults[0];
 
-            console.log(`✅ SUCCESS! Emotion: ${topEmotion.label} (${(topEmotion.score * 100).toFixed(1)}%)`);
-            console.log(`📊 All emotions:`, sortedEmotions.slice(0, 3).map(e => `${e.label}: ${(e.score * 100).toFixed(1)}%`).join(', '));
+            // Extract emotion from label (remove "a photo of a " and " person")
+            const extractEmotion = (label) => {
+              return label.replace(/a photo of a /i, '').replace(/ person/i, '').trim();
+            };
+
+            const topEmotion = extractEmotion(topResult.label);
+
+            console.log(`✅ SUCCESS! Emotion: ${topEmotion} (${(topResult.score * 100).toFixed(1)}%)`);
+            console.log(`📊 All emotions:`, sortedResults.slice(0, 3).map(e => `${extractEmotion(e.label)}: ${(e.score * 100).toFixed(1)}%`).join(', '));
 
             return {
-              emotion: this.normalizeEmotionLabel(topEmotion.label),
-              confidence: topEmotion.score,
-              allEmotions: sortedEmotions.map(e => ({
-                emotion: this.normalizeEmotionLabel(e.label),
+              emotion: this.normalizeEmotionLabel(topEmotion),
+              confidence: topResult.score,
+              allEmotions: sortedResults.map(e => ({
+                emotion: this.normalizeEmotionLabel(extractEmotion(e.label)),
                 confidence: e.score
               })),
               timestamp: Date.now(),
-              model: 'Xenova/facial_emotions_image_detection'
+              model: 'CLIP (openai/clip-vit-base-patch32)'
             };
           }
 
-          // Handle nested array [[{...}]]
-          if (Array.isArray(emotions[0]) && Array.isArray(emotions[0])) {
-            const emotionList = emotions[0];
-            const sortedEmotions = emotionList.sort((a, b) => b.score - a.score);
-            const topEmotion = sortedEmotions[0];
-
-            console.log(`✅ SUCCESS! Emotion: ${topEmotion.label} (${(topEmotion.score * 100).toFixed(1)}%)`);
-
-            return {
-              emotion: this.normalizeEmotionLabel(topEmotion.label),
-              confidence: topEmotion.score,
-              allEmotions: sortedEmotions.map(e => ({
-                emotion: this.normalizeEmotionLabel(e.label),
-                confidence: e.score
-              })),
-              timestamp: Date.now(),
-              model: 'Xenova/facial_emotions_image_detection'
-            };
-          }
-
-          throw new Error('Unexpected response format: ' + JSON.stringify(emotions).substring(0, 100));
+          throw new Error('Unexpected response format: ' + JSON.stringify(results).substring(0, 100));
 
         } catch (error) {
           const status = error.response?.status;
@@ -166,7 +174,9 @@ class AIService {
 
   async generateHint(question, options, emotionalContext = null) {
     try {
-      if (!this.apiKey || !this.textModelUrl) {
+      const apiKey = this.getApiKey(); // Get fresh API key
+      
+      if (!apiKey || !this.textModelUrl) {
         return this.generateFallbackHint(question, options);
       }
 
@@ -185,7 +195,7 @@ class AIService {
         },
         {
           headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
           timeout: 30000,
@@ -202,7 +212,9 @@ class AIService {
 
   async generateFeedback(studentData) {
     try {
-      if (!this.apiKey || !this.textModelUrl) {
+      const apiKey = this.getApiKey(); // Get fresh API key
+      
+      if (!apiKey || !this.textModelUrl) {
         return this.generateFallbackFeedback(studentData);
       }
 
@@ -221,7 +233,7 @@ class AIService {
         },
         {
           headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
           timeout: 30000,
@@ -313,11 +325,13 @@ Feedback:`;
 
   async testConnection() {
     try {
-      console.log('🔍 Testing Hugging Face API with Xenova/facial_emotions_image_detection...');
+      const apiKey = this.getApiKey(); // Get fresh API key
+      
+      console.log('🔍 Testing Hugging Face API with CLIP (openai/clip-vit-base-patch32)...');
       const response = await axios.get(
         this.emotionModelUrl,
         {
-          headers: { 'Authorization': `Bearer ${this.apiKey}` },
+          headers: { 'Authorization': `Bearer ${apiKey}` },
           timeout: 15000
         }
       );

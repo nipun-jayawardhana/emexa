@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import camera from '../lib/camera';
 import { Camera, Check, X, BookOpen, AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function Permission() {
@@ -23,7 +22,7 @@ export default function Permission() {
 
   // Socket.io connection
   useEffect(() => {
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const API_URL = import.meta.env?.VITE_API_URL || 'http://localhost:5000';
     console.log('🔌 Connecting to Socket.io server:', API_URL);
     
     const newSocket = io(API_URL, {
@@ -125,22 +124,15 @@ export default function Permission() {
       return;
     }
 
-    if (!videoRef.current) {
-      console.warn('⚠️ Video element not available');
+    if (!videoRef.current || !videoReady) {
+      console.warn('⚠️ Video not ready');
       return;
     }
 
     const video = videoRef.current;
-
-    // CRITICAL FIX: Check video readyState more thoroughly
-    if (video.readyState < video.HAVE_CURRENT_DATA) {
-      console.warn('⚠️ Video not ready (readyState:', video.readyState, ')');
-      return;
-    }
-
-    // Additional checks
-    if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.warn('⚠️ Video dimensions not available');
+    
+    if (video.readyState < 2) {
+      console.warn('⚠️ Video not loaded (readyState:', video.readyState, ')');
       return;
     }
 
@@ -156,8 +148,6 @@ export default function Permission() {
       canvas.width = 224;
       canvas.height = 224;
       const ctx = canvas.getContext('2d');
-      
-      // Draw video frame to canvas
       ctx.drawImage(video, 0, 0, 224, 224);
       const base64Image = canvas.toDataURL('image/jpeg', 0.8);
 
@@ -195,7 +185,7 @@ export default function Permission() {
       clearInterval(captureIntervalRef.current);
     }
 
-    // First capture after 3 seconds (shorter delay since video is confirmed ready)
+    // First capture after 3 seconds
     setTimeout(() => {
       if (mountedRef.current && videoReady) {
         console.log('📸 First capture...');
@@ -203,7 +193,7 @@ export default function Permission() {
       }
     }, 3000);
 
-    // Then every 30 seconds (reduced from 60 for testing)
+    // Then every 30 seconds
     captureIntervalRef.current = setInterval(() => {
       if (mountedRef.current && videoReady) {
         captureAndAnalyzeEmotion();
@@ -223,7 +213,6 @@ export default function Permission() {
     console.log('✅ User clicked Allow');
     if (!mountedRef.current) return;
     
-    setWebcamPermission(null);
     setStarting(true);
     setError(null);
     setVideoReady(false);
@@ -248,58 +237,70 @@ export default function Permission() {
       console.log('✅ Camera granted!');
       streamRef.current = stream;
 
-      // Attach stream to video element
-      if (videoRef.current) {
-        const video = videoRef.current;
-        video.srcObject = stream;
-        
-        console.log('📹 Video element attached, starting playback...');
-        
-        // SIMPLIFIED APPROACH: Just wait for video to be ready
-        const checkVideoReady = () => {
-          console.log('🔍 Checking video readyState:', video.readyState);
-          console.log('🔍 Video dimensions:', video.videoWidth, 'x', video.videoHeight);
-          console.log('🔍 Video paused:', video.paused);
-          
-          if (video.readyState >= 2 && video.videoWidth > 0) {
-            console.log('✅ Video is ready!');
-            if (mountedRef.current) {
-              setVideoReady(true);
-            }
-          } else {
-            console.log('⏳ Video not ready yet, checking again...');
-            setTimeout(checkVideoReady, 500);
-          }
-        };
-        
-        // Auto-play video
-        video.play()
-          .then(() => {
-            console.log('▶️ Video play() started');
-            // Check if ready immediately
-            setTimeout(checkVideoReady, 1000);
-          })
-          .catch(err => {
-            console.error('❌ Video play error:', err);
-            // Still check - might work anyway
-            setTimeout(checkVideoReady, 1000);
-          });
-      }
+      // ⭐ SET PERMISSION STATE FIRST - this renders the video element!
+      setWebcamPermission('allowed');
+      setPermissionState('granted');
 
-      // Try camera library
-      try {
-        if (camera && typeof camera.start === 'function') {
-          await camera.start({ capture: false });
-          console.log('📸 Camera lib initialized');
-        }
-      } catch (err) {
-        console.warn('⚠️ Camera lib not available:', err.message);
-      }
+      // Wait for React to render the video element (longer delay)
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-      if (mountedRef.current) {
-        setWebcamPermission('allowed');
+      if (!mountedRef.current || !videoRef.current) {
+        console.error('❌ Video element not available after waiting');
+        stream.getTracks().forEach(track => track.stop());
+        setError({
+          message: 'Video element initialization failed',
+          help: 'Please try refreshing the page.'
+        });
         setStarting(false);
-        setPermissionState('granted');
+        return;
+      }
+
+      const video = videoRef.current;
+      video.srcObject = stream;
+      
+      console.log('📹 Video element attached, starting playback...');
+      
+      // Setup video event listeners
+      const handleLoadedData = () => {
+        console.log('✅ Video loadeddata event fired!');
+        if (mountedRef.current && video.readyState >= 2 && video.videoWidth > 0) {
+          console.log('✅ Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+          setVideoReady(true);
+        }
+      };
+
+      const handleCanPlay = () => {
+        console.log('✅ Video canplay event fired!');
+        if (mountedRef.current && video.readyState >= 2 && video.videoWidth > 0) {
+          console.log('✅ Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+          setVideoReady(true);
+        }
+      };
+
+      video.addEventListener('loadeddata', handleLoadedData);
+      video.addEventListener('canplay', handleCanPlay);
+
+      // Try to play
+      try {
+        console.log('▶️ Calling video.play()...');
+        await video.play();
+        console.log('▶️ Video play() succeeded!');
+        
+        // Double-check readiness after play
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+          console.log('✅ Video ready immediately after play!');
+          if (mountedRef.current) {
+            setVideoReady(true);
+          }
+        }
+      } catch (playErr) {
+        console.error('❌ Video play() failed:', playErr);
+        // Don't fail completely - events might still fire
+      }
+
+      // Update final state
+      if (mountedRef.current) {
+        setStarting(false);
       }
 
     } catch (err) {
@@ -330,24 +331,6 @@ export default function Permission() {
     }
   };
 
-  // Start tracking when video becomes ready
-  useEffect(() => {
-    if (videoReady && socketConnected && webcamPermission === 'allowed') {
-      console.log('🎯 Both video and socket ready - starting tracking');
-      // Delay to ensure video is stable
-      const timer = setTimeout(() => {
-        if (mountedRef.current) {
-          startEmotionTracking();
-        }
-      }, 2000);
-      
-      return () => {
-        clearTimeout(timer);
-        stopEmotionTracking();
-      };
-    }
-  }, [videoReady, socketConnected, webcamPermission]);
-
   const handleDeny = () => {
     console.log('❌ User denied');
     if (!mountedRef.current) return;
@@ -368,13 +351,6 @@ export default function Permission() {
       streamRef.current = null;
     }
 
-    try {
-      if (camera?.stop) camera.stop();
-      if (camera?.stopCapture) camera.stopCapture();
-    } catch (e) {
-      console.warn('Cleanup warning:', e);
-    }
-
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
@@ -389,14 +365,6 @@ export default function Permission() {
       console.log('🎯 Starting quiz...');
       const params = new URLSearchParams(location.search);
       const quizId = params.get('quizId') || 'active-quiz';
-      
-      if (webcamPermission === 'allowed' && camera?.startCapture) {
-        try {
-          camera.startCapture({ intervalMs: 30000, quality: 0.6, quizId });
-        } catch (err) {
-          console.warn('startCapture failed', err);
-        }
-      }
       
       navigate(`/quiz/${encodeURIComponent(quizId)}`);
     } else {
@@ -420,6 +388,23 @@ export default function Permission() {
     setWebcamPermission(null);
     setStarting(false);
   };
+
+  // Start tracking when video becomes ready
+  useEffect(() => {
+    if (videoReady && socketConnected && webcamPermission === 'allowed') {
+      console.log('🎯 Both video and socket ready - starting tracking in 2 seconds');
+      const timer = setTimeout(() => {
+        if (mountedRef.current) {
+          startEmotionTracking();
+        }
+      }, 2000);
+      
+      return () => {
+        clearTimeout(timer);
+        stopEmotionTracking();
+      };
+    }
+  }, [videoReady, socketConnected, webcamPermission]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -449,11 +434,11 @@ export default function Permission() {
           </p>
         </div>
 
-        {/* Video ready status (for debugging) */}
+        {/* Video ready status */}
         {webcamPermission === 'allowed' && (
           <div className={`mb-4 ${videoReady ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'} border rounded-lg p-3 text-center text-sm`}>
             <p className={videoReady ? 'text-green-700' : 'text-yellow-700'}>
-              {videoReady ? '✅ Video ready for capture' : '⏳ Preparing video...'}
+              {videoReady ? '✅ Video ready for emotion capture' : '⏳ Preparing video...'}
             </p>
           </div>
         )}
@@ -552,17 +537,15 @@ export default function Permission() {
                     muted
                     preload="auto"
                     className="absolute top-0 left-0 w-full h-full object-cover"
-                    onLoadedMetadata={() => console.log('🎬 Video metadata loaded')}
-                    onLoadedData={() => console.log('📦 Video data loaded')}
-                    onCanPlay={() => console.log('✅ Video can play')}
-                    onPlaying={() => console.log('▶️ Video is playing')}
-                    onError={(e) => console.error('❌ Video error:', e)}
                   />
                   
                   {!videoReady && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-50">
                       <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent mb-4"></div>
                       <p className="text-white text-sm">Starting camera...</p>
+                      <p className="text-white text-xs mt-2 opacity-75">
+                        {videoRef.current ? `State: ${videoRef.current.readyState}` : 'Initializing...'}
+                      </p>
                     </div>
                   )}
 
