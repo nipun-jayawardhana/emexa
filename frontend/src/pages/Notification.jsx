@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, BookOpen, CheckCircle, Clock, User } from 'lucide-react';
+import { Bell, BookOpen, CheckCircle, Clock, User, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -7,10 +7,18 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000';
 
 export default function Notification() {
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState([]);
+  
+  // Load notifications from cache immediately for instant display
+  const cachedNotifications = localStorage.getItem('cachedNotifications');
+  const cachedUnreadCount = localStorage.getItem('cachedUnreadCount');
+  
+  const [notifications, setNotifications] = useState(
+    cachedNotifications ? JSON.parse(cachedNotifications) : []
+  );
   const [filter, setFilter] = useState('all'); // all, unread
-  const [loading, setLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(
+    cachedUnreadCount ? parseInt(cachedUnreadCount, 10) : 0
+  );
 
   useEffect(() => {
     fetchNotifications();
@@ -24,7 +32,6 @@ export default function Notification() {
       const token = localStorage.getItem('token');
       if (!token) {
         console.log('No token found');
-        setLoading(false);
         return;
       }
 
@@ -52,6 +59,16 @@ export default function Notification() {
             }
           }
 
+          // Map notification types
+          let mappedType = 'assignment';
+          if (notif.type === 'quiz_graded') {
+            mappedType = 'grade';
+          } else if (notif.type === 'data_export') {
+            mappedType = 'export';
+          } else if (notif.type === 'quiz_assigned') {
+            mappedType = 'assignment';
+          }
+
           return {
             id: notif._id,
             quizId: notif.quizId,
@@ -61,20 +78,22 @@ export default function Notification() {
             dueDate: formattedDueDate,
             score: notif.score,
             timestamp: formatTimestamp(notif.createdAt),
-            type: notif.type === 'quiz_assigned' ? 'assignment' : 'grade',
+            type: mappedType,
             status: notif.status,
-            icon: notif.type === 'quiz_graded' ? 'check' : 'book',
+            icon: notif.type === 'quiz_graded' ? 'check' : (notif.type === 'data_export' ? 'download' : 'book'),
             isRead: notif.isRead
           };
         });
 
         setNotifications(formattedNotifications);
         setUnreadCount(response.data.unreadCount);
+        
+        // Cache the data for instant loading next time
+        localStorage.setItem('cachedNotifications', JSON.stringify(formattedNotifications));
+        localStorage.setItem('cachedUnreadCount', response.data.unreadCount.toString());
       }
-      setLoading(false);
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      setLoading(false);
     }
   };
 
@@ -92,7 +111,33 @@ export default function Notification() {
   };
 
   const handleNotificationClick = async (notification) => {
-    // Navigate immediately
+    // For export notifications, open the PDF file
+    if (notification.type === 'export') {
+      // Get the stored PDF URL from localStorage
+      const pdfUrl = localStorage.getItem('lastExportedPdfUrl');
+      
+      if (pdfUrl) {
+        // Open PDF in new tab
+        window.open(pdfUrl, '_blank');
+      }
+      
+      if (!notification.isRead) {
+        try {
+          const token = localStorage.getItem('token');
+          await axios.patch(
+            `${API_BASE}/api/notifications/${notification.id}/read`,
+            {},
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          fetchNotifications(); // Refresh to update UI
+        } catch (error) {
+          console.error('Error marking as read:', error);
+        }
+      }
+      return;
+    }
+
+    // Navigate immediately for quiz notifications
     if (notification.quizId) {
       // For graded quizzes, show results
       if (notification.type === 'grade') {
@@ -162,14 +207,6 @@ export default function Notification() {
   const filteredNotifications = filter === 'unread' 
     ? notifications.filter(n => !n.isRead)
     : notifications;
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#4F46E5] border-t-transparent"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -245,7 +282,11 @@ export default function Notification() {
                 key={notification.id}
                 onClick={() => handleNotificationClick(notification)}
                 className={`rounded-lg p-4 border transition hover:shadow-md cursor-pointer ${
-                  notification.type === 'grade' && notification.isRead
+                  notification.type === 'export' && notification.isRead
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : notification.type === 'export' && !notification.isRead
+                    ? 'bg-emerald-100 border-emerald-300'
+                    : notification.type === 'grade' && notification.isRead
                     ? 'bg-purple-50 border-purple-200'
                     : notification.type === 'grade' && !notification.isRead
                     ? 'bg-purple-100 border-purple-300'
@@ -257,13 +298,19 @@ export default function Notification() {
                 <div className="flex items-start gap-3">
                   {/* Icon */}
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    notification.type === 'grade'
+                    notification.type === 'export'
+                      ? 'bg-emerald-200'
+                      : notification.type === 'grade'
                       ? 'bg-purple-200'
                       : notification.isRead
                       ? 'bg-green-100'
                       : 'bg-blue-100'
                   }`}>
-                    {notification.status === 'graded' ? (
+                    {notification.type === 'export' ? (
+                      <Download className={`w-5 h-5 ${
+                        notification.isRead ? 'text-emerald-600' : 'text-emerald-700'
+                      }`} />
+                    ) : notification.status === 'graded' ? (
                       <CheckCircle className={`w-5 h-5 ${
                         notification.type === 'grade' ? 'text-purple-600' : notification.isRead ? 'text-green-600' : 'text-blue-600'
                       }`} />

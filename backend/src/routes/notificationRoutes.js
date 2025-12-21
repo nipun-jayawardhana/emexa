@@ -4,7 +4,8 @@ import {
   markAsRead, 
   markAllAsRead, 
   deleteNotification,
-  getUnreadCount
+  getUnreadCount,
+  createDataExportNotification
 } from '../controllers/notificationController.js';
 import { protect } from '../middleware/auth.middleware.js';
 
@@ -18,6 +19,9 @@ router.get('/', getNotifications);
 
 // Get unread count
 router.get('/unread-count', getUnreadCount);
+
+// Create data export notification
+router.post('/data-export', createDataExportNotification);
 
 // Mark a notification as read
 router.patch('/:notificationId/read', markAsRead);
