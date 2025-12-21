@@ -9,7 +9,7 @@ API key එක තියෙනවා ඒත් "insufficient permissions to call
 
 1. **Visit Token Settings:**
    - https://huggingface.co/settings/tokens
-   - ඔයාගේ token එක click කරන්න (`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`)
+   - ඔයාගේ token එක click කරන්න (`YOUR_TOKEN_PLACEHOLDER`)
 
 2. **Enable Required Permission:**
    - Scroll down to permissions
@@ -108,7 +108,7 @@ model: 'mistralai/Mistral-7B-Instruct-v0.2',  // Terms accept කරලා න�
    - Check backend terminal for "✅ HF API raw response"
 
 ## Current Configuration:
-- API Key: `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` ✅
+- API Key: `YOUR_TOKEN_PLACEHOLDER` ✅
 - Model: `gpt2` (currently trying, but needs provider enabled)
 - Endpoint: `/api/hint`
 - Caching: Local Storage (hints saved per question)
