@@ -38,7 +38,7 @@ const QuizPage = () => {
   const [aiFeedback, setAiFeedback] = useState(null);
   const [emotionSocket, setEmotionSocket] = useState(null);
   const [webcamEnabled, setWebcamEnabled] = useState(false);
-  const [cameraPermissionLoading, setCameraPermissionLoading] = useState(true);
+  const [cameraPermissionLoading, setCameraPermissionLoading] = useState(false);
   const [videoStream, setVideoStream] = useState(null);
   const videoRef = useRef(null);
   const [hintsUsedCount, setHintsUsedCount] = useState(0);
@@ -98,7 +98,7 @@ const QuizPage = () => {
     }
   }, [cameraPermissionLoading, webcamEnabled]);
 
-  // Initialize AI features (Socket.IO + Webcam if available)
+  // Initialize AI features (Socket.IO connection only - no webcam yet)
   const initializeAI = async () => {
     try {
       // Get user info from localStorage
@@ -131,45 +131,48 @@ const QuizPage = () => {
       });
 
       setEmotionSocket(socket);
-
-      // Explicitly request webcam permission for emotion tracking
-      setCameraPermissionLoading(true);
-      try {
-        console.log(
-          "📷 AI: Requesting webcam permission for emotion tracking..."
-        );
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 224, height: 224 },
-        });
-
-        // Set webcam enabled immediately when permission is granted
-        setWebcamEnabled(true);
-        setVideoStream(stream);
-        setCameraPermissionDenied(false);
-        setShowCameraPermissionDialog(false);
-        console.log(
-          "✅ AI: Webcam permission granted - emotion tracking active - AI hints enabled"
-        );
-
-        // Attach stream to video element if available
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          console.log("📹 Video stream attached to element");
-        }
-      } catch (err) {
-        console.log(
-          "⚠️ AI: Webcam permission denied - falling back to manual mode - teacher hints only"
-        );
-        setCameraPermissionDenied(true);
-        setWebcamEnabled(false);
-      } finally {
-        setCameraPermissionLoading(false);
-        console.log(
-          `🎯 CAMERA PERMISSION CHECK: Permission request completed. State will update shortly.`
-        );
-      }
     } catch (error) {
       console.error("AI initialization error:", error);
+    }
+  };
+
+  // Request webcam permission and start emotion tracking
+  const requestCameraPermission = async () => {
+    try {
+      setCameraPermissionLoading(true);
+      console.log(
+        "📷 AI: Requesting webcam permission for emotion tracking..."
+      );
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 224, height: 224 },
+      });
+
+      // Set webcam enabled immediately when permission is granted
+      setWebcamEnabled(true);
+      setVideoStream(stream);
+      setCameraPermissionDenied(false);
+      setShowCameraPermissionDialog(false);
+      console.log(
+        "✅ AI: Webcam permission granted - emotion tracking active - AI hints enabled"
+      );
+
+      // Attach stream to video element if available
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        console.log("📹 Video stream attached to element");
+      }
+    } catch (err) {
+      console.log(
+        "⚠️ AI: Webcam permission denied - falling back to manual mode - teacher hints only"
+      );
+      setCameraPermissionDenied(true);
+      setWebcamEnabled(false);
+      setShowCameraPermissionDialog(false);
+    } finally {
+      setCameraPermissionLoading(false);
+      console.log(
+        `🎯 CAMERA PERMISSION CHECK: Permission request completed. State will update shortly.`
+      );
     }
   };
 
@@ -1622,7 +1625,7 @@ const QuizPage = () => {
                     Skip for Now
                   </button>
                   <button
-                    onClick={() => initializeAI()}
+                    onClick={() => requestCameraPermission()}
                     className="flex-1 px-4 py-3 bg-teal-700 text-white rounded-lg font-semibold hover:bg-teal-800 transition-colors"
                   >
                     Allow Camera
