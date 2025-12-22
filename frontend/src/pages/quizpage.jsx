@@ -42,6 +42,10 @@ const QuizPage = () => {
   const [videoStream, setVideoStream] = useState(null);
   const videoRef = useRef(null);
   const [hintsUsedCount, setHintsUsedCount] = useState(0);
+  const [showCameraPermissionDialog, setShowCameraPermissionDialog] =
+    useState(true);
+  const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
+  const [bulbVisible, setBulbVisible] = useState(false);
 
   // Load quiz data on component mount
   useEffect(() => {
@@ -69,6 +73,17 @@ const QuizPage = () => {
       console.log("📹 Video stream attached to element (delayed)");
     }
   }, [videoStream]);
+
+  // Show hint bulb after 10 seconds
+  useEffect(() => {
+    if (webcamEnabled && !cameraPermissionLoading) {
+      const timer = setTimeout(() => {
+        setBulbVisible(true);
+        console.log("💡 Hint bulb now visible after 10 seconds");
+      }, 10000); // 10 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [webcamEnabled, cameraPermissionLoading]);
 
   // Log final camera permission status when state updates
   useEffect(() => {
@@ -130,6 +145,8 @@ const QuizPage = () => {
         // Set webcam enabled immediately when permission is granted
         setWebcamEnabled(true);
         setVideoStream(stream);
+        setCameraPermissionDenied(false);
+        setShowCameraPermissionDialog(false);
         console.log(
           "✅ AI: Webcam permission granted - emotion tracking active - AI hints enabled"
         );
@@ -143,13 +160,10 @@ const QuizPage = () => {
         console.log(
           "⚠️ AI: Webcam permission denied - falling back to manual mode - teacher hints only"
         );
-        console.log(
-          "💡 Students can still request hints manually using the 'Request Hint' button"
-        );
+        setCameraPermissionDenied(true);
         setWebcamEnabled(false);
       } finally {
         setCameraPermissionLoading(false);
-        // Note: webcamEnabled state update is async, so we log based on permission status
         console.log(
           `🎯 CAMERA PERMISSION CHECK: Permission request completed. State will update shortly.`
         );
@@ -492,18 +506,26 @@ const QuizPage = () => {
 
         if (data.success) {
           console.log("🤖 AI Hints generated:", data.data.hints);
+          console.log("🤖 Hints type:", typeof data.data.hints);
+          console.log("🤖 Is array?:", Array.isArray(data.data.hints));
+          console.log("🤖 Hints length:", data.data.hints?.length);
+
+          // Ensure hints are always an array
+          let hintsArray = Array.isArray(data.data.hints)
+            ? data.data.hints
+            : [data.data.hint];
+
+          console.log("✅ Final hints array:", hintsArray);
+          console.log("✅ Final hints count:", hintsArray.length);
 
           // Save to local storage as JSON array
-          localStorage.setItem(
-            localStorageKey,
-            JSON.stringify(data.data.hints || [data.data.hint])
-          );
+          localStorage.setItem(localStorageKey, JSON.stringify(hintsArray));
           console.log("💾 AI hints saved to local storage");
 
           // Store AI hints in state (as array)
           setAiHints({
             ...aiHints,
-            [currentQuestion]: data.data.hints || [data.data.hint],
+            [currentQuestion]: hintsArray,
           });
 
           // Increment hints used count
@@ -1334,7 +1356,7 @@ const QuizPage = () => {
 
           {/* Question Card */}
           <div className="bg-white rounded-lg shadow-md p-8 relative">
-            {showBulb && (
+            {showBulb && bulbVisible && (
               <div className="absolute top-6 right-6 flex flex-col items-center gap-1">
                 <button
                   onClick={handleBulbClick}
@@ -1439,52 +1461,54 @@ const QuizPage = () => {
 
             {/* Hints Section */}
             {showHints && (
-              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-6 border-2 border-yellow-200 mb-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Lightbulb className="w-6 h-6 text-yellow-600" />
-                  <h3 className="font-semibold text-gray-800">
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border-2 border-blue-300 mb-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <Lightbulb className="w-6 h-6 text-blue-600" />
+                  <h3 className="font-bold text-lg text-gray-800">
                     {aiHints[currentQuestion]
-                      ? "🤖 AI-Generated Hints"
-                      : webcamEnabled
-                      ? "🤖 AI Hints Available"
+                      ? `🤖 AI-Generated Hints (${
+                          (Array.isArray(aiHints[currentQuestion])
+                            ? aiHints[currentQuestion]
+                            : [aiHints[currentQuestion]]
+                          ).length
+                        })`
                       : "📚 Teacher Hints"}
                   </h3>
                 </div>
 
                 {/* AI Hints (if available) */}
                 {aiHints[currentQuestion] ? (
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-4">
                     {(Array.isArray(aiHints[currentQuestion])
                       ? aiHints[currentQuestion]
                       : [aiHints[currentQuestion]]
                     ).map((hint, index) => (
                       <div
                         key={index}
-                        className="bg-white rounded-lg p-4 border-2 border-blue-400"
+                        className="bg-white rounded-lg p-4 border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-shadow"
                       >
-                        <div className="flex items-center gap-2 mb-2">
-                          <svg
-                            className="w-5 h-5 text-blue-500"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                            <path
-                              fillRule="evenodd"
-                              d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          <span className="font-semibold text-blue-700">
-                            AI Hint {index + 1}
-                          </span>
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 mt-1">
+                            <div className="flex items-center justify-center h-6 w-6 rounded-full bg-blue-100">
+                              <span className="text-blue-700 font-bold text-sm">
+                                {index + 1}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-semibold text-blue-700 mb-1">
+                              Hint {index + 1}
+                            </p>
+                            <p className="text-gray-700 text-sm leading-relaxed">
+                              {hint}
+                            </p>
+                          </div>
                           {index === 0 && (
-                            <span className="text-xs text-orange-600 ml-auto">
-                              (-1 mark)
+                            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-medium">
+                              -1 mark
                             </span>
                           )}
                         </div>
-                        <p className="text-gray-700">{hint}</p>
                       </div>
                     ))}
                   </div>
@@ -1572,6 +1596,50 @@ const QuizPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Camera Permission Dialog */}
+      {showCameraPermissionDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
+            <h3 className="text-2xl font-bold text-center text-gray-800 mb-4">
+              📷 Camera Permission Required
+            </h3>
+            <p className="text-gray-600 text-center mb-6">
+              {cameraPermissionDenied
+                ? "Camera permission was denied. You can still take the quiz, but AI-powered hints won't be available."
+                : "To enable emotion-based AI hints, we need camera access. Your video stream will only be used to detect emotions - no recordings are stored."}
+            </p>
+            <div className="flex gap-4">
+              {!cameraPermissionDenied ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setShowCameraPermissionDialog(false);
+                      setWebcamEnabled(false);
+                    }}
+                    className="flex-1 px-4 py-3 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition-colors"
+                  >
+                    Skip for Now
+                  </button>
+                  <button
+                    onClick={() => initializeAI()}
+                    className="flex-1 px-4 py-3 bg-teal-700 text-white rounded-lg font-semibold hover:bg-teal-800 transition-colors"
+                  >
+                    Allow Camera
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowCameraPermissionDialog(false)}
+                  className="w-full px-4 py-3 bg-teal-700 text-white rounded-lg font-semibold hover:bg-teal-800 transition-colors"
+                >
+                  Continue Without Camera
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Emoji Dialog */}
       {showEmojiDialog && (

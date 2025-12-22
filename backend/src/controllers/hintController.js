@@ -53,11 +53,13 @@ export const generateHint = async (req, res) => {
     if (existingHint) {
       // Parse stored hints (separated by |)
       const storedHints = existingHint.hintText.split(' | ').filter(h => h.trim());
+      console.log('📦 Returning cached hints:', storedHints);
+      console.log('📦 Cached hints count:', storedHints.length);
       
       return res.status(200).json({
         success: true,
         data: {
-          hints: storedHints.length >= 4 ? storedHints : [existingHint.hintText], // Return array
+          hints: storedHints.length > 0 ? storedHints : [existingHint.hintText], // Always return array
           deduction: existingHint.deduction,
           alreadyRequested: true
         }
@@ -147,6 +149,7 @@ Please provide 4 helpful hints (one per line, numbered):`;
     // Take only first 4 hints
     const finalHints = hints.slice(0, 4);
     console.log('📄 Parsed 4 hints:', finalHints);
+    console.log('📄 Hints count:', finalHints.length);
 
     // Save hint usage to database with all 4 hints
     console.log('💾 Saving hint usage to database...');
@@ -164,6 +167,7 @@ Please provide 4 helpful hints (one per line, numbered):`;
     await hintUsage.save();
     console.log('✅ Hint saved successfully');
 
+    console.log('📤 Returning response with hints:', finalHints);
     res.status(200).json({
       success: true,
       data: {
