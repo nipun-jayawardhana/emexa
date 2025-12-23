@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, BookOpen, CheckCircle, Clock, User, Download } from 'lucide-react';
+import { Bell, BookOpen, CheckCircle, Clock, User, Download, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -137,15 +137,20 @@ export default function Notification() {
       return;
     }
 
-    // Navigate immediately for quiz notifications
+    // Navigate based on notification type
     if (notification.quizId) {
-      // For graded quizzes, show results
+      console.log('🚀 Navigating to quiz:', notification.quizId, 'Type:', notification.type);
+      // For graded quizzes, show results page
       if (notification.type === 'grade') {
+        console.log('📊 Going to results page');
         navigate(`/quiz/${notification.quizId}?results=true`);
       } else {
-        // For assignments, show the quiz
-        navigate(`/quiz/${notification.quizId}`);
+        // For assignment notifications, navigate to student dashboard with highlighted quiz
+        console.log('📚 Going to dashboard with highlight:', notification.quizId);
+        navigate(`/dashboard?highlightQuiz=${notification.quizId}`);
       }
+    } else {
+      console.log('⚠️ No quizId in notification:', notification);
     }
     
     // Mark as read in the background (don't wait)
@@ -208,9 +213,30 @@ export default function Notification() {
     ? notifications.filter(n => !n.isRead)
     : notifications;
 
+  // Determine correct back navigation based on user role
+  const handleBackClick = () => {
+    const userRole = localStorage.getItem('userRole');
+    if (userRole === 'student') {
+      navigate('/dashboard');
+    } else if (userRole === 'teacher') {
+      navigate('/teacher-dashboard');
+    } else {
+      navigate(-1);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-2xl mx-auto px-6 py-8">
+        {/* Back Button */}
+        <button
+          onClick={handleBackClick}
+          className="flex items-center gap-2 text-gray-700 hover:text-gray-900 mb-6 transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span className="text-sm font-medium">Back</span>
+        </button>
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
