@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import teacherQuizService from "../services/teacherQuizService";
+import AIQuizGeneratorModal from "../components/AIQuizGeneratorModal";
 
 const TeacherCreateQuiz = ({
   setActiveMenuItem,
@@ -11,6 +12,9 @@ const TeacherCreateQuiz = ({
   const [isGradeLevelOpen, setIsGradeLevelOpen] = useState(false);
   const [selectedGrades, setSelectedGrades] = useState([]);
   const [questions, setQuestions] = useState([]);
+  
+  // ✨ NEW: AI Modal state
+  const [showAIModal, setShowAIModal] = useState(false);
 
   // Use refs to track next available IDs
   const nextQuestionId = useRef(1);
@@ -33,7 +37,6 @@ const TeacherCreateQuiz = ({
 
             // Convert gradeLevel array to selectedGrades format
             if (Array.isArray(quiz.gradeLevel)) {
-              // Map grade labels back to IDs
               const gradeMap = {
                 "1st Year 1st Sem": "1-1",
                 "1st Year 2nd Sem": "1-2",
@@ -78,7 +81,7 @@ const TeacherCreateQuiz = ({
           alert("Failed to load quiz data: " + error.message);
         }
       } else {
-        // Reset form when not editing (editingDraftId is null/undefined)
+        // Reset form when not editing
         setAssignmentTitle("");
         setSubject("");
         setSelectedGrades([]);
@@ -106,33 +109,83 @@ const TeacherCreateQuiz = ({
   ];
 
   const selectGrade = (gradeId) => {
-    setSelectedGrades([gradeId]); // Single selection
-    setIsGradeLevelOpen(false); // Close dropdown after selection
+    setSelectedGrades([gradeId]);
+    setIsGradeLevelOpen(false);
   };
 
   const handleBackToDashboard = () => {
-    // Clear the editing draft ID when going back
     if (setEditingDraftId) {
       setEditingDraftId(null);
     }
-    // If editing a draft, go back to drafts page; otherwise go to quizzes
     setActiveMenuItem(editingDraftId ? "quiz-drafts" : "quizzes");
+  };
+
+  // ✨ NEW: Handle AI quiz generation
+  const handleAIQuizGenerated = (generatedQuiz) => {
+    console.log("🤖 AI Quiz Generated:", generatedQuiz);
+    
+    // Load the AI-generated quiz into the form for editing
+    setAssignmentTitle(generatedQuiz.title || "");
+    setSubject(generatedQuiz.subject || "");
+    
+    // Set grade level
+    if (generatedQuiz.gradeLevel && generatedQuiz.gradeLevel.length > 0) {
+      const gradeMap = {
+        "1st Year 1st Sem": "1-1",
+        "1st Year 2nd Sem": "1-2",
+        "2nd Year 1st Sem": "2-1",
+        "2nd Year 2nd Sem": "2-2",
+        "3rd Year 1st Sem": "3-1",
+        "3rd Year 2nd Sem": "3-2",
+        "4th Year 1st Sem": "4-1",
+        "4th Year 2nd Sem": "4-2",
+      };
+      const gradeId = gradeMap[generatedQuiz.gradeLevel[0]] || "1-1";
+      setSelectedGrades([gradeId]);
+    }
+    
+    // Set questions
+    if (generatedQuiz.questions && generatedQuiz.questions.length > 0) {
+      setQuestions(generatedQuiz.questions);
+      
+      // Update ID counters
+      const maxQuestionId = Math.max(...generatedQuiz.questions.map((q) => q.id));
+      nextQuestionId.current = maxQuestionId + 1;
+      
+      generatedQuiz.questions.forEach((q) => {
+        if (q.options && q.options.length > 0) {
+          const maxOptionId = Math.max(...q.options.map((opt) => opt.id));
+          nextOptionIds.current[q.id] = maxOptionId + 1;
+        }
+      });
+    }
+    
+    // Set editing draft ID so we can update this quiz
+    if (setEditingDraftId && generatedQuiz._id) {
+      setEditingDraftId(generatedQuiz._id);
+    }
+    
+    // Close modal
+    setShowAIModal(false);
+    
+    // Show success message
+    alert("✅ Quiz generated! Review and edit the questions below, then save.");
   };
 
   const addQuestion = () => {
     const questionId = nextQuestionId.current++;
-    nextOptionIds.current[questionId] = 3; // Start option IDs from 3 (after initial 2)
+    nextOptionIds.current[questionId] = 3;
 
     const newQuestion = {
       id: questionId,
-      type: "mcq", // Default to MCQ
+      type: "mcq",
       questionText: "",
       options: [
         { id: 1, text: "", isCorrect: false },
         { id: 2, text: "", isCorrect: false },
       ],
-      shortAnswer: "", // For short answer type
-      hints: ["", "", "", ""], // 4 hints for each question
+      shortAnswer: "",
+      hints: ["", "", "", ""],
     };
     setQuestions([...questions, newQuestion]);
   };
@@ -172,7 +225,6 @@ const TeacherCreateQuiz = ({
     setQuestions(
       questions.map((q) => {
         if (q.id === questionId) {
-          // Initialize counter for this question if not exists
           if (!nextOptionIds.current[questionId]) {
             nextOptionIds.current[questionId] = q.options.length + 1;
           }
@@ -239,7 +291,7 @@ const TeacherCreateQuiz = ({
   };
 
   const handleCreateAssignment = async () => {
-    // Validate that required fields are filled
+    // Validate
     if (!assignmentTitle || !subject || selectedGrades.length === 0) {
       alert(
         "Please fill in all assignment details (Title, Subject, and Grade Level)"
@@ -253,17 +305,15 @@ const TeacherCreateQuiz = ({
     }
 
     try {
-      // Format grade levels for display
       const gradeLabels = gradeOptions
         .filter((g) => selectedGrades.includes(g.id))
         .map((g) => g.label);
       const firstGrade = gradeLabels[0] || "";
 
-      // Prepare quiz data for backend
       const quizData = {
         title: assignmentTitle,
         subject: subject.charAt(0).toUpperCase() + subject.slice(1),
-        gradeLevel: [firstGrade], // Send as array to match backend schema
+        gradeLevel: [firstGrade],
         questions: questions.map((q) => ({
           id: q.id,
           type: q.type,
@@ -278,15 +328,12 @@ const TeacherCreateQuiz = ({
 
       console.log("Saving quiz to database:", quizData);
 
-      // Save to backend
       if (editingDraftId) {
-        // Update existing quiz
         await teacherQuizService.updateQuiz(editingDraftId, quizData);
         alert(
           "✅ Assignment Updated Successfully!\n\nYour quiz has been updated and saved as a draft."
         );
       } else {
-        // Create new quiz
         const response = await teacherQuizService.createQuiz(quizData);
         console.log("Quiz created:", response);
         alert(
@@ -294,12 +341,10 @@ const TeacherCreateQuiz = ({
         );
       }
 
-      // Clear editing draft ID
       if (setEditingDraftId) {
         setEditingDraftId(null);
       }
 
-      // Navigate to quiz drafts
       setActiveMenuItem("quiz-drafts");
     } catch (error) {
       console.error("Error saving quiz:", error);
@@ -337,7 +382,11 @@ const TeacherCreateQuiz = ({
           <h1 className="text-2xl font-bold text-gray-900">
             Create Assignment
           </h1>
-          <button className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm">
+          {/* ✨ UPDATED: AI Assistant Button */}
+          <button 
+            onClick={() => setShowAIModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm transition-colors"
+          >
             <svg
               className="w-4 h-4"
               fill="none"
@@ -388,7 +437,6 @@ const TeacherCreateQuiz = ({
 
         {/* Grade Level */}
         <div>
-          {/* Grade Level Dropdown */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Grade Level
@@ -681,6 +729,13 @@ const TeacherCreateQuiz = ({
           </button>
         </div>
       </div>
+
+      {/* ✨ NEW: AI Quiz Generator Modal */}
+      <AIQuizGeneratorModal
+        isOpen={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        onQuizGenerated={handleAIQuizGenerated}
+      />
     </div>
   );
 };
