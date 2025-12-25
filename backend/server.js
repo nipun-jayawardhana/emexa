@@ -17,6 +17,7 @@ import { fileURLToPath } from "url";
 import { cloudinary } from "./src/config/cloudinary.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 // Import routes
 import { connectDB } from "./src/services/dbService.js";
 import userRoutes from "./src/routes/userRoutes.js";
@@ -33,6 +34,8 @@ import feedbackRoutes from "./src/routes/feedbackRoutes.js";
 // Socket handler
 import { initializeEmotionSocket } from "./src/socket/emotionSocket.js";
 import notificationRoutes from "./src/routes/notificationRoutes.js";
+
+import aiQuizRoutes from "./src/routes/aiQuizRoutes.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -72,11 +75,13 @@ try {
 } catch (err) {
   console.error("Failed to create uploads folder:", err);
 }
+
 // Request logging
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
+
 // Routes
 app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
@@ -90,6 +95,7 @@ app.use("/api/emotion", emotionRoutes);
 app.use("/api/hint", hintRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/notifications", notificationRoutes); // Notification routes
+app.use("/api/ai-quiz", aiQuizRoutes);
 
 // Health check
 app.get("/", (req, res) => {
@@ -103,8 +109,14 @@ app.get("/", (req, res) => {
         process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY
       ),
     },
+    ai: {
+      gemini: !!process.env.GEMINI_API_KEY,
+      huggingface: !!process.env.HUGGING_FACE_API_KEY,
+      cohere: !!process.env.COHERE_API_KEY,
+    },
   });
 });
+
 app.get("/health", (req, res) => {
   const ifaces = os.networkInterfaces();
   return res.json({
@@ -118,6 +130,7 @@ app.get("/health", (req, res) => {
     },
   });
 });
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({
@@ -126,6 +139,7 @@ app.use((req, res) => {
     path: req.path,
   });
 });
+
 // Error handler
 app.use((err, req, res, next) => {
   console.error("❌ Server Error:", err);
@@ -135,6 +149,7 @@ app.use((err, req, res, next) => {
     ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
 });
+
 const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || "0.0.0.0";
 
@@ -161,6 +176,7 @@ httpServer.listen(PORT, HOST, () => {
   console.log(`🔌 WebSocket: ✅ Socket.IO running on /emotion namespace`);
   console.log("=".repeat(50) + "\n");
 });
+
 // Graceful shutdown
 process.on("SIGTERM", () => {
   console.log("👋 SIGTERM: closing server");
