@@ -607,6 +607,23 @@ const QuizPage = () => {
         const user = JSON.parse(userStr);
         const rawScore = calculateScore();
 
+        // Use _id or id, whichever is available
+        const userId = user._id || user.id;
+
+        if (!userId) {
+          console.error("❌ User ID not found in localStorage");
+          setQuizSubmitted(true);
+          return;
+        }
+
+        console.log("📤 Submitting quiz feedback request:", {
+          userId,
+          quizId,
+          sessionId,
+          rawScore,
+          totalQuestions: quizData.questions.length,
+        });
+
         const token = localStorage.getItem("token");
         const response = await fetch("http://localhost:5000/api/feedback", {
           method: "POST",
@@ -615,7 +632,7 @@ const QuizPage = () => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            userId: user.id,
+            userId: userId,
             quizId: quizId,
             sessionId: sessionId,
             rawScore: rawScore,
@@ -639,12 +656,29 @@ const QuizPage = () => {
             quizData.questions.length
           );
           console.log("💡 Hints Used:", data.data.hintsUsed);
+          console.log("✅ Full feedback data:", data.data);
 
           setAiFeedback(data.data);
+        } else {
+          console.error("❌ Feedback API error:", data.message);
+          console.error("❌ Full error:", data);
+          setAiFeedback({
+            feedback: "Unable to generate personalized feedback at this time.",
+            emotionalSummary: null,
+            hintsUsed: 0,
+            finalScore: rawScore,
+          });
         }
       }
     } catch (error) {
       console.error("Error generating AI feedback:", error);
+      console.error("Error details:", error.message, error.stack);
+      setAiFeedback({
+        feedback: "Unable to generate personalized feedback at this time.",
+        emotionalSummary: null,
+        hintsUsed: 0,
+        finalScore: 0,
+      });
     }
 
     setQuizSubmitted(true);
@@ -1022,43 +1056,58 @@ const QuizPage = () => {
             </div>
           </div>
 
-          <div className="bg-red-50 border-l-4 border-red-400 p-6 mb-8">
+          <div className="bg-red-50 border-l-4 border-red-400 p-6 mb-8 rounded-lg">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-gray-800">Your Score</h3>
               <div className="text-5xl font-bold text-red-500">
                 {percentage}%
               </div>
             </div>
-            <p className="text-gray-700 mb-4">
-              You answered{" "}
-              <span className="font-bold">
-                {score} out of {quizData.questions.length}
-              </span>{" "}
-              questions correctly
+
+            {/* Score Breakdown */}
+            <div className="space-y-3 mb-6">
+              <div className="flex justify-between items-center py-2 border-b border-red-200">
+                <span className="text-gray-700">Correct Answers:</span>
+                <span className="font-bold text-green-600">
+                  {score} / {quizData.questions.length}
+                </span>
+              </div>
+
               {aiFeedback && aiFeedback.hintsUsed > 0 && (
-                <span className="text-orange-600">
-                  {" "}
-                  (- {aiFeedback.hintsUsed} mark
-                  {aiFeedback.hintsUsed > 1 ? "s" : ""} for hints)
-                </span>
+                <div className="flex justify-between items-center py-2 border-b border-red-200">
+                  <span className="text-gray-700">Hints Used Penalty:</span>
+                  <span className="font-bold text-orange-600">
+                    - {aiFeedback.hintsUsed} mark
+                    {aiFeedback.hintsUsed > 1 ? "s" : ""}
+                  </span>
+                </div>
               )}
-            </p>
-            {aiFeedback && aiFeedback.finalScore !== undefined && (
-              <p className="text-gray-700">
-                <span className="font-bold">
-                  Final Score: {aiFeedback.finalScore} /{" "}
-                  {quizData.questions.length}
-                </span>
+
+              {aiFeedback && aiFeedback.finalScore !== undefined && (
+                <div className="flex justify-between items-center py-3 bg-white px-3 rounded-lg">
+                  <span className="text-lg font-bold text-gray-800">
+                    Final Score:
+                  </span>
+                  <span className="text-2xl font-bold text-red-500">
+                    {aiFeedback.finalScore} / {quizData.questions.length}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {aiFeedback && aiFeedback.hintsUsed > 0 && (
+              <p className="text-sm text-gray-600 italic">
+                💡 Each hint used deducts 1 mark from your final score
               </p>
             )}
           </div>
 
           {/* AI Personalized Feedback */}
-          {aiFeedback && aiFeedback.feedback && (
-            <div className="bg-blue-50 border-l-4 border-blue-400 p-6 mb-8">
-              <div className="flex items-center mb-3">
+          {aiFeedback && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 p-6 mb-8 rounded-lg shadow-md">
+              <div className="flex items-center mb-4">
                 <svg
-                  className="w-6 h-6 text-blue-500 mr-2"
+                  className="w-7 h-7 text-blue-600 mr-3"
                   fill="currentColor"
                   viewBox="0 0 20 20"
                 >
@@ -1070,29 +1119,43 @@ const QuizPage = () => {
                   />
                 </svg>
                 <h3 className="text-xl font-bold text-gray-800">
-                  🤖 AI Personalized Feedback
+                  🤖 Personalized Performance Feedback
                 </h3>
               </div>
-              <p className="text-gray-700 leading-relaxed">
-                {aiFeedback.feedback}
-              </p>
-              {aiFeedback.emotionalSummary &&
-                aiFeedback.emotionalSummary.totalCaptures > 0 && (
-                  <div className="mt-4 pt-4 border-t border-blue-200">
-                    <p className="text-sm text-gray-600">
-                      <span className="font-semibold">Emotional Analysis:</span>{" "}
-                      {aiFeedback.emotionalSummary.mostCommonEmotion}
-                      {aiFeedback.emotionalSummary.confusedCount > 0 &&
-                        ` (confusion detected ${
-                          aiFeedback.emotionalSummary.confusedCount
-                        } time${
-                          aiFeedback.emotionalSummary.confusedCount > 1
-                            ? "s"
-                            : ""
-                        })`}
-                    </p>
-                  </div>
-                )}
+              {aiFeedback.feedback ? (
+                <>
+                  <p className="text-gray-700 leading-relaxed text-lg mb-4 italic">
+                    "{aiFeedback.feedback}"
+                  </p>
+                  {aiFeedback.emotionalSummary &&
+                    aiFeedback.emotionalSummary.totalCaptures > 0 && (
+                      <div className="mt-4 pt-4 border-t border-blue-200">
+                        <p className="text-sm text-gray-700">
+                          <span className="font-semibold text-blue-700">
+                            📊 Emotional Analysis:
+                          </span>{" "}
+                          Your most common emotional state was{" "}
+                          <span className="font-semibold">
+                            {aiFeedback.emotionalSummary.mostCommonEmotion}
+                          </span>
+                          {aiFeedback.emotionalSummary.confusedCount > 0 &&
+                            `. Moments of confusion were detected ${
+                              aiFeedback.emotionalSummary.confusedCount
+                            } time${
+                              aiFeedback.emotionalSummary.confusedCount > 1
+                                ? "s"
+                                : ""
+                            }`}
+                          .
+                        </p>
+                      </div>
+                    )}
+                </>
+              ) : (
+                <p className="text-gray-600 italic">
+                  Generating personalized feedback based on your performance...
+                </p>
+              )}
             </div>
           )}
 

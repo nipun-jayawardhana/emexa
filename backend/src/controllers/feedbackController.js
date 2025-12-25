@@ -1,4 +1,5 @@
 import { HfInference } from '@huggingface/inference';
+import mongoose from 'mongoose';
 import QuizAttempt from '../models/quizAttempt.js';
 import EmotionLog from '../models/emotionLog.js';
 import HintUsage from '../models/hintUsage.js';
@@ -24,22 +25,52 @@ export const generateFeedback = async (req, res) => {
       answers
     } = req.body;
 
+    console.log('📥 Received feedback request:', {
+      userId,
+      quizId,
+      sessionId,
+      rawScore,
+      totalQuestions,
+      answersCount: answers?.length
+    });
+
+    // Validate and convert IDs to ObjectId
     if (!userId || !quizId || !sessionId || rawScore === undefined || !totalQuestions) {
+      console.error('❌ Missing required fields:', { userId, quizId, sessionId, rawScore, totalQuestions });
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: userId, quizId, sessionId, rawScore, totalQuestions'
       });
     }
 
+    // Convert string IDs to ObjectId
+    let userObjectId, quizObjectId;
+    try {
+      userObjectId = new mongoose.Types.ObjectId(userId);
+      quizObjectId = new mongoose.Types.ObjectId(quizId);
+      console.log('✅ IDs converted to ObjectId format');
+    } catch (idError) {
+      console.error('❌ Invalid ID format:', idError.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid userId or quizId format'
+      });
+    }
+
     // Get emotion logs
-    const emotionLogs = await EmotionLog.find({ userId, sessionId });
+    console.log('🔍 Fetching emotion logs...');
+    const emotionLogs = await EmotionLog.find({ userId: userObjectId, sessionId });
+    console.log(`✅ Found ${emotionLogs.length} emotion logs`);
     
     // Get hints used
-    const hintsUsed = await HintUsage.find({ userId, sessionId });
+    console.log('🔍 Fetching hint usage...');
+    const hintsUsed = await HintUsage.find({ userId: userObjectId, sessionId });
+    console.log(`✅ Found ${hintsUsed.length} hint usages`);
     
     // Calculate final score
     const totalHints = hintsUsed.length;
     const finalScore = Math.max(0, rawScore - totalHints);
+    console.log(`📊 Score calculation: Raw ${rawScore} - Hints ${totalHints} = Final ${finalScore}`);
     
     // Calculate emotion summary
     const emotionCounts = {};
@@ -77,45 +108,80 @@ Provide personalized feedback that:
 
 Feedback:`;
 
-    // Check if HF client is available
-    if (!hf) {
-      return res.status(503).json({
-        success: false,
-        message: 'Feedback generation not available - API key not configured'
-      });
+    let aiFeedback = null;
+
+    // Try to generate feedback using Hugging Face API
+    if (hf) {
+      try {
+        console.log('🤖 Attempting to generate feedback with Hugging Face...');
+        const response = await hf.textGeneration({
+          model: 'mistralai/Mistral-7B-Instruct-v0.2',
+          inputs: prompt,
+          parameters: {
+            max_new_tokens: 200,
+            temperature: 0.7,
+            top_p: 0.95,
+            return_full_text: false
+          }
+        });
+
+        aiFeedback = response.generated_text.trim();
+        
+        // Clean up feedback - remove any prompt repetition
+        const feedbackLines = aiFeedback.split('\n').filter(line => 
+          line.trim() && 
+          !line.includes('Student Performance:') &&
+          !line.includes('Feedback:')
+        );
+        aiFeedback = feedbackLines.join(' ').trim();
+
+        // If feedback is too short, use template
+        if (aiFeedback.length < 50) {
+          aiFeedback = null;
+        } else {
+          console.log('✅ AI feedback generated successfully');
+        }
+      } catch (hfError) {
+        console.error('⚠️ Hugging Face API error:', hfError.message);
+        aiFeedback = null;
+      }
+    } else {
+      console.log('⚠️ Hugging Face API key not configured, using template feedback');
     }
 
-    // Generate feedback using Hugging Face
-    const response = await hf.textGeneration({
-      model: 'mistralai/Mistral-7B-Instruct-v0.2',
-      inputs: prompt,
-      parameters: {
-        max_new_tokens: 200,
-        temperature: 0.7,
-        top_p: 0.95,
-        return_full_text: false
+    // Fallback to template-based feedback if AI fails or is unavailable
+    if (!aiFeedback) {
+      console.log('📝 Using template-based feedback');
+      
+      // Generate template-based feedback
+      let performanceLevel = 'good';
+      if (scorePercentage < 40) performanceLevel = 'needs improvement';
+      else if (scorePercentage < 60) performanceLevel = 'average';
+      else if (scorePercentage < 80) performanceLevel = 'good';
+      else performanceLevel = 'excellent';
+
+      let hintsMessage = '';
+      if (totalHints > 0) {
+        hintsMessage = `You used ${totalHints} hint${totalHints > 1 ? 's' : ''}, showing that you actively sought help when facing challenges. `;
+      } else {
+        hintsMessage = 'You worked through the questions independently without using hints. ';
       }
-    });
 
-    let aiFeedback = response.generated_text.trim();
-    
-    // Clean up feedback - remove any prompt repetition
-    const feedbackLines = aiFeedback.split('\n').filter(line => 
-      line.trim() && 
-      !line.includes('Student Performance:') &&
-      !line.includes('Feedback:')
-    );
-    aiFeedback = feedbackLines.join(' ').trim();
+      let emotionMessage = '';
+      if (confusedCount > 0) {
+        emotionMessage = `I noticed moments of confusion, particularly around certain topics, but your persistence in working through the quiz is commendable. `;
+      } else {
+        emotionMessage = 'You maintained a focused approach throughout the quiz. ';
+      }
 
-    // If feedback is too short, provide a default
-    if (aiFeedback.length < 50) {
-      aiFeedback = `Great effort on completing this quiz! You scored ${rawScore} out of ${totalQuestions}. ${totalHints > 0 ? `You used ${totalHints} hint${totalHints > 1 ? 's' : ''}, which shows you're actively seeking help when needed.` : 'You worked through the questions independently.'} ${confusedCount > 0 ? 'I noticed some challenging moments, but persistence is key to learning.' : 'Your focus was commendable.'} Keep practicing and reviewing the core concepts to strengthen your understanding!`;
+      aiFeedback = `You achieved ${performanceLevel} performance on this quiz with a score of ${rawScore} out of ${totalQuestions} (${scorePercentage}%). ${hintsMessage}${emotionMessage}To improve further, focus on reviewing the concepts where you found difficulty. Keep practicing regularly, and don't hesitate to ask for clarification on challenging topics. Your effort and engagement will lead to better results!`;
     }
 
     // Save quiz attempt
+    console.log('💾 Saving quiz attempt...');
     const quizAttempt = new QuizAttempt({
-      userId,
-      quizId,
+      userId: userObjectId,
+      quizId: quizObjectId,
       sessionId,
       rawScore,
       hintsUsed: totalHints,
@@ -134,6 +200,9 @@ Feedback:`;
 
     await quizAttempt.save();
 
+    console.log('✅ Quiz attempt saved successfully');
+    console.log(`📊 Results: Raw: ${rawScore}, Hints: ${totalHints}, Final: ${finalScore}`);
+
     res.status(200).json({
       success: true,
       data: {
@@ -144,6 +213,9 @@ Feedback:`;
         feedback: aiFeedback,
         emotionalSummary: {
           mostCommonEmotion,
+          confusedCount,
+          happyCount,
+          neutralCount,
           totalCaptures: emotionLogs.length,
           emotionCounts
         }
@@ -151,11 +223,15 @@ Feedback:`;
     });
 
   } catch (error) {
-    console.error('Feedback generation error:', error);
+    console.error('❌ Feedback generation error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error details:', JSON.stringify(error, null, 2));
     res.status(500).json({
       success: false,
       message: 'Error generating feedback',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };

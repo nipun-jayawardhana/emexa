@@ -44,7 +44,10 @@ const quizAttemptSchema = new mongoose.Schema({
     default: ''
   },
   answers: [{
-    questionId: mongoose.Schema.Types.ObjectId,
+    questionId: {
+      type: String,  // Changed from ObjectId to String to accept any question identifier
+      required: false
+    },
     selectedAnswer: String,
     isCorrect: Boolean
   }],
