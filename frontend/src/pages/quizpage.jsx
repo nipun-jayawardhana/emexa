@@ -52,6 +52,11 @@ const QuizPage = () => {
     loadQuizData();
     initializeAI();
 
+    // Show camera permission dialog instead of auto-requesting
+    // User can choose to allow or skip
+    setCameraPermissionLoading(false);
+    setShowCameraPermissionDialog(true);
+
     return () => {
       // Cleanup on unmount
       if (emotionSocket) {
@@ -163,8 +168,19 @@ const QuizPage = () => {
       }
     } catch (err) {
       console.log(
-        "⚠️ AI: Webcam permission denied - falling back to manual mode - teacher hints only"
+        "⚠️ AI: Webcam permission denied or device not found - falling back to manual mode - teacher hints only"
       );
+      console.error("📷 Camera error details:", err.name, err.message);
+
+      // Handle NotFoundError (no camera device) same as denied permission
+      if (err.name === "NotFoundError") {
+        console.log("📷 No camera device found on this system");
+      } else if (err.name === "NotAllowedError") {
+        console.log("📷 User denied camera permission");
+      } else if (err.name === "NotReadableError") {
+        console.log("📷 Camera device is in use by another application");
+      }
+
       setCameraPermissionDenied(true);
       setWebcamEnabled(false);
       setShowCameraPermissionDialog(false);
