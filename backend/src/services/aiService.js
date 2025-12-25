@@ -3,22 +3,53 @@ import axios from 'axios';
 
 class AIService {
   constructor() {
+    this.initialized = false;
+    this.geminiApiKey = null;
+    this.huggingFaceApiKey = null;
+    this.cohereApiKey = null;
+  }
+
+  /**
+   * Initialize API configurations (called on first use)
+   */
+  initialize() {
+    if (this.initialized) return;
+
     // Initialize API configurations
     this.geminiApiKey = process.env.GEMINI_API_KEY;
     this.huggingFaceApiKey = process.env.HUGGING_FACE_API_KEY;
     this.cohereApiKey = process.env.COHERE_API_KEY;
     
-    this.geminiEndpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+    // Using Gemini 2.5 Flash - the latest available model
+    this.geminiEndpoint = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent';
     this.huggingFaceEndpoint = 'https://api-inference.huggingface.co/models/';
     this.cohereEndpoint = 'https://api.cohere.ai/v1/generate';
+
+    console.log('🤖 AI Service initialized');
+    console.log('   Gemini API Key:', this.geminiApiKey ? '✅ Present' : '❌ Missing');
+    console.log('   HuggingFace API Key:', this.huggingFaceApiKey ? '✅ Present' : '❌ Missing');
+    console.log('   Cohere API Key:', this.cohereApiKey ? '✅ Present' : '❌ Missing');
+    
+    this.initialized = true;
   }
 
   /**
    * Generate quiz questions using Gemini API (Primary method)
    */
   async generateQuizWithGemini(subject, gradeLevel, numberOfQuestions, difficultyLevel = 'medium', topics = []) {
+    this.initialize(); // Ensure initialization
+    
+    console.log('🔮 Attempting Gemini API...');
+    
+    if (!this.geminiApiKey) {
+      throw new Error('Gemini API key not configured');
+    }
+
     try {
       const prompt = this.buildQuizPrompt(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
+      
+      console.log('📤 Sending request to Gemini API...');
+      console.log('   URL:', `${this.geminiEndpoint}?key=${this.geminiApiKey.substring(0, 10)}...`);
       
       const response = await axios.post(
         `${this.geminiEndpoint}?key=${this.geminiApiKey}`,
@@ -38,15 +69,43 @@ class AIService {
         {
           headers: {
             'Content-Type': 'application/json'
-          }
+          },
+          timeout: 30000 // 30 second timeout
         }
       );
 
+      console.log('✅ Gemini API response received');
+      
+      if (!response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        console.error('❌ Invalid Gemini response structure:', JSON.stringify(response.data, null, 2));
+        throw new Error('Invalid response structure from Gemini API');
+      }
+
       const generatedText = response.data.candidates[0].content.parts[0].text;
-      return this.parseQuizResponse(generatedText);
+      console.log('📝 Generated text length:', generatedText.length);
+      
+      const parsedQuestions = this.parseQuizResponse(generatedText);
+      console.log('✅ Successfully parsed', parsedQuestions.length, 'questions');
+      
+      return parsedQuestions;
     } catch (error) {
-      console.error('Gemini API Error:', error.response?.data || error.message);
-      throw new Error('Failed to generate quiz with Gemini API');
+      console.error('❌ Gemini API Error Details:');
+      console.error('   Status:', error.response?.status);
+      console.error('   Status Text:', error.response?.statusText);
+      console.error('   Error Data:', JSON.stringify(error.response?.data, null, 2));
+      console.error('   Error Message:', error.message);
+      
+      if (error.response?.status === 400) {
+        throw new Error('Invalid request to Gemini API - check API key or request format');
+      } else if (error.response?.status === 403) {
+        throw new Error('Gemini API key is invalid or access denied');
+      } else if (error.response?.status === 429) {
+        throw new Error('Gemini API rate limit exceeded - please try again later');
+      } else if (error.code === 'ECONNABORTED') {
+        throw new Error('Request to Gemini API timed out');
+      }
+      
+      throw new Error(`Gemini API failed: ${error.message}`);
     }
   }
 
@@ -54,6 +113,14 @@ class AIService {
    * Generate quiz questions using Hugging Face (Fallback method)
    */
   async generateQuizWithHuggingFace(subject, gradeLevel, numberOfQuestions, difficultyLevel = 'medium', topics = []) {
+    this.initialize(); // Ensure initialization
+    
+    console.log('🤗 Attempting Hugging Face API...');
+    
+    if (!this.huggingFaceApiKey) {
+      throw new Error('Hugging Face API key not configured');
+    }
+
     try {
       const prompt = this.buildQuizPrompt(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
       const model = 'mistralai/Mistral-7B-Instruct-v0.2';
@@ -73,15 +140,16 @@ class AIService {
           headers: {
             'Authorization': `Bearer ${this.huggingFaceApiKey}`,
             'Content-Type': 'application/json'
-          }
+          },
+          timeout: 60000 // 60 second timeout for HF (slower)
         }
       );
 
       const generatedText = response.data[0].generated_text;
       return this.parseQuizResponse(generatedText);
     } catch (error) {
-      console.error('Hugging Face API Error:', error.response?.data || error.message);
-      throw new Error('Failed to generate quiz with Hugging Face API');
+      console.error('❌ Hugging Face API Error:', error.response?.data || error.message);
+      throw new Error(`Hugging Face API failed: ${error.message}`);
     }
   }
 
@@ -89,6 +157,14 @@ class AIService {
    * Generate quiz questions using Cohere (Alternative method)
    */
   async generateQuizWithCohere(subject, gradeLevel, numberOfQuestions, difficultyLevel = 'medium', topics = []) {
+    this.initialize(); // Ensure initialization
+    
+    console.log('🔮 Attempting Cohere API...');
+    
+    if (!this.cohereApiKey) {
+      throw new Error('Cohere API key not configured');
+    }
+
     try {
       const prompt = this.buildQuizPrompt(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
 
@@ -107,14 +183,15 @@ class AIService {
           headers: {
             'Authorization': `Bearer ${this.cohereApiKey}`,
             'Content-Type': 'application/json'
-          }
+          },
+          timeout: 30000
         }
       );
 
       return this.parseQuizResponse(response.data.generations[0].text);
     } catch (error) {
-      console.error('Cohere API Error:', error.response?.data || error.message);
-      throw new Error('Failed to generate quiz with Cohere API');
+      console.error('❌ Cohere API Error:', error.response?.data || error.message);
+      throw new Error(`Cohere API failed: ${error.message}`);
     }
   }
 
@@ -122,40 +199,67 @@ class AIService {
    * Main method with fallback support
    */
   async generateQuiz(params) {
+    this.initialize(); // Ensure initialization
+    
     const { subject, gradeLevel, numberOfQuestions, difficultyLevel, topics, aiProvider = 'gemini' } = params;
+
+    console.log('\n🚀 Starting AI Quiz Generation');
+    console.log('   Provider:', aiProvider);
+    console.log('   Subject:', subject);
+    console.log('   Grade:', gradeLevel);
+    console.log('   Questions:', numberOfQuestions);
+
+    const errors = [];
 
     // Try primary provider first
     try {
       if (aiProvider === 'gemini' && this.geminiApiKey) {
+        console.log('📍 Trying primary provider: Gemini');
         return await this.generateQuizWithGemini(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
       } else if (aiProvider === 'huggingface' && this.huggingFaceApiKey) {
+        console.log('📍 Trying primary provider: Hugging Face');
         return await this.generateQuizWithHuggingFace(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
       } else if (aiProvider === 'cohere' && this.cohereApiKey) {
+        console.log('📍 Trying primary provider: Cohere');
         return await this.generateQuizWithCohere(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
+      } else {
+        errors.push(`Primary provider ${aiProvider} not configured`);
+        console.log(`⚠️ Primary provider (${aiProvider}) not configured`);
       }
     } catch (error) {
-      console.error(`Primary AI provider (${aiProvider}) failed, trying fallback...`);
+      errors.push(`${aiProvider}: ${error.message}`);
+      console.error(`❌ Primary AI provider (${aiProvider}) failed:`, error.message);
     }
 
     // Fallback chain
-    const providers = ['gemini', 'huggingface', 'cohere'];
+    console.log('🔄 Trying fallback providers...');
+    const providers = [
+      { name: 'gemini', key: this.geminiApiKey, method: this.generateQuizWithGemini.bind(this) },
+      { name: 'huggingface', key: this.huggingFaceApiKey, method: this.generateQuizWithHuggingFace.bind(this) },
+      { name: 'cohere', key: this.cohereApiKey, method: this.generateQuizWithCohere.bind(this) }
+    ];
+
     for (const provider of providers) {
-      if (provider === aiProvider) continue;
+      if (provider.name === aiProvider) continue; // Skip already tried primary
       
+      if (!provider.key) {
+        console.log(`⏭️ Skipping ${provider.name} (not configured)`);
+        continue;
+      }
+
       try {
-        if (provider === 'gemini' && this.geminiApiKey) {
-          return await this.generateQuizWithGemini(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
-        } else if (provider === 'huggingface' && this.huggingFaceApiKey) {
-          return await this.generateQuizWithHuggingFace(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
-        } else if (provider === 'cohere' && this.cohereApiKey) {
-          return await this.generateQuizWithCohere(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
-        }
+        console.log(`📍 Trying fallback: ${provider.name}`);
+        return await provider.method(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
       } catch (error) {
-        console.error(`Fallback provider (${provider}) failed:`, error.message);
+        errors.push(`${provider.name}: ${error.message}`);
+        console.error(`❌ Fallback provider (${provider.name}) failed:`, error.message);
       }
     }
 
-    throw new Error('All AI providers failed to generate quiz');
+    console.error('\n❌ ALL PROVIDERS FAILED:');
+    errors.forEach((err, i) => console.error(`   ${i + 1}. ${err}`));
+    
+    throw new Error(`All AI providers failed to generate quiz:\n${errors.join('\n')}`);
   }
 
   /**
@@ -204,12 +308,27 @@ Important: Follow this exact format without any additional text or markdown form
    * Parse AI response into structured quiz data
    */
   parseQuizResponse(responseText) {
+    console.log('🔍 Parsing AI response...');
+    console.log('   Response text preview:', responseText.substring(0, 200));
+    
     const questions = [];
-    const questionBlocks = responseText.split(/QUESTION \d+:/i).filter(block => block.trim());
+    
+    // Clean up the response text - remove markdown code blocks if present
+    let cleanedText = responseText
+      .replace(/```[\w]*\n/g, '') // Remove opening code blocks
+      .replace(/```/g, '')         // Remove closing code blocks
+      .trim();
+    
+    const questionBlocks = cleanedText.split(/QUESTION \d+:/i).filter(block => block.trim());
+    
+    console.log('   Found', questionBlocks.length, 'question blocks');
 
-    for (const block of questionBlocks) {
+    for (let i = 0; i < questionBlocks.length; i++) {
       try {
+        const block = questionBlocks[i];
         const lines = block.trim().split('\n').filter(line => line.trim());
+        
+        if (lines.length === 0) continue;
         
         const questionText = lines[0].trim();
         
@@ -231,7 +350,7 @@ Important: Follow this exact format without any additional text or markdown form
         const correctAnswer = correctLine ? correctLine.replace(/^CORRECT:/i, '').trim().toUpperCase().charAt(0) : null;
 
         // Mark correct answer
-        if (correctAnswer) {
+        if (correctAnswer && correctAnswer.match(/[A-D]/)) {
           const correctIndex = correctAnswer.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
           if (options[correctIndex]) {
             options[correctIndex].isCorrect = true;
@@ -252,16 +371,26 @@ Important: Follow this exact format without any additional text or markdown form
             hints: [hint || 'Think carefully about the key concepts in this question.', '', '', ''],
             explanation
           });
+          console.log(`   ✅ Successfully parsed question ${i + 1}`);
+        } else {
+          console.warn(`   ⚠️ Skipping incomplete question ${i + 1}:`, {
+            hasQuestionText: !!questionText,
+            optionsCount: options.length,
+            hasCorrectAnswer: !!correctAnswer
+          });
         }
       } catch (error) {
-        console.error('Error parsing question block:', error);
+        console.error(`   ❌ Error parsing question block ${i + 1}:`, error.message);
       }
     }
 
     if (questions.length === 0) {
+      console.error('❌ Failed to parse any valid questions');
+      console.error('   Response text:', responseText);
       throw new Error('Failed to parse any valid questions from AI response');
     }
 
+    console.log(`✅ Successfully parsed ${questions.length} questions`);
     return questions;
   }
 
@@ -269,6 +398,8 @@ Important: Follow this exact format without any additional text or markdown form
    * Enhance existing questions with AI suggestions
    */
   async enhanceQuestion(questionData) {
+    this.initialize(); // Ensure initialization
+    
     try {
       const prompt = `Improve this quiz question to make it clearer and more educational:
 
@@ -293,7 +424,8 @@ EXPLANATION: [explanation]`;
           }]
         },
         {
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 30000
         }
       );
 
