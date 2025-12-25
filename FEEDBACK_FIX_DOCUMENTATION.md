@@ -174,7 +174,7 @@ if (!aiFeedback) {
 
 ```bash
 # In .env file:
-HF_API_KEY=YOUR_HUGGINGFACE_API_KEY_HERE
+HF_API_KEY=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
 
 # If empty or missing:
 # - System uses template feedback automatically
