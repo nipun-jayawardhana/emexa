@@ -19,6 +19,7 @@ const AIQuizGeneratorModal = ({ isOpen, onClose, onQuizGenerated }) => {
   const [error, setError] = useState('');
   const [suggestions, setSuggestions] = useState(null);
   const [generatedQuiz, setGeneratedQuiz] = useState(null);
+  const [savedQuizId, setSavedQuizId] = useState(null); // NEW: Track saved quiz ID
 
   // Fetch suggestions when subject/grade changes
   useEffect(() => {
@@ -72,20 +73,23 @@ const AIQuizGeneratorModal = ({ isOpen, onClose, onQuizGenerated }) => {
       
       if (response.success) {
         setGeneratedQuiz(response.data.quiz);
+        console.log('✅ Quiz generated:', response.data.quiz);
       }
     } catch (err) {
       setError(err.message || 'Failed to generate quiz. Please try again.');
+      console.error('❌ Generate error:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  // FIXED: Regenerate question method
   const handleRegenerateQuestion = async (questionNumber) => {
-    if (!generatedQuiz) return;
-
     try {
+      console.log('🔄 Regenerating question:', questionNumber);
+      
       const response = await apiClient.post(
-        `/ai-quiz/${generatedQuiz.quizId}/regenerate`,
+        `/ai-quiz/${savedQuizId || 'undefined'}/regenerate`,
         {
           questionNumbers: [questionNumber],
           subject: formData.subject,
@@ -94,11 +98,25 @@ const AIQuizGeneratorModal = ({ isOpen, onClose, onQuizGenerated }) => {
         }
       );
 
-      if (response.success) {
-        setGeneratedQuiz(response.data.quiz);
+      if (response.success && response.data.questions) {
+        // Update the question in the generated quiz
+        const updatedQuestions = generatedQuiz.questions.map(q =>
+          q.questionNumber === questionNumber ? response.data.questions[0] : q
+        );
+
+        setGeneratedQuiz(prev => ({
+          ...prev,
+          questions: updatedQuestions
+        }));
+
+        console.log('✅ Question regenerated successfully');
       }
     } catch (err) {
-      setError('Failed to regenerate question');
+      console.error('❌ Failed to regenerate question:', err);
+      setError('Failed to regenerate question: ' + err.message);
+      
+      // Clear error after 5 seconds
+      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -113,24 +131,61 @@ const AIQuizGeneratorModal = ({ isOpen, onClose, onQuizGenerated }) => {
     }));
   };
 
+  // FIXED: Save quiz method
   const handleSaveQuiz = async () => {
-    if (!generatedQuiz) return;
-
     try {
-      const response = await apiClient.put(
-        `/ai-quiz/${generatedQuiz.quizId}`,
-        {
-          ...generatedQuiz,
-          isPublished: false
-        }
-      );
+      console.log('💾 Saving quiz...', {
+        savedQuizId,
+        title: generatedQuiz?.title || formData.assignmentTitle,
+        questionsCount: generatedQuiz?.questions?.length
+      });
+
+      if (!generatedQuiz || !generatedQuiz.questions || generatedQuiz.questions.length === 0) {
+        setError('No questions to save');
+        return;
+      }
+
+      const quizData = {
+        title: generatedQuiz.title || formData.assignmentTitle,
+        subject: formData.subject,
+        gradeLevel: formData.gradeLevel,
+        questions: generatedQuiz.questions,
+        difficultyLevel: formData.difficultyLevel,
+        topics: formData.topics,
+        aiGenerated: true,
+        aiProvider: formData.aiProvider,
+        isPublished: false
+      };
+
+      // Use savedQuizId if exists, otherwise 'undefined' to create new
+      const endpoint = `/ai-quiz/${savedQuizId || 'undefined'}`;
+      console.log('📤 Saving to endpoint:', endpoint);
+
+      const response = await apiClient.put(endpoint, quizData);
 
       if (response.success) {
-        onQuizGenerated(response.data.quiz);
+        console.log('✅ Quiz saved successfully:', response.data.quiz);
+        
+        // Store the quiz ID for future updates
+        if (response.data.quiz._id) {
+          setSavedQuizId(response.data.quiz._id);
+        }
+
+        // Call the callback if provided
+        if (onQuizGenerated) {
+          onQuizGenerated(response.data.quiz);
+        }
+
+        // Show success message and close
+        alert('✅ Quiz saved successfully!');
         onClose();
       }
     } catch (err) {
-      setError('Failed to save quiz');
+      console.error('❌ Failed to save quiz:', err);
+      setError('Failed to save quiz: ' + err.message);
+      
+      // Clear error after 5 seconds
+      setTimeout(() => setError(''), 5000);
     }
   };
 
