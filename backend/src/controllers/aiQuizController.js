@@ -20,6 +20,14 @@ class aiQuizController {
         aiProvider = 'gemini'
       } = req.body;
 
+      console.log('📥 Generate quiz request:', {
+        teacherId,
+        assignmentTitle,
+        subject,
+        gradeLevel,
+        numberOfQuestions
+      });
+
       // Validate input
       if (!assignmentTitle || !subject || !gradeLevel) {
         return res.status(400).json({
@@ -58,38 +66,53 @@ class aiQuizController {
 
       console.log('✅ AI generated', generatedQuestions.length, 'questions');
 
-      // Create quiz draft (not published yet, so teacher can edit)
-      const quizData = {
-        teacherId,
+      // Transform questions to match frontend format
+      const formattedQuestions = generatedQuestions.map((q, index) => {
+        // Extract correct answer letter (A, B, C, D)
+        const correctOption = q.options.find(opt => opt.isCorrect);
+        const correctAnswerLetter = correctOption 
+          ? String.fromCharCode(65 + q.options.indexOf(correctOption)) // A=65, B=66, etc.
+          : 'A';
+
+        return {
+          questionNumber: index + 1,
+          id: index + 1,
+          type: q.type || 'mcq',
+          questionText: q.questionText,
+          options: q.options.map((opt, optIdx) => ({
+            option: String.fromCharCode(65 + optIdx), // A, B, C, D
+            text: opt.text,
+            isCorrect: opt.isCorrect
+          })),
+          correctAnswer: correctAnswerLetter,
+          hint: q.hints?.[0] || '',
+          explanation: q.explanation || '',
+          points: 1
+        };
+      });
+
+      // Create quiz object for response (don't save to DB yet)
+      const quizResponse = {
+        quizId: null, // Will be generated when saved
         title: assignmentTitle,
         subject,
-        gradeLevel: [gradeLevel], // Array format to match your schema
-        questions: generatedQuestions.map((q, index) => ({
-          id: index + 1,
-          type: q.type,
-          questionText: q.questionText,
-          options: q.options,
-          hints: q.hints,
-          shortAnswer: '',
-        })),
-        status: 'draft',
-        isScheduled: false,
+        gradeLevel,
+        questions: formattedQuestions,
+        difficultyLevel,
+        topics,
         aiGenerated: true,
         aiProvider,
+        status: 'draft'
       };
 
-      const quiz = new TeacherQuiz(quizData);
-      await quiz.save();
+      console.log('✅ Quiz formatted for frontend');
 
-      console.log('💾 Quiz saved as draft:', quiz._id);
-
-      res.status(201).json({
+      res.status(200).json({
         success: true,
-        message: 'Quiz generated successfully. You can now review and edit before publishing.',
+        message: 'Quiz generated successfully. Review and save when ready.',
         data: {
-          quizId: quiz._id,
-          quiz: quizData,
-          questionsGenerated: generatedQuestions.length
+          quiz: quizResponse,
+          questionsGenerated: formattedQuestions.length
         }
       });
     } catch (error) {
@@ -103,12 +126,14 @@ class aiQuizController {
   }
 
   /**
-   * Regenerate specific questions
+   * Regenerate specific question
    */
   async regenerateQuestions(req, res) {
     try {
       const { quizId } = req.params;
       const { questionNumbers, subject, gradeLevel, difficultyLevel } = req.body;
+
+      console.log('🔄 Regenerate request:', { quizId, questionNumbers });
 
       if (!questionNumbers || !Array.isArray(questionNumbers) || questionNumbers.length === 0) {
         return res.status(400).json({
@@ -117,6 +142,51 @@ class aiQuizController {
         });
       }
 
+      // If no quizId (quiz not saved yet), just generate new questions
+      if (!quizId || quizId === 'undefined' || quizId === 'null') {
+        console.log('📝 Generating new question (no saved quiz)');
+        
+        const newQuestions = await aiService.generateQuiz({
+          subject,
+          gradeLevel,
+          numberOfQuestions: questionNumbers.length,
+          difficultyLevel: difficultyLevel || 'medium'
+        });
+
+        // Transform to match frontend format
+        const formattedQuestions = newQuestions.map((q, index) => {
+          const correctOption = q.options.find(opt => opt.isCorrect);
+          const correctAnswerLetter = correctOption 
+            ? String.fromCharCode(65 + q.options.indexOf(correctOption))
+            : 'A';
+
+          return {
+            questionNumber: questionNumbers[index],
+            id: questionNumbers[index],
+            type: q.type || 'mcq',
+            questionText: q.questionText,
+            options: q.options.map((opt, optIdx) => ({
+              option: String.fromCharCode(65 + optIdx),
+              text: opt.text,
+              isCorrect: opt.isCorrect
+            })),
+            correctAnswer: correctAnswerLetter,
+            hint: q.hints?.[0] || '',
+            explanation: q.explanation || '',
+            points: 1
+          };
+        });
+
+        return res.json({
+          success: true,
+          message: 'Question regenerated successfully',
+          data: { 
+            questions: formattedQuestions
+          }
+        });
+      }
+
+      // If quiz exists, update it
       const quiz = await TeacherQuiz.findById(quizId);
       if (!quiz) {
         return res.status(404).json({
@@ -143,18 +213,35 @@ class aiQuizController {
         difficultyLevel: difficultyLevel || 'medium'
       });
 
+      // Transform and replace questions
+      const formattedQuestions = newQuestions.map((q, index) => {
+        const correctOption = q.options.find(opt => opt.isCorrect);
+        const correctAnswerLetter = correctOption 
+          ? String.fromCharCode(65 + q.options.indexOf(correctOption))
+          : 'A';
+
+        return {
+          questionNumber: questionNumbers[index],
+          id: questionNumbers[index],
+          type: q.type || 'mcq',
+          questionText: q.questionText,
+          options: q.options.map((opt, optIdx) => ({
+            option: String.fromCharCode(65 + optIdx),
+            text: opt.text,
+            isCorrect: opt.isCorrect
+          })),
+          correctAnswer: correctAnswerLetter,
+          hint: q.hints?.[0] || '',
+          explanation: q.explanation || '',
+          points: 1
+        };
+      });
+
       // Replace specified questions
       questionNumbers.forEach((qNum, index) => {
         const questionIndex = quiz.questions.findIndex(q => q.id === qNum);
-        if (questionIndex !== -1 && newQuestions[index]) {
-          quiz.questions[questionIndex] = {
-            id: qNum,
-            type: newQuestions[index].type,
-            questionText: newQuestions[index].questionText,
-            options: newQuestions[index].options,
-            hints: newQuestions[index].hints,
-            shortAnswer: '',
-          };
+        if (questionIndex !== -1 && formattedQuestions[index]) {
+          quiz.questions[questionIndex] = formattedQuestions[index];
         }
       });
 
@@ -163,13 +250,160 @@ class aiQuizController {
       res.json({
         success: true,
         message: 'Questions regenerated successfully',
-        data: { quiz }
+        data: { 
+          quiz,
+          questions: formattedQuestions
+        }
       });
     } catch (error) {
       console.error('❌ Error regenerating questions:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to regenerate questions',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * Save/Update quiz (handles both create and update)
+   */
+  async updateGeneratedQuiz(req, res) {
+    try {
+      const { quizId } = req.params;
+      const updateData = req.body;
+
+      console.log('💾 Save/Update quiz:', { quizId, hasData: !!updateData });
+
+      // If no quizId, create new quiz
+      if (!quizId || quizId === 'undefined' || quizId === 'null') {
+        console.log('📝 Creating new quiz');
+
+        const {
+          title,
+          subject,
+          gradeLevel,
+          questions,
+          difficultyLevel,
+          topics,
+          aiGenerated,
+          aiProvider
+        } = updateData;
+
+        // Validate required fields
+        if (!title || !subject || !gradeLevel || !questions || questions.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Missing required fields: title, subject, gradeLevel, questions'
+          });
+        }
+
+        // Create new quiz
+        const quizData = {
+          teacherId: req.user.id,
+          title,
+          subject,
+          gradeLevel: Array.isArray(gradeLevel) ? gradeLevel : [gradeLevel],
+          questions: questions.map(q => ({
+            id: q.questionNumber || q.id,
+            type: q.type || 'mcq',
+            questionText: q.questionText,
+            options: q.options.map(opt => ({
+              option: opt.option,
+              text: opt.text,
+              isCorrect: opt.isCorrect || opt.option === q.correctAnswer
+            })),
+            correctAnswer: q.correctAnswer,
+            hint: q.hint || '',
+            explanation: q.explanation || '',
+            points: q.points || 1,
+            shortAnswer: ''
+          })),
+          status: 'draft',
+          isScheduled: false,
+          aiGenerated: aiGenerated || true,
+          aiProvider: aiProvider || 'gemini',
+          difficultyLevel,
+          topics: topics || []
+        };
+
+        const quiz = new TeacherQuiz(quizData);
+        await quiz.save();
+
+        console.log('✅ New quiz created:', quiz._id);
+
+        return res.status(201).json({
+          success: true,
+          message: 'Quiz saved as draft successfully',
+          data: { quiz }
+        });
+      }
+
+      // Update existing quiz
+      const quiz = await TeacherQuiz.findById(quizId);
+      if (!quiz) {
+        return res.status(404).json({
+          success: false,
+          message: 'Quiz not found'
+        });
+      }
+
+      // Verify ownership
+      if (quiz.teacherId.toString() !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Unauthorized to modify this quiz'
+        });
+      }
+
+      console.log('📝 Updating existing quiz');
+
+      // Update allowed fields
+      const allowedUpdates = [
+        'title', 'subject', 'gradeLevel', 'questions', 
+        'status', 'isScheduled', 'difficultyLevel', 'topics'
+      ];
+
+      allowedUpdates.forEach(field => {
+        if (updateData[field] !== undefined) {
+          if (field === 'gradeLevel') {
+            quiz[field] = Array.isArray(updateData[field]) ? updateData[field] : [updateData[field]];
+          } else if (field === 'questions') {
+            quiz[field] = updateData[field].map(q => ({
+              id: q.questionNumber || q.id,
+              type: q.type || 'mcq',
+              questionText: q.questionText,
+              options: q.options.map(opt => ({
+                option: opt.option,
+                text: opt.text,
+                isCorrect: opt.isCorrect || opt.option === q.correctAnswer
+              })),
+              correctAnswer: q.correctAnswer,
+              hint: q.hint || '',
+              explanation: q.explanation || '',
+              points: q.points || 1,
+              shortAnswer: ''
+            }));
+          } else {
+            quiz[field] = updateData[field];
+          }
+        }
+      });
+
+      await quiz.save();
+
+      console.log('✅ Quiz updated successfully');
+
+      res.json({
+        success: true,
+        message: 'Quiz updated successfully',
+        data: { quiz }
+      });
+    } catch (error) {
+      console.error('❌ Error saving/updating quiz:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to save quiz',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
@@ -228,59 +462,6 @@ class aiQuizController {
   }
 
   /**
-   * Update quiz after AI generation (teacher editing)
-   */
-  async updateGeneratedQuiz(req, res) {
-    try {
-      const { quizId } = req.params;
-      const updateData = req.body;
-
-      const quiz = await TeacherQuiz.findById(quizId);
-      if (!quiz) {
-        return res.status(404).json({
-          success: false,
-          message: 'Quiz not found'
-        });
-      }
-
-      // Verify ownership
-      if (quiz.teacherId.toString() !== req.user.id) {
-        return res.status(403).json({
-          success: false,
-          message: 'Unauthorized to modify this quiz'
-        });
-      }
-
-      // Update allowed fields
-      const allowedUpdates = [
-        'title', 'subject', 'gradeLevel', 'questions', 
-        'status', 'isScheduled'
-      ];
-
-      allowedUpdates.forEach(field => {
-        if (updateData[field] !== undefined) {
-          quiz[field] = updateData[field];
-        }
-      });
-
-      await quiz.save();
-
-      res.json({
-        success: true,
-        message: 'Quiz updated successfully',
-        data: { quiz }
-      });
-    } catch (error) {
-      console.error('❌ Error updating quiz:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to update quiz',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
-
-  /**
    * Get AI generation suggestions
    */
   async getGenerationSuggestions(req, res) {
@@ -309,8 +490,7 @@ class aiQuizController {
 
   // Helper methods
   getRecommendedQuestionCount(gradeLevel) {
-    // For university level, adjust based on year/sem
-    return 10; // Default for university
+    return 10;
   }
 
   getTopicSuggestions(subject, gradeLevel) {
@@ -329,7 +509,7 @@ class aiQuizController {
   }
 
   getTimeLimitSuggestions(gradeLevel) {
-    return [30, 45, 60, 90]; // University level time limits in minutes
+    return [30, 45, 60, 90];
   }
 }
 
