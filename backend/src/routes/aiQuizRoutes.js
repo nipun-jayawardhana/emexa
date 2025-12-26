@@ -1,46 +1,27 @@
 // backend/src/routes/aiQuizRoutes.js
 import express from 'express';
+import { protect, authorize } from '../middleware/auth.middleware.js';
 import aiQuizController from '../controllers/aiQuizController.js';
-import { authenticateToken } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(authenticateToken);
+// All routes require authentication (teacher only)
+router.use(protect);
+router.use(authorize('teacher'));
 
-/**
- * @route   POST /api/ai-quiz/generate
- * @desc    Generate quiz using AI
- * @access  Teacher only
- */
-router.post('/generate', aiQuizController.generateQuiz.bind(aiQuizController));
+// Generate quiz with AI
+router.post('/generate', aiQuizController.generateQuiz);
 
-/**
- * @route   POST /api/ai-quiz/:quizId/regenerate
- * @desc    Regenerate specific questions
- * @access  Teacher only
- */
-router.post('/:quizId/regenerate', aiQuizController.regenerateQuestions.bind(aiQuizController));
+// Get generation suggestions
+router.get('/suggestions', aiQuizController.getGenerationSuggestions);
 
-/**
- * @route   GET /api/ai-quiz/:quizId/enhance/:questionNumber
- * @desc    Get AI suggestions to enhance a specific question
- * @access  Teacher only
- */
-router.get('/:quizId/enhance/:questionNumber', aiQuizController.enhanceQuestion.bind(aiQuizController));
+// Regenerate specific questions
+router.post('/:quizId/regenerate', aiQuizController.regenerateQuestions);
 
-/**
- * @route   PUT /api/ai-quiz/:quizId
- * @desc    Update AI-generated quiz
- * @access  Teacher only
- */
-router.put('/:quizId', aiQuizController.updateGeneratedQuiz.bind(aiQuizController));
+// Enhance a specific question
+router.get('/:quizId/enhance/:questionNumber', aiQuizController.enhanceQuestion);
 
-/**
- * @route   GET /api/ai-quiz/suggestions
- * @desc    Get AI generation suggestions
- * @access  Teacher only
- */
-router.get('/suggestions', aiQuizController.getGenerationSuggestions.bind(aiQuizController));
+// Save/Update generated quiz (handles both create and update)
+router.put('/:quizId', aiQuizController.updateGeneratedQuiz);
 
 export default router;
