@@ -5,39 +5,33 @@ class AIService {
   constructor() {
     this.initialized = false;
     this.geminiApiKey = null;
-    this.huggingFaceApiKey = null;
-    this.cohereApiKey = null;
+    this.geminiEndpoint = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent';
   }
 
-  /**
-   * Initialize API configurations (called on first use)
-   */
-  initialize() {
+  // Initialize lazily to ensure env vars are loaded
+  _ensureInitialized() {
     if (this.initialized) return;
-
-    // Initialize API configurations
-    this.geminiApiKey = process.env.GEMINI_API_KEY;
-    this.huggingFaceApiKey = process.env.HUGGING_FACE_API_KEY;
-    this.cohereApiKey = process.env.COHERE_API_KEY;
     
-    // Using Gemini 2.5 Flash - the latest available model
-    this.geminiEndpoint = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent';
-    this.huggingFaceEndpoint = 'https://api-inference.huggingface.co/models/';
-    this.cohereEndpoint = 'https://api.cohere.ai/v1/generate';
-
+    this.geminiApiKey = process.env.GEMINI_API_KEY;
+    
+    if (!this.geminiApiKey) {
+      console.error('❌ CRITICAL: GEMINI_API_KEY not found in environment variables!');
+      console.error('   Make sure your .env file has: GEMINI_API_KEY=your_key_here');
+      throw new Error('Gemini API key not configured');
+    }
+    
     console.log('🤖 AI Service initialized');
-    console.log('   Gemini API Key:', this.geminiApiKey ? '✅ Present' : '❌ Missing');
-    console.log('   HuggingFace API Key:', this.huggingFaceApiKey ? '✅ Present' : '❌ Missing');
-    console.log('   Cohere API Key:', this.cohereApiKey ? '✅ Present' : '❌ Missing');
+    console.log('   Gemini API Key:', `✅ Present (${this.geminiApiKey.substring(0, 10)}...)`);
+    console.log('   Gemini Endpoint:', this.geminiEndpoint);
     
     this.initialized = true;
   }
 
   /**
-   * Generate quiz questions using Gemini API (Primary method)
+   * Generate quiz questions using Gemini API
    */
   async generateQuizWithGemini(subject, gradeLevel, numberOfQuestions, difficultyLevel = 'medium', topics = []) {
-    this.initialize(); // Ensure initialization
+    this._ensureInitialized(); // Ensure initialization first
     
     console.log('🔮 Attempting Gemini API...');
     
@@ -49,7 +43,6 @@ class AIService {
       const prompt = this.buildQuizPrompt(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
       
       console.log('📤 Sending request to Gemini API...');
-      console.log('   URL:', `${this.geminiEndpoint}?key=${this.geminiApiKey.substring(0, 10)}...`);
       
       const response = await axios.post(
         `${this.geminiEndpoint}?key=${this.geminiApiKey}`,
@@ -70,7 +63,7 @@ class AIService {
           headers: {
             'Content-Type': 'application/json'
           },
-          timeout: 30000 // 30 second timeout
+          timeout: 30000
         }
       );
 
@@ -91,18 +84,19 @@ class AIService {
     } catch (error) {
       console.error('❌ Gemini API Error Details:');
       console.error('   Status:', error.response?.status);
-      console.error('   Status Text:', error.response?.statusText);
       console.error('   Error Data:', JSON.stringify(error.response?.data, null, 2));
       console.error('   Error Message:', error.message);
       
       if (error.response?.status === 400) {
-        throw new Error('Invalid request to Gemini API - check API key or request format');
+        throw new Error('Invalid request to Gemini API');
       } else if (error.response?.status === 403) {
         throw new Error('Gemini API key is invalid or access denied');
+      } else if (error.response?.status === 404) {
+        throw new Error('Gemini model not found - endpoint issue');
       } else if (error.response?.status === 429) {
-        throw new Error('Gemini API rate limit exceeded - please try again later');
+        throw new Error('Gemini API rate limit exceeded');
       } else if (error.code === 'ECONNABORTED') {
-        throw new Error('Request to Gemini API timed out');
+        throw new Error('Request timed out');
       }
       
       throw new Error(`Gemini API failed: ${error.message}`);
@@ -110,156 +104,24 @@ class AIService {
   }
 
   /**
-   * Generate quiz questions using Hugging Face (Fallback method)
-   */
-  async generateQuizWithHuggingFace(subject, gradeLevel, numberOfQuestions, difficultyLevel = 'medium', topics = []) {
-    this.initialize(); // Ensure initialization
-    
-    console.log('🤗 Attempting Hugging Face API...');
-    
-    if (!this.huggingFaceApiKey) {
-      throw new Error('Hugging Face API key not configured');
-    }
-
-    try {
-      const prompt = this.buildQuizPrompt(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
-      const model = 'mistralai/Mistral-7B-Instruct-v0.2';
-
-      const response = await axios.post(
-        `${this.huggingFaceEndpoint}${model}`,
-        {
-          inputs: prompt,
-          parameters: {
-            max_new_tokens: 2000,
-            temperature: 0.7,
-            top_p: 0.95,
-            return_full_text: false
-          }
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.huggingFaceApiKey}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 60000 // 60 second timeout for HF (slower)
-        }
-      );
-
-      const generatedText = response.data[0].generated_text;
-      return this.parseQuizResponse(generatedText);
-    } catch (error) {
-      console.error('❌ Hugging Face API Error:', error.response?.data || error.message);
-      throw new Error(`Hugging Face API failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Generate quiz questions using Cohere (Alternative method)
-   */
-  async generateQuizWithCohere(subject, gradeLevel, numberOfQuestions, difficultyLevel = 'medium', topics = []) {
-    this.initialize(); // Ensure initialization
-    
-    console.log('🔮 Attempting Cohere API...');
-    
-    if (!this.cohereApiKey) {
-      throw new Error('Cohere API key not configured');
-    }
-
-    try {
-      const prompt = this.buildQuizPrompt(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
-
-      const response = await axios.post(
-        this.cohereEndpoint,
-        {
-          model: 'command',
-          prompt: prompt,
-          max_tokens: 2000,
-          temperature: 0.7,
-          k: 0,
-          stop_sequences: [],
-          return_likelihoods: 'NONE'
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.cohereApiKey}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 30000
-        }
-      );
-
-      return this.parseQuizResponse(response.data.generations[0].text);
-    } catch (error) {
-      console.error('❌ Cohere API Error:', error.response?.data || error.message);
-      throw new Error(`Cohere API failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Main method with fallback support
+   * Main method
    */
   async generateQuiz(params) {
-    this.initialize(); // Ensure initialization
+    this._ensureInitialized(); // Ensure initialization first
     
-    const { subject, gradeLevel, numberOfQuestions, difficultyLevel, topics, aiProvider = 'gemini' } = params;
+    const { subject, gradeLevel, numberOfQuestions, difficultyLevel, topics } = params;
 
     console.log('\n🚀 Starting AI Quiz Generation');
-    console.log('   Provider:', aiProvider);
     console.log('   Subject:', subject);
     console.log('   Grade:', gradeLevel);
     console.log('   Questions:', numberOfQuestions);
 
-    const errors = [];
-
-    // Try primary provider first
     try {
-      if (aiProvider === 'gemini' && this.geminiApiKey) {
-        console.log('📍 Trying primary provider: Gemini');
-        return await this.generateQuizWithGemini(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
-      } else if (aiProvider === 'huggingface' && this.huggingFaceApiKey) {
-        console.log('📍 Trying primary provider: Hugging Face');
-        return await this.generateQuizWithHuggingFace(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
-      } else if (aiProvider === 'cohere' && this.cohereApiKey) {
-        console.log('📍 Trying primary provider: Cohere');
-        return await this.generateQuizWithCohere(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
-      } else {
-        errors.push(`Primary provider ${aiProvider} not configured`);
-        console.log(`⚠️ Primary provider (${aiProvider}) not configured`);
-      }
+      return await this.generateQuizWithGemini(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
     } catch (error) {
-      errors.push(`${aiProvider}: ${error.message}`);
-      console.error(`❌ Primary AI provider (${aiProvider}) failed:`, error.message);
+      console.error('❌ Quiz generation failed:', error.message);
+      throw error;
     }
-
-    // Fallback chain
-    console.log('🔄 Trying fallback providers...');
-    const providers = [
-      { name: 'gemini', key: this.geminiApiKey, method: this.generateQuizWithGemini.bind(this) },
-      { name: 'huggingface', key: this.huggingFaceApiKey, method: this.generateQuizWithHuggingFace.bind(this) },
-      { name: 'cohere', key: this.cohereApiKey, method: this.generateQuizWithCohere.bind(this) }
-    ];
-
-    for (const provider of providers) {
-      if (provider.name === aiProvider) continue; // Skip already tried primary
-      
-      if (!provider.key) {
-        console.log(`⏭️ Skipping ${provider.name} (not configured)`);
-        continue;
-      }
-
-      try {
-        console.log(`📍 Trying fallback: ${provider.name}`);
-        return await provider.method(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
-      } catch (error) {
-        errors.push(`${provider.name}: ${error.message}`);
-        console.error(`❌ Fallback provider (${provider.name}) failed:`, error.message);
-      }
-    }
-
-    console.error('\n❌ ALL PROVIDERS FAILED:');
-    errors.forEach((err, i) => console.error(`   ${i + 1}. ${err}`));
-    
-    throw new Error(`All AI providers failed to generate quiz:\n${errors.join('\n')}`);
   }
 
   /**
@@ -276,10 +138,8 @@ Requirements:
 - Mark the correct answer clearly
 - Include a brief explanation for each correct answer
 - Questions should be age-appropriate and curriculum-aligned
-- Avoid ambiguous or trick questions
-- Ensure educational value and accuracy
 
-Format your response EXACTLY as follows (this is critical):
+Format your response EXACTLY as follows:
 
 QUESTION 1: [Write the question here]
 A) [Option A]
@@ -309,14 +169,13 @@ Important: Follow this exact format without any additional text or markdown form
    */
   parseQuizResponse(responseText) {
     console.log('🔍 Parsing AI response...');
-    console.log('   Response text preview:', responseText.substring(0, 200));
     
     const questions = [];
     
-    // Clean up the response text - remove markdown code blocks if present
+    // Clean up response text
     let cleanedText = responseText
-      .replace(/```[\w]*\n/g, '') // Remove opening code blocks
-      .replace(/```/g, '')         // Remove closing code blocks
+      .replace(/```[\w]*\n/g, '')
+      .replace(/```/g, '')
       .trim();
     
     const questionBlocks = cleanedText.split(/QUESTION \d+:/i).filter(block => block.trim());
@@ -349,9 +208,8 @@ Important: Follow this exact format without any additional text or markdown form
         const correctLine = lines.find(line => line.match(/^CORRECT:/i));
         const correctAnswer = correctLine ? correctLine.replace(/^CORRECT:/i, '').trim().toUpperCase().charAt(0) : null;
 
-        // Mark correct answer
         if (correctAnswer && correctAnswer.match(/[A-D]/)) {
-          const correctIndex = correctAnswer.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+          const correctIndex = correctAnswer.charCodeAt(0) - 65;
           if (options[correctIndex]) {
             options[correctIndex].isCorrect = true;
           }
@@ -368,25 +226,17 @@ Important: Follow this exact format without any additional text or markdown form
             type: 'mcq',
             questionText,
             options,
-            hints: [hint || 'Think carefully about the key concepts in this question.', '', '', ''],
+            hints: [hint || 'Think carefully about the key concepts.', '', '', ''],
             explanation
           });
-          console.log(`   ✅ Successfully parsed question ${i + 1}`);
-        } else {
-          console.warn(`   ⚠️ Skipping incomplete question ${i + 1}:`, {
-            hasQuestionText: !!questionText,
-            optionsCount: options.length,
-            hasCorrectAnswer: !!correctAnswer
-          });
+          console.log(`   ✅ Parsed question ${i + 1}`);
         }
       } catch (error) {
-        console.error(`   ❌ Error parsing question block ${i + 1}:`, error.message);
+        console.error(`   ❌ Error parsing question ${i + 1}:`, error.message);
       }
     }
 
     if (questions.length === 0) {
-      console.error('❌ Failed to parse any valid questions');
-      console.error('   Response text:', responseText);
       throw new Error('Failed to parse any valid questions from AI response');
     }
 
@@ -398,20 +248,15 @@ Important: Follow this exact format without any additional text or markdown form
    * Enhance existing questions with AI suggestions
    */
   async enhanceQuestion(questionData) {
-    this.initialize(); // Ensure initialization
+    this._ensureInitialized(); // Ensure initialization first
     
     try {
-      const prompt = `Improve this quiz question to make it clearer and more educational:
+      const prompt = `Improve this quiz question:
 
 Question: ${questionData.questionText}
 Options: ${questionData.options.map(opt => `${String.fromCharCode(65 + opt.id - 1)}) ${opt.text}`).join('\n')}
 
 Provide:
-1. An improved version of the question (if needed)
-2. Better hint for students
-3. Detailed explanation of the correct answer
-
-Format:
 IMPROVED_QUESTION: [question]
 HINT: [hint]
 EXPLANATION: [explanation]`;
@@ -444,6 +289,22 @@ EXPLANATION: [explanation]`;
       console.error('Error enhancing question:', error);
       throw new Error('Failed to enhance question');
     }
+  }
+
+  /**
+   * Get AI generation suggestions
+   */
+  async getGenerationSuggestions(subject, gradeLevel) {
+    // Return simple suggestions without AI call
+    return {
+      recommendedQuestions: 5,
+      topicSuggestions: [
+        'Introduction to ' + subject,
+        'Basic concepts',
+        'Advanced topics',
+        'Real-world applications'
+      ]
+    };
   }
 }
 

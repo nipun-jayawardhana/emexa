@@ -10,8 +10,7 @@ const AIQuizGeneratorModal = ({ isOpen, onClose, onQuizGenerated }) => {
     gradeLevel: '',
     numberOfQuestions: 5,
     difficultyLevel: 'medium',
-    topics: [],
-    aiProvider: 'gemini'
+    topics: []
   });
 
   const [currentTopic, setCurrentTopic] = useState('');
@@ -33,9 +32,13 @@ const AIQuizGeneratorModal = ({ isOpen, onClose, onQuizGenerated }) => {
       const response = await apiClient.get(
         `/ai-quiz/suggestions?subject=${encodeURIComponent(formData.subject)}&gradeLevel=${encodeURIComponent(formData.gradeLevel)}`
       );
-      setSuggestions(response.data);
+      if (response.success) {
+        setSuggestions(response.data);
+      }
     } catch (err) {
       console.error('Error fetching suggestions:', err);
+      // Silently fail - suggestions are optional
+      setSuggestions(null);
     }
   };
 
@@ -153,7 +156,6 @@ const AIQuizGeneratorModal = ({ isOpen, onClose, onQuizGenerated }) => {
         difficultyLevel: formData.difficultyLevel,
         topics: formData.topics,
         aiGenerated: true,
-        aiProvider: formData.aiProvider,
         isPublished: false
       };
 
@@ -352,7 +354,7 @@ const AIQuizGeneratorModal = ({ isOpen, onClose, onQuizGenerated }) => {
                     <h3 className="text-lg font-semibold text-gray-800">Quiz Configuration</h3>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Number of Questions
@@ -388,29 +390,6 @@ const AIQuizGeneratorModal = ({ isOpen, onClose, onQuizGenerated }) => {
                           <option value="easy">🟢 Easy</option>
                           <option value="medium">🟡 Medium</option>
                           <option value="hard">🔴 Hard</option>
-                        </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        AI Provider
-                      </label>
-                      <div className="relative">
-                        <select
-                          name="aiProvider"
-                          value={formData.aiProvider}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all appearance-none bg-white cursor-pointer"
-                        >
-                          <option value="gemini">✨ Google Gemini (Best)</option>
-                          <option value="huggingface">🤗 Hugging Face</option>
-                          <option value="cohere">🔮 Cohere</option>
                         </select>
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
