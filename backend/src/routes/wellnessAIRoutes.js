@@ -101,4 +101,41 @@ router.post('/analyze-patterns', async (req, res) => {
   }
 });
 
+/**
+ * @route   POST /api/wellness-ai/chat
+ * @desc    Chat with AI wellness coach (uses Gemini API)
+ * @access  Private
+ */
+router.post('/chat', async (req, res) => {
+  try {
+    const { message, history } = req.body;
+    const userName = req.user?.name || req.user?.username || 'Student';
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message is required'
+      });
+    }
+
+    console.log(`💬 Processing chat message for ${userName}`);
+
+    const result = await wellnessAIService.generateChatResponse({
+      message: message.trim(),
+      history: history || [],
+      userName
+    });
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('❌ Error in chat route:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate chat response',
+      error: error.message
+    });
+  }
+});
+
 export default router;
