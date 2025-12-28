@@ -1,24 +1,27 @@
 // backend/src/services/wellnessAIService.js
-import axios from 'axios';
+import { HfInference } from '@huggingface/inference';
 
 class WellnessAIService {
   constructor() {
-    this.geminiApiKey = null;
-    this.geminiEndpoint = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent';
+    this.hf = null;
     this.initialized = false;
+    // Using Meta's Llama model - completely FREE!
+    this.model = 'meta-llama/Llama-3.2-3B-Instruct';
   }
 
   _ensureInitialized() {
     if (this.initialized) return;
     
-    this.geminiApiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.HUGGING_FACE_API_KEY;
     
-    if (!this.geminiApiKey) {
-      console.error('❌ Gemini API key not configured for Wellness AI');
+    if (!apiKey) {
+      console.error('❌ Hugging Face API key not configured');
       throw new Error('Wellness AI not configured');
     }
     
-    console.log('🧘 Wellness AI Service initialized');
+    this.hf = new HfInference(apiKey);
+    
+    console.log('🧘 Wellness AI Service initialized with Hugging Face (FREE!)');
     this.initialized = true;
   }
 
@@ -35,37 +38,30 @@ class WellnessAIService {
       
       console.log('🧠 Generating personalized wellness advice...');
 
-      const response = await axios.post(
-        `${this.geminiEndpoint}?key=${this.geminiApiKey}`,
-        {
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }],
-          generationConfig: {
-            temperature: 0.8,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 500
+      let fullResponse = '';
+      
+      for await (const chunk of this.hf.chatCompletionStream({
+        model: this.model,
+        messages: [
+          {
+            role: "user",
+            content: prompt
           }
-        },
-        {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 15000
+        ],
+        max_tokens: 200,
+        temperature: 0.7
+      })) {
+        if (chunk.choices && chunk.choices[0]?.delta?.content) {
+          fullResponse += chunk.choices[0].delta.content;
         }
-      );
-
-      if (!response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-        throw new Error('Invalid response from AI');
       }
 
-      const advice = response.data.candidates[0].content.parts[0].text;
+      const advice = fullResponse.trim();
       console.log('✅ Generated personalized advice');
 
       return {
         success: true,
-        advice: advice.trim(),
+        advice: advice || this._getFallbackAdvice(mood),
         mood,
         timestamp: new Date()
       };
@@ -73,7 +69,6 @@ class WellnessAIService {
     } catch (error) {
       console.error('❌ Error generating wellness advice:', error.message);
       
-      // Fallback to default advice
       return {
         success: false,
         advice: this._getFallbackAdvice(mood),
@@ -90,41 +85,26 @@ class WellnessAIService {
     this._ensureInitialized();
 
     try {
-      const prompt = `You are a compassionate wellness coach for students. Generate ONE inspiring, practical wellness tip for today.
+      const prompt = `You are a wellness coach. Generate ONE short wellness tip for students in 1-2 sentences. Focus on: ${userContext.recentActivity || 'study-life balance'}.`;
 
-Context: ${userContext.recentActivity || 'Student is working on their studies'}
-
-Requirements:
-- Keep it to 1-2 sentences
-- Be positive and encouraging
-- Make it actionable and practical
-- Focus on mental health, study-life balance, or self-care
-- Don't use quotes or formatting, just plain text
-
-Generate the tip:`;
-
-      const response = await axios.post(
-        `${this.geminiEndpoint}?key=${this.geminiApiKey}`,
-        {
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            temperature: 0.9,
-            maxOutputTokens: 150
-          }
-        },
-        {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 10000
+      let fullResponse = '';
+      
+      for await (const chunk of this.hf.chatCompletionStream({
+        model: this.model,
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 100,
+        temperature: 0.8
+      })) {
+        if (chunk.choices && chunk.choices[0]?.delta?.content) {
+          fullResponse += chunk.choices[0].delta.content;
         }
-      );
+      }
 
-      const tip = response.data.candidates[0].content.parts[0].text.trim();
+      const tip = fullResponse.trim();
       
       return {
         success: true,
-        tip,
+        tip: tip || "Take regular breaks and stay hydrated. Your wellbeing matters!",
         date: new Date().toDateString()
       };
 
@@ -140,7 +120,7 @@ Generate the tip:`;
   }
 
   /**
-   * Analyze mood patterns and generate insights
+   * Analyze mood patterns
    */
   async analyzeMoodPatterns(moodHistory) {
     this._ensureInitialized();
@@ -154,42 +134,29 @@ Generate the tip:`;
 
     try {
       const moodSummary = moodHistory.slice(-7).map(m => 
-        `${m.date}: ${m.mood} ${m.emoji}`
-      ).join('\n');
+        `${m.date}: ${m.mood}`
+      ).join(', ');
 
-      const prompt = `You are a mental health awareness assistant for students. Analyze this mood pattern from the past week and provide supportive insights.
+      const prompt = `Analyze this student's mood pattern: ${moodSummary}. Provide a brief, caring observation (2-3 sentences) and one suggestion. Be warm and supportive.`;
 
-Mood History:
-${moodSummary}
-
-Provide:
-1. A brief, caring observation about their emotional pattern (2-3 sentences)
-2. One practical suggestion to maintain or improve their wellbeing (1-2 sentences)
-
-Keep your response warm, non-judgmental, and under 100 words total. Don't use bullet points or formatting.`;
-
-      const response = await axios.post(
-        `${this.geminiEndpoint}?key=${this.geminiApiKey}`,
-        {
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 200
-          }
-        },
-        {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 15000
+      let fullResponse = '';
+      
+      for await (const chunk of this.hf.chatCompletionStream({
+        model: this.model,
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 150,
+        temperature: 0.6
+      })) {
+        if (chunk.choices && chunk.choices[0]?.delta?.content) {
+          fullResponse += chunk.choices[0].delta.content;
         }
-      );
+      }
 
-      const insights = response.data.candidates[0].content.parts[0].text.trim();
+      const insights = fullResponse.trim();
 
       return {
         success: true,
-        insights,
+        insights: insights || "You're doing great by tracking your moods! Keep it up.",
         moodCount: moodHistory.length
       };
 
@@ -198,45 +165,103 @@ Keep your response warm, non-judgmental, and under 100 words total. Don't use bu
       
       return {
         success: false,
-        insights: "Keep tracking your moods to help us understand your patterns better. You're taking great steps for your wellbeing!",
+        insights: "Keep tracking your moods to help us understand your patterns better!",
         moodCount: moodHistory.length
       };
     }
   }
 
   /**
-   * Build prompt for mood-based advice
+   * Chatbot conversation
    */
-  _buildMoodAdvicePrompt(mood, emoji, userName, recentMoods) {
-    const moodContext = recentMoods.length > 0 
-      ? `Recent mood history: ${recentMoods.slice(-3).join(', ')}`
-      : 'First mood entry';
+  async generateChatResponse(messageData) {
+    this._ensureInitialized();
 
-    return `You are a compassionate, supportive wellness coach for students. A student named ${userName || 'Student'} just shared they're feeling ${mood} ${emoji}.
+    const { message, history = [], userName } = messageData;
 
-${moodContext}
+    try {
+      const messages = [
+        {
+          role: "system",
+          content: `You are a compassionate wellness coach for students. Respond in 2-4 sentences. Be supportive, practical, and warm. The student's name is ${userName || 'Student'}.`
+        }
+      ];
 
-Provide warm, personalized advice in 2-3 short sentences that:
-- Acknowledges their feelings with empathy
-- Offers ONE specific, actionable wellness suggestion
-- Ends with gentle encouragement
+      // Add conversation history
+      history.slice(-4).forEach(msg => {
+        messages.push({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        });
+      });
 
-Keep it conversational, supportive, and under 80 words. Don't use bullet points or formatting.`;
+      // Add current message
+      messages.push({
+        role: 'user',
+        content: message
+      });
+
+      console.log('💬 Generating chatbot response...');
+
+      let fullResponse = '';
+      
+      for await (const chunk of this.hf.chatCompletionStream({
+        model: this.model,
+        messages: messages,
+        max_tokens: 200,
+        temperature: 0.7
+      })) {
+        if (chunk.choices && chunk.choices[0]?.delta?.content) {
+          fullResponse += chunk.choices[0].delta.content;
+        }
+      }
+
+      const chatResponse = fullResponse.trim();
+      console.log('✅ Generated chatbot response');
+
+      return {
+        success: true,
+        response: chatResponse || "I'm here to support you. Can you tell me more about what you're experiencing?",
+        timestamp: new Date()
+      };
+
+    } catch (error) {
+      console.error('❌ Error generating chat response:', error.message);
+      
+      const fallbackResponses = [
+        "I understand how you're feeling. Let's work through this together.",
+        "Thank you for sharing. Your feelings are valid. How can I help?",
+        "I'm here to support you. What would help you most right now?",
+        "That's a great observation. What small step could you take today?",
+        "Remember, taking care of your mental health is important."
+      ];
+
+      return {
+        success: false,
+        response: fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)],
+        timestamp: new Date()
+      };
+    }
   }
 
-  /**
-   * Fallback advice when AI fails
-   */
+  _buildMoodAdvicePrompt(mood, emoji, userName, recentMoods) {
+    const moodContext = recentMoods.length > 0 
+      ? `Recent moods: ${recentMoods.slice(-3).join(', ')}`
+      : 'First mood entry';
+
+    return `You are a wellness coach. Student ${userName || 'Student'} is feeling ${mood} ${emoji}. ${moodContext}. Respond with empathy in 2-3 sentences: acknowledge feelings, give ONE actionable tip, end with encouragement.`;
+  }
+
   _getFallbackAdvice(mood) {
     const fallbackAdvice = {
-      'Very Sad': "I'm here with you. Remember that difficult feelings pass, and it's brave to acknowledge them. Try taking a few deep breaths, and consider reaching out to someone you trust.",
-      'Sad': "It's okay to feel down sometimes. Be gentle with yourself today. Maybe try doing something small that usually brings you comfort, or talk to a friend.",
-      'Neutral': "You're doing okay, and that's perfectly fine! Some days are just steady, and that's part of life's balance. Keep taking care of yourself.",
-      'Happy': "I'm glad you're feeling good today! Keep this positive energy going, and maybe share a smile with someone else.",
-      'Very Happy': "Your positive energy is wonderful! Celebrate these good moments and remember this feeling. You're doing amazing!"
+      'Very Sad': "I'm here with you. Your feelings are valid. Try some deep breaths and reach out to someone you trust.",
+      'Sad': "It's okay to feel down. Be gentle with yourself today. Small steps are still progress.",
+      'Neutral': "You're doing fine! Some days are just steady. Keep taking care of yourself.",
+      'Happy': "Great to see you feeling good! Keep that positive energy going.",
+      'Very Happy': "Wonderful! Celebrate these good moments. You're doing amazing!"
     };
 
-    return fallbackAdvice[mood] || "Remember to take care of yourself. You're important and your wellbeing matters.";
+    return fallbackAdvice[mood] || "Take care of yourself. You're important!";
   }
 }
 
