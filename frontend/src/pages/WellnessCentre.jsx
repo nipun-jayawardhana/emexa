@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { Sparkles, RefreshCw } from 'lucide-react';
 import Header from "../components/headerorigin";
 import Sidebar from "../components/sidebarorigin";
+import apiClient from "../services/apiClient";
 
 const WellnessCentre = () => {
   const navigate = useNavigate();
@@ -10,50 +12,35 @@ const WellnessCentre = () => {
   const [selectedMood, setSelectedMood] = useState(null);
   const [showMessage, setShowMessage] = useState(false);
   const [userName, setUserName] = useState("");
+  const [aiAdvice, setAiAdvice] = useState(null);
+  const [loadingAI, setLoadingAI] = useState(false);
+  const [dailyTip, setDailyTip] = useState("Loading your daily wellness tip...");
 
   useEffect(() => {
     const storedUserName = localStorage.getItem("userName") || sessionStorage.getItem("userName");
     setUserName(storedUserName || "Student");
+    
+    // Load daily tip
+    fetchDailyTip();
   }, []);
 
-  // Ensure activeMenuItem is always 'wellness' when on wellness page
   useEffect(() => {
     if (location.pathname === '/wellness-centre') {
       setActiveMenuItem('wellness');
     }
   }, [location.pathname]);
 
-  const menuItems = [
-    {
-      id: "dashboard",
-      label: "Dashboard",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-        </svg>
-      ),
-      onClick: () => navigate("/dashboard"),
-    },
-    {
-      id: "wellness",
-      label: "Wellness Centre",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-        </svg>
-      ),
-    },
-    {
-      id: "profile",
-      label: "Profile",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      ),
-      onClick: () => navigate("/profile"),
-    },
-  ];
+  const fetchDailyTip = async () => {
+    try {
+      const response = await apiClient.get('/wellness-ai/daily-tip');
+      if (response.success) {
+        setDailyTip(response.tip);
+      }
+    } catch (error) {
+      console.error('Error fetching daily tip:', error);
+      setDailyTip("Small steps every day lead to big changes over time. Be patient with yourself.");
+    }
+  };
 
   const moods = [
     { 
@@ -62,7 +49,6 @@ const WellnessCentre = () => {
       color: "hover:bg-blue-50",
       bgColor: "bg-blue-50",
       ringColor: "ring-blue-500",
-      message: "I'm sorry you're feeling this way. Remember, it's okay to have difficult days. Consider talking to someone you trust or taking a short break to breathe.",
       messageColor: "bg-blue-100 text-blue-800 border-blue-300"
     },
     { 
@@ -71,7 +57,6 @@ const WellnessCentre = () => {
       color: "hover:bg-orange-50",
       bgColor: "bg-orange-50",
       ringColor: "ring-orange-500",
-      message: "Feeling down is normal. Try doing something small that usually makes you happy, or reach out to a friend for support. You're not alone.",
       messageColor: "bg-orange-100 text-orange-800 border-orange-300"
     },
     { 
@@ -80,7 +65,6 @@ const WellnessCentre = () => {
       color: "hover:bg-blue-50",
       bgColor: "bg-gray-50",
       ringColor: "ring-gray-500",
-      message: "You're doing okay today. That's perfectly fine! Some days are just steady, and that's part of life's balance. Keep going!",
       messageColor: "bg-gray-100 text-gray-800 border-gray-300"
     },
     { 
@@ -89,7 +73,6 @@ const WellnessCentre = () => {
       color: "hover:bg-green-50",
       bgColor: "bg-green-50",
       ringColor: "ring-green-500",
-      message: "That's wonderful! I'm glad you're feeling good today. Keep this positive energy and maybe share it with someone else!",
       messageColor: "bg-green-100 text-green-800 border-green-300"
     },
     { 
@@ -98,7 +81,6 @@ const WellnessCentre = () => {
       color: "hover:bg-purple-50",
       bgColor: "bg-purple-50",
       ringColor: "ring-purple-500",
-      message: "Amazing! Your positive energy is contagious! Keep celebrating the good moments and remember this feeling. You're doing great!",
       messageColor: "bg-purple-100 text-purple-800 border-purple-300"
     },
   ];
@@ -106,35 +88,51 @@ const WellnessCentre = () => {
   const handleMoodSelect = async (index) => {
     setSelectedMood(index);
     setShowMessage(true);
-    
+    setLoadingAI(true);
+    setAiAdvice(null);
+
+    const selectedMoodData = moods[index];
+
     // Save mood to backend
     try {
       const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-      const response = await fetch("http://localhost:5000/api/wellness/mood", {
+      await fetch("http://localhost:5000/api/wellness/mood", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          mood: moods[index].label,
-          emoji: moods[index].emoji,
+          mood: selectedMoodData.label,
+          emoji: selectedMoodData.emoji,
         }),
       });
-
-      if (!response.ok) {
-        console.error("Failed to save mood");
-      }
     } catch (error) {
       console.error("Error saving mood:", error);
+    }
+
+    // Get AI-generated advice
+    try {
+      const response = await apiClient.post('/wellness-ai/mood-advice', {
+        mood: selectedMoodData.label,
+        emoji: selectedMoodData.emoji,
+        recentMoods: [] // You can fetch from backend if you store mood history
+      });
+
+      if (response.success) {
+        setAiAdvice(response.advice);
+      }
+    } catch (error) {
+      console.error('Error getting AI advice:', error);
+      setAiAdvice("Remember, your feelings are valid. Take care of yourself today. 💙");
+    } finally {
+      setLoadingAI(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-white">
-      
       <Header userName={userName} />
-
       <Sidebar
         activeMenuItem={activeMenuItem}
         setActiveMenuItem={setActiveMenuItem}
@@ -142,9 +140,12 @@ const WellnessCentre = () => {
 
       {/* Main Content */}
       <div className="ml-52 pt-14 p-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">
-          Your Wellness Dashboard
-        </h1>
+        <div className="flex items-center gap-3 mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Your Wellness Dashboard
+          </h1>
+          <Sparkles className="text-teal-600" size={28} />
+        </div>
 
         {/* Mood Tracker */}
         <div className="bg-white rounded-xl shadow-sm p-8 mb-6">
@@ -168,18 +169,29 @@ const WellnessCentre = () => {
             ))}
           </div>
 
-          {/* Mood Message - Shows after selection */}
+          {/* AI-Generated Advice */}
           {showMessage && selectedMood !== null && (
-            <div className={`mt-6 p-4 rounded-lg border-2 ${moods[selectedMood].messageColor} animate-fade-in`}>
+            <div className={`mt-6 p-5 rounded-lg border-2 ${moods[selectedMood].messageColor} animate-fade-in`}>
               <div className="flex items-start gap-3">
                 <span className="text-3xl">{moods[selectedMood].emoji}</span>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-lg mb-1">
-                    You're feeling {moods[selectedMood].label}
-                  </h3>
-                  <p className="text-sm leading-relaxed">
-                    {moods[selectedMood].message}
-                  </p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="font-semibold text-lg">
+                      You're feeling {moods[selectedMood].label}
+                    </h3>
+                    <Sparkles size={18} className="text-teal-600" />
+                  </div>
+                  
+                  {loadingAI ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <RefreshCw className="animate-spin" size={16} />
+                      <span>AI is generating personalized advice for you...</span>
+                    </div>
+                  ) : (
+                    <p className="text-sm leading-relaxed">
+                      {aiAdvice || "Getting your personalized advice..."}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => setShowMessage(false)}
@@ -229,7 +241,7 @@ const WellnessCentre = () => {
                   Motivation Boost
                 </h3>
                 <p className="text-gray-700 text-sm">
-                  You did great last week on Math! Keep it up!
+                  You did great last week! Keep it up!
                 </p>
               </div>
             </div>
@@ -248,7 +260,7 @@ const WellnessCentre = () => {
                   Break Time
                 </h3>
                 <p className="text-gray-700 text-sm">
-                  You've been working for 50 minutes. Time for a stretch!
+                  Remember to take regular breaks while studying!
                 </p>
               </div>
             </div>
@@ -274,16 +286,27 @@ const WellnessCentre = () => {
           </div>
         </div>
 
-        {/* Wellness Tip */}
-        <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl shadow-lg p-8 text-white">
-          <h3 className="text-xl font-semibold mb-3">Wellness Tip</h3>
+        {/* AI-Powered Daily Wellness Tip */}
+        <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl shadow-lg p-8 text-white relative overflow-hidden">
+          <div className="absolute top-4 right-4">
+            <Sparkles className="text-white/30" size={32} />
+          </div>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-xl font-semibold">AI Wellness Tip</h3>
+            <button
+              onClick={fetchDailyTip}
+              className="p-1 hover:bg-white/20 rounded-lg transition-all"
+              title="Get new tip"
+            >
+              <RefreshCw size={18} />
+            </button>
+          </div>
           <p className="text-lg leading-relaxed">
-            "Small steps every day lead to big changes over time. Be patient with yourself."
+            "{dailyTip}"
           </p>
         </div>
       </div>
 
-      {/* Add custom animation style */}
       <style jsx>{`
         @keyframes fade-in {
           from {
