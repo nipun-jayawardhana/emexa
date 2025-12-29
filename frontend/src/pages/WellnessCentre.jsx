@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, RefreshCw, TrendingUp, MessageCircle, Brain, Heart, Activity, Calendar, Target, Zap } from 'lucide-react';
+import { Sparkles, RefreshCw, TrendingUp, MessageCircle, Brain, Heart, Target, Zap, Plus, Check, Trash2 } from 'lucide-react';
 import Header from "../components/headerorigin";
 import Sidebar from "../components/sidebarorigin";
 
@@ -20,24 +20,124 @@ const WellnessCentre = () => {
   const [activeTab, setActiveTab] = useState("mood");
   const [analyzingPattern, setAnalyzingPattern] = useState(false);
 
+  // Wellness Goals States
+  const [goals, setGoals] = useState([]);
+  const [showAddGoal, setShowAddGoal] = useState(false);
+  const [newGoalTitle, setNewGoalTitle] = useState("");
+  const [newGoalCategory, setNewGoalCategory] = useState("mental-health");
+  const [generatingGoal, setGeneratingGoal] = useState(false);
+
   useEffect(() => {
     const storedUserName = localStorage.getItem("userName") || sessionStorage.getItem("userName");
     setUserName(storedUserName || "Student");
     
     fetchDailyTip();
     loadMoodHistory();
+    loadGoals();
   }, []);
 
-  const fetchDailyTip = async () => {
+  const loadGoals = () => {
+    const savedGoals = localStorage.getItem('wellnessGoals');
+    if (savedGoals) {
+      setGoals(JSON.parse(savedGoals));
+    } else {
+      setGoals([
+        {
+          id: 1,
+          title: "Meditate for 5 minutes daily",
+          category: "mental-health",
+          progress: [false, true, false, true, false, false, false],
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 2,
+          title: "Take study breaks every hour",
+          category: "study-life",
+          progress: [true, true, false, false, false, false, false],
+          createdAt: new Date().toISOString()
+        }
+      ]);
+    }
+  };
+
+  const saveGoals = (updatedGoals) => {
+    setGoals(updatedGoals);
+    localStorage.setItem('wellnessGoals', JSON.stringify(updatedGoals));
+  };
+
+  const addGoal = () => {
+    if (!newGoalTitle.trim()) return;
+
+    const newGoal = {
+      id: Date.now(),
+      title: newGoalTitle,
+      category: newGoalCategory,
+      progress: [false, false, false, false, false, false, false],
+      createdAt: new Date().toISOString()
+    };
+
+    const updatedGoals = [...goals, newGoal];
+    saveGoals(updatedGoals);
+    setNewGoalTitle("");
+    setShowAddGoal(false);
+  };
+
+  const generateAIGoal = async () => {
+    setGeneratingGoal(true);
+    
+    setTimeout(() => {
+      const aiGoals = [
+        "Practice gratitude journaling for 10 minutes",
+        "Go for a 15-minute walk outside",
+        "Drink 8 glasses of water daily",
+        "Get 7-8 hours of sleep each night",
+        "Connect with a friend or family member",
+        "Practice deep breathing for 3 minutes",
+        "Limit social media to 1 hour per day",
+        "Read for pleasure for 20 minutes",
+        "Stretch or do yoga for 10 minutes",
+        "Eat a healthy breakfast every morning"
+      ];
+      
+      const randomGoal = aiGoals[Math.floor(Math.random() * aiGoals.length)];
+      setNewGoalTitle(randomGoal);
+      setGeneratingGoal(false);
+    }, 1500);
+  };
+
+  const toggleGoalDay = (goalId, dayIndex) => {
+    const updatedGoals = goals.map(goal => {
+      if (goal.id === goalId) {
+        const newProgress = [...goal.progress];
+        newProgress[dayIndex] = !newProgress[dayIndex];
+        return { ...goal, progress: newProgress };
+      }
+      return goal;
+    });
+    saveGoals(updatedGoals);
+  };
+
+  const deleteGoal = (goalId) => {
+    const updatedGoals = goals.filter(goal => goal.id !== goalId);
+    saveGoals(updatedGoals);
+  };
+
+  const calculateProgress = (progress) => {
+    const completed = progress.filter(day => day).length;
+    return Math.round((completed / 7) * 100);
+  };
+
+  const categoryColors = {
+    "mental-health": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
+    "physical": { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
+    "study-life": { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200" },
+    "sleep": { bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200" },
+    "nutrition": { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
+    "social": { bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200" }
+  };
+
+  const fetchDailyTip = () => {
     setDailyTip("Loading...");
-    
-    // Replace this with your actual API call:
-    // const response = await fetch('/api/wellness-ai/daily-tip', {
-    //   headers: { Authorization: `Bearer ${token}` }
-    // });
-    // const data = await response.json();
-    // setDailyTip(data.tip);
-    
     setTimeout(() => {
       const tips = [
         "Small steps every day lead to big changes over time. Be patient with yourself.",
@@ -50,15 +150,7 @@ const WellnessCentre = () => {
     }, 1000);
   };
 
-  const loadMoodHistory = async () => {
-    // Replace this with your actual API call to fetch mood history:
-    // const response = await fetch('/api/wellness/mood-history', {
-    //   headers: { Authorization: `Bearer ${token}` }
-    // });
-    // const data = await response.json();
-    // setMoodHistory(data.moodHistory);
-    
-    // DEMO DATA - Replace with actual API response
+  const loadMoodHistory = () => {
     const demoHistory = [
       { date: "Mon", mood: "Happy", emoji: "😊", value: 4 },
       { date: "Tue", mood: "Neutral", emoji: "🙂", value: 3 },
@@ -71,7 +163,7 @@ const WellnessCentre = () => {
     setMoodHistory(demoHistory);
   };
 
-  const analyzeWeeklyPattern = async () => {
+  const analyzeWeeklyPattern = () => {
     if (moodHistory.length === 0) {
       alert("No mood history available to analyze");
       return;
@@ -80,20 +172,7 @@ const WellnessCentre = () => {
     setAnalyzingPattern(true);
     setWeeklyInsights(null);
     
-    // Replace this with your actual API call:
-    // const response = await fetch('/api/wellness-ai/analyze-patterns', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     Authorization: `Bearer ${token}`
-    //   },
-    //   body: JSON.stringify({ moodHistory })
-    // });
-    // const data = await response.json();
-    // setWeeklyInsights(data);
-    
     setTimeout(() => {
-      // Calculate positive mood count
       const positiveMoods = moodHistory.filter(m => 
         m.mood === "Happy" || m.mood === "Very Happy"
       ).length;
@@ -109,54 +188,14 @@ const WellnessCentre = () => {
   };
 
   const moods = [
-    { 
-      emoji: "😢", 
-      label: "Very Sad", 
-      color: "hover:bg-blue-50",
-      bgColor: "bg-blue-50",
-      ringColor: "ring-blue-500",
-      messageColor: "bg-blue-100 text-blue-800 border-blue-300",
-      value: 1
-    },
-    { 
-      emoji: "😐", 
-      label: "Sad", 
-      color: "hover:bg-orange-50",
-      bgColor: "bg-orange-50",
-      ringColor: "ring-orange-500",
-      messageColor: "bg-orange-100 text-orange-800 border-orange-300",
-      value: 2
-    },
-    { 
-      emoji: "🙂", 
-      label: "Neutral", 
-      color: "hover:bg-blue-50",
-      bgColor: "bg-gray-50",
-      ringColor: "ring-gray-500",
-      messageColor: "bg-gray-100 text-gray-800 border-gray-300",
-      value: 3
-    },
-    { 
-      emoji: "😊", 
-      label: "Happy", 
-      color: "hover:bg-green-50",
-      bgColor: "bg-green-50",
-      ringColor: "ring-green-500",
-      messageColor: "bg-green-100 text-green-800 border-green-300",
-      value: 4
-    },
-    { 
-      emoji: "😄", 
-      label: "Very Happy", 
-      color: "hover:bg-purple-50",
-      bgColor: "bg-purple-50",
-      ringColor: "ring-purple-500",
-      messageColor: "bg-purple-100 text-purple-800 border-purple-300",
-      value: 5
-    },
+    { emoji: "😢", label: "Very Sad", color: "hover:bg-blue-50", bgColor: "bg-blue-50", ringColor: "ring-blue-500", messageColor: "bg-blue-100 text-blue-800 border-blue-300", value: 1 },
+    { emoji: "😐", label: "Sad", color: "hover:bg-orange-50", bgColor: "bg-orange-50", ringColor: "ring-orange-500", messageColor: "bg-orange-100 text-orange-800 border-orange-300", value: 2 },
+    { emoji: "🙂", label: "Neutral", color: "hover:bg-blue-50", bgColor: "bg-gray-50", ringColor: "ring-gray-500", messageColor: "bg-gray-100 text-gray-800 border-gray-300", value: 3 },
+    { emoji: "😊", label: "Happy", color: "hover:bg-green-50", bgColor: "bg-green-50", ringColor: "ring-green-500", messageColor: "bg-green-100 text-green-800 border-green-300", value: 4 },
+    { emoji: "😄", label: "Very Happy", color: "hover:bg-purple-50", bgColor: "bg-purple-50", ringColor: "ring-purple-500", messageColor: "bg-purple-100 text-purple-800 border-purple-300", value: 5 },
   ];
 
-  const handleMoodSelect = async (index) => {
+  const handleMoodSelect = (index) => {
     setSelectedMood(index);
     setShowMessage(true);
     setLoadingAI(true);
@@ -164,37 +203,6 @@ const WellnessCentre = () => {
 
     const selectedMoodData = moods[index];
 
-    // Save mood to backend
-    // const token = localStorage.getItem("token");
-    // await fetch("http://localhost:5000/api/wellness/mood", {
-    //   method: "POST",
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //     Authorization: `Bearer ${token}`,
-    //   },
-    //   body: JSON.stringify({
-    //     mood: selectedMoodData.label,
-    //     emoji: selectedMoodData.emoji,
-    //   }),
-    // });
-
-    // Get AI advice
-    // const response = await fetch('/api/wellness-ai/mood-advice', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     Authorization: `Bearer ${token}`
-    //   },
-    //   body: JSON.stringify({
-    //     mood: selectedMoodData.label,
-    //     emoji: selectedMoodData.emoji,
-    //     recentMoods: moodHistory.slice(-3).map(m => m.mood)
-    //   })
-    // });
-    // const data = await response.json();
-    // setAiAdvice(data.advice);
-
-    // Demo response
     setTimeout(() => {
       const responses = {
         "Very Sad": "I'm here with you. Remember that difficult feelings pass, and it's brave to acknowledge them. Try taking a few deep breaths, and consider reaching out to someone you trust. You don't have to face this alone.",
@@ -240,7 +248,6 @@ const WellnessCentre = () => {
         };
         setChatMessages([...newMessages, aiMessage]);
       } else {
-        // Fallback response if API fails
         const aiMessage = { 
           role: "assistant", 
           content: "I'm here to support you. Could you tell me more about what you're experiencing?"
@@ -249,7 +256,6 @@ const WellnessCentre = () => {
       }
     } catch (error) {
       console.error('Chat error:', error);
-      // Fallback response on error
       const aiMessage = { 
         role: "assistant", 
         content: "I'm having trouble connecting right now, but I'm here for you. How can I help?"
@@ -260,38 +266,34 @@ const WellnessCentre = () => {
     }
   };
 
+  const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const totalCompleted = goals.reduce((sum, goal) => sum + goal.progress.filter(d => d).length, 0);
+
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
       <Header userName={userName} />
-      
-      {/* Sidebar */}
       <Sidebar 
         activeMenuItem={activeMenuItem}
         setActiveMenuItem={setActiveMenuItem}
       />
 
-      {/* Main Content - with margin for header and sidebar */}
       <div className="ml-52 pt-14 p-8">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
               Wellness Dashboard
             </h1>
-            <Sparkles className="text-purple-600" size={32} />
+            <Sparkles className="text-teal-500" size={32} />
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowChatbot(!showChatbot)}
-              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all flex items-center gap-2"
-            >
-              <MessageCircle size={20} />
-              AI Coach
-            </button>
-          </div>
+          <button
+            onClick={() => setShowChatbot(!showChatbot)}
+            className="px-4 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-lg hover:shadow-lg transition-all flex items-center gap-2"
+          >
+            <MessageCircle size={20} />
+            AI Coach
+          </button>
         </div>
 
-        {/* Tab Navigation */}
         <div className="flex gap-4 mb-6 border-b border-gray-200">
           {[
             { id: "mood", label: "Mood Tracker", icon: Heart },
@@ -303,8 +305,8 @@ const WellnessCentre = () => {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-3 font-medium transition-all ${
                 activeTab === tab.id
-                  ? "text-purple-600 border-b-2 border-purple-600"
-                  : "text-gray-600 hover:text-purple-600"
+                  ? "text-teal-600 border-b-2 border-teal-600"
+                  : "text-gray-600 hover:text-teal-600"
               }`}
             >
               <tab.icon size={18} />
@@ -313,10 +315,8 @@ const WellnessCentre = () => {
           ))}
         </div>
 
-        {/* Mood Tracker Tab */}
         {activeTab === "mood" && (
           <div className="space-y-6">
-            {/* Mood Selection */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
               <h2 className="text-2xl font-semibold text-gray-800 mb-6">
                 How are you feeling today?
@@ -338,7 +338,6 @@ const WellnessCentre = () => {
                 ))}
               </div>
 
-              {/* AI Response */}
               {showMessage && selectedMood !== null && (
                 <div className={`mt-6 p-6 rounded-xl border-2 ${moods[selectedMood].messageColor} animate-fade-in shadow-lg`}>
                   <div className="flex items-start gap-4">
@@ -373,34 +372,33 @@ const WellnessCentre = () => {
               )}
             </div>
 
-            {/* Wellness Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gradient-to-br from-pink-50 to-red-50 rounded-2xl shadow-lg p-6 border border-pink-200">
+              <div className="bg-gradient-to-br from-rose-50 to-pink-50 rounded-2xl shadow-lg p-6 border border-rose-100">
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-md">
-                    <Heart className="text-red-500" size={24} />
+                    <Heart className="text-rose-400" size={24} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">
                       Stress Management
                     </h3>
-                    <p className="text-gray-700 text-sm">
+                    <p className="text-gray-600 text-sm">
                       Try deep breathing for 2 minutes to reduce stress
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl shadow-lg p-6 border border-yellow-200">
+              <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl shadow-lg p-6 border border-amber-100">
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-md">
-                    <Zap className="text-yellow-600" size={24} />
+                    <Zap className="text-amber-400" size={24} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">
                       Energy Boost
                     </h3>
-                    <p className="text-gray-700 text-sm">
+                    <p className="text-gray-600 text-sm">
                       Quick 5-minute movement break to refresh your mind
                     </p>
                   </div>
@@ -408,8 +406,7 @@ const WellnessCentre = () => {
               </div>
             </div>
 
-            {/* Daily AI Tip */}
-            <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl shadow-xl p-8 text-white relative overflow-hidden">
+            <div className="bg-gradient-to-r from-teal-400 via-cyan-400 to-blue-400 rounded-2xl shadow-xl p-8 text-white relative overflow-hidden">
               <div className="absolute top-4 right-4">
                 <Sparkles className="text-white/30" size={40} />
               </div>
@@ -419,7 +416,6 @@ const WellnessCentre = () => {
                 <button
                   onClick={fetchDailyTip}
                   className="ml-auto p-2 hover:bg-white/20 rounded-xl transition-all"
-                  title="Get new tip"
                 >
                   <RefreshCw size={20} />
                 </button>
@@ -431,10 +427,8 @@ const WellnessCentre = () => {
           </div>
         )}
 
-        {/* AI Insights Tab */}
         {activeTab === "insights" && (
           <div className="space-y-6">
-            {/* Weekly Pattern Analysis */}
             <div className="bg-white rounded-2xl shadow-lg p-8">
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-2xl font-semibold text-gray-800 flex items-center gap-2">
@@ -444,7 +438,7 @@ const WellnessCentre = () => {
                 <button
                   onClick={analyzeWeeklyPattern}
                   disabled={analyzingPattern}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                  className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-all flex items-center gap-2 disabled:opacity-50"
                 >
                   {analyzingPattern ? (
                     <>
@@ -460,16 +454,14 @@ const WellnessCentre = () => {
                 </button>
               </div>
 
-              {/* Mood History Chart */}
               <div className="flex justify-around items-end h-56 mb-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
                 {moodHistory.map((day, idx) => {
-                  // Calculate bar height based on mood value (1-5)
                   const barHeight = 50 + (day.value * 35);
                   
                   return (
                     <div key={idx} className="flex flex-col items-center gap-3">
                       <div 
-                        className="w-16 bg-gradient-to-t from-purple-400 to-purple-600 rounded-t-xl transition-all hover:from-purple-500 hover:to-purple-700 cursor-pointer shadow-md"
+                        className="w-16 bg-gradient-to-t from-teal-300 to-cyan-400 rounded-t-xl transition-all hover:from-teal-400 hover:to-cyan-500 cursor-pointer shadow-md"
                         style={{ height: `${barHeight}px` }}
                         title={`${day.mood} - ${day.date}`}
                       />
@@ -480,12 +472,11 @@ const WellnessCentre = () => {
                 })}
               </div>
 
-              {/* AI Insights */}
               {weeklyInsights && (
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border-2 border-green-200 animate-fade-in">
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-6 border-2 border-emerald-200 animate-fade-in">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-md">
-                      <Brain className="text-green-600" size={24} />
+                      <Brain className="text-emerald-600" size={24} />
                     </div>
                     <div className="flex-1">
                       <h4 className="font-semibold text-lg text-gray-900 mb-3">
@@ -512,24 +503,222 @@ const WellnessCentre = () => {
           </div>
         )}
 
-        {/* Wellness Goals Tab */}
         {activeTab === "goals" && (
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-              <Target className="text-purple-600" size={28} />
-              Your Wellness Goals
-            </h2>
-            <div className="text-center py-12 text-gray-500">
-              <Calendar size={48} className="mx-auto mb-4 opacity-50" />
-              <p>Set personalized wellness goals coming soon!</p>
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <Target className="text-teal-500" size={32} />
+                  <div>
+                    <h2 className="text-2xl font-semibold text-gray-800">
+                      Your Wellness Goals
+                    </h2>
+                    <p className="text-sm text-gray-600">Track your daily wellness habits</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAddGoal(!showAddGoal)}
+                  className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-all flex items-center gap-2"
+                >
+                  <Plus size={20} />
+                  Add Goal
+                </button>
+              </div>
+
+              {showAddGoal && (
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-6 mb-6 border-2 border-cyan-200 animate-fade-in">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <Sparkles size={20} className="text-teal-500" />
+                    Create New Wellness Goal
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Goal Title
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newGoalTitle}
+                          onChange={(e) => setNewGoalTitle(e.target.value)}
+                          placeholder="e.g., Meditate for 10 minutes daily"
+                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
+                        />
+                        <button
+                          onClick={generateAIGoal}
+                          disabled={generatingGoal}
+                          className="px-4 py-2 bg-gradient-to-r from-teal-400 to-cyan-400 text-white rounded-lg hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+                        >
+                          {generatingGoal ? (
+                            <RefreshCw className="animate-spin" size={18} />
+                          ) : (
+                            <Sparkles size={18} />
+                          )}
+                          AI Suggest
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Category
+                      </label>
+                      <select
+                        value={newGoalCategory}
+                        onChange={(e) => setNewGoalCategory(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
+                      >
+                        <option value="mental-health">Mental Health</option>
+                        <option value="physical">Physical Activity</option>
+                        <option value="study-life">Study-Life Balance</option>
+                        <option value="sleep">Sleep</option>
+                        <option value="nutrition">Nutrition</option>
+                        <option value="social">Social Connection</option>
+                      </select>
+                    </div>
+
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => {
+                          setShowAddGoal(false);
+                          setNewGoalTitle("");
+                        }}
+                        className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={addGoal}
+                        disabled={!newGoalTitle.trim()}
+                        className="px-6 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Create Goal
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {goals.length > 0 && (
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Target className="text-teal-500" size={20} />
+                      <span className="text-sm font-medium text-gray-600">Total Goals</span>
+                    </div>
+                    <p className="text-3xl font-bold text-teal-600">{goals.length}</p>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Check className="text-emerald-600" size={20} />
+                      <span className="text-sm font-medium text-gray-600">Total Completed</span>
+                    </div>
+                    <p className="text-3xl font-bold text-emerald-600">{totalCompleted}</p>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-sky-50 to-blue-50 rounded-xl p-4 border border-sky-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <TrendingUp className="text-sky-600" size={20} />
+                      <span className="text-sm font-medium text-gray-600">Avg Progress</span>
+                    </div>
+                    <p className="text-3xl font-bold text-sky-600">
+                      {goals.length > 0 ? Math.round(totalCompleted / (goals.length * 7) * 100) : 0}%
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {goals.length > 0 ? (
+                <div className="space-y-4">
+                  {goals.map(goal => {
+                    const progress = calculateProgress(goal.progress);
+                    const colors = categoryColors[goal.category];
+                    
+                    return (
+                      <div key={goal.id} className={`${colors.bg} ${colors.border} border-2 rounded-xl p-6 transition-all hover:shadow-lg`}>
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-lg text-gray-900 mb-2">
+                              {goal.title}
+                            </h3>
+                            <span className={`${colors.bg} ${colors.text} px-3 py-1 rounded-full text-xs font-medium border ${colors.border}`}>
+                              {goal.category.replace('-', ' ').toUpperCase()}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => deleteGoal(goal.id)}
+                            className="text-gray-400 hover:text-red-600 transition-colors p-2"
+                            title="Delete goal"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+
+                        <div className="mb-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-gray-700">Weekly Progress</span>
+                            <span className="text-sm font-bold text-gray-900">{progress}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-gradient-to-r from-teal-400 to-cyan-400 h-2 rounded-full transition-all"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-2">
+                          {weekDays.map((day, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => toggleGoalDay(goal.id, idx)}
+                              className={`p-3 rounded-lg border-2 transition-all ${
+                                goal.progress[idx]
+                                  ? 'bg-emerald-400 border-emerald-500 text-white shadow-md'
+                                  : 'bg-white border-gray-300 hover:border-teal-300 hover:shadow'
+                              }`}
+                              title={`${day} - Click to toggle`}
+                            >
+                              <div className="text-center">
+                                <div className="text-xs font-semibold mb-1">{day}</div>
+                                {goal.progress[idx] ? (
+                                  <Check size={16} className="mx-auto" />
+                                ) : (
+                                  <div className="w-4 h-4 mx-auto"></div>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Target size={64} className="mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">No Goals Yet</h3>
+                  <p className="text-gray-500 mb-6">
+                    Start tracking your wellness journey by adding your first goal!
+                  </p>
+                  <button
+                    onClick={() => setShowAddGoal(true)}
+                    className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-lg hover:shadow-lg transition-all flex items-center gap-2 mx-auto"
+                  >
+                    <Plus size={20} />
+                    Create Your First Goal
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* AI Chatbot Modal */}
         {showChatbot && (
           <div className="fixed bottom-6 right-6 w-96 h-[32rem] bg-white rounded-2xl shadow-2xl flex flex-col z-50 border border-gray-200">
-            <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 rounded-t-2xl flex items-center justify-between">
+            <div className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white p-4 rounded-t-2xl flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MessageCircle size={24} />
                 <h3 className="font-semibold">AI Wellness Coach</h3>
@@ -561,7 +750,7 @@ const WellnessCentre = () => {
                   <div
                     className={`max-w-[80%] p-3 rounded-xl ${
                       msg.role === "user"
-                        ? "bg-purple-600 text-white"
+                        ? "bg-teal-500 text-white"
                         : "bg-gray-100 text-gray-800"
                     }`}
                   >
@@ -592,7 +781,7 @@ const WellnessCentre = () => {
                 <button
                   onClick={handleSendMessage}
                   disabled={!chatInput.trim()}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Send
                 </button>
