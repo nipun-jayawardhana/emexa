@@ -296,6 +296,47 @@ const QuizPage = () => {
           });
 
           if (teacherQuiz) {
+            console.log(
+              "Quiz Page - Teacher quiz questions:",
+              teacherQuiz.questions
+            );
+
+            // Check if quiz is currently active
+            const timeStatus = teacherQuiz.timeStatus || "active";
+            const isActive =
+              teacherQuiz.isCurrentlyActive !== undefined
+                ? teacherQuiz.isCurrentlyActive
+                : true;
+
+            console.log(
+              "Quiz Page - Time status:",
+              timeStatus,
+              "Is active:",
+              isActive
+            );
+
+            if (
+              timeStatus === "upcoming" ||
+              (!isActive && teacherQuiz.isScheduled)
+            ) {
+              alert(
+                "This quiz has not started yet. Please wait until the scheduled time: " +
+                  (teacherQuiz.scheduleDate
+                    ? new Date(teacherQuiz.scheduleDate).toLocaleDateString()
+                    : "TBA") +
+                  " at " +
+                  (teacherQuiz.startTime || "TBA")
+              );
+              window.location.href = "/dashboard";
+              return;
+            }
+
+            if (timeStatus === "expired") {
+              alert("This quiz has expired. The deadline has passed.");
+              window.location.href = "/dashboard";
+              return;
+            }
+
             if (teacherQuiz.questions && teacherQuiz.questions.length > 0) {
               // Convert teacher quiz format to quiz page format
               const formattedQuestions = teacherQuiz.questions.map(

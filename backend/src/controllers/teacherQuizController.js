@@ -275,11 +275,11 @@ export const scheduleQuiz = async (req, res) => {
     quiz.scheduleDate = new Date(scheduleDate);
     quiz.startTime = startTime;
     quiz.endTime = endTime;
-    quiz.status = 'scheduled'; // Set to scheduled, will be active only during scheduled time
+    quiz.status = 'scheduled'; // Set to scheduled, not active
     
     await quiz.save();
     
-    console.log('✅ Quiz scheduled and activated:', quiz._id);
+    console.log('✅ Quiz scheduled:', quiz._id);
     
     // Get teacher name for notification
     const teacher = await Teacher.findById(quiz.teacherId);
@@ -418,17 +418,20 @@ export const getQuizStats = async (req, res) => {
     };
     
     allQuizzes.forEach(quiz => {
-      // Scheduled = draft status but has schedule info
-      if (quiz.status === 'draft' && quiz.isScheduled) {
+      // Check if scheduled quiz is currently active
+      const isCurrentlyActive = quiz.isScheduled && quiz.isCurrentlyActive && quiz.isCurrentlyActive();
+      
+      // Scheduled = has schedule info but not currently in active time window
+      if ((quiz.status === 'draft' || quiz.status === 'scheduled') && quiz.isScheduled && !isCurrentlyActive) {
         formattedStats.scheduled++;
+      }
+      // Active = active status OR scheduled quiz that is currently in its time window
+      else if (quiz.status === 'active' || (quiz.status === 'scheduled' && isCurrentlyActive)) {
+        formattedStats.active++;
       }
       // Draft = draft status and no schedule info
       else if (quiz.status === 'draft' && !quiz.isScheduled) {
         formattedStats.drafts++;
-      }
-      // Active = active status
-      else if (quiz.status === 'active') {
-        formattedStats.active++;
       }
       // Closed
       else if (quiz.status === 'closed') {
@@ -452,28 +455,6 @@ export const getQuizStats = async (req, res) => {
   }
 };
 
-// Get currently active quizzes for students (time-based)
-export const getActiveQuizzesForStudents = async (req, res) => {
-  try {
-    const activeQuizzes = await TeacherQuiz.findActiveQuizzes();
-    
-    console.log('📚 Fetched active quizzes for students:', activeQuizzes.length);
-    
-    res.status(200).json({
-      success: true,
-      count: activeQuizzes.length,
-      quizzes: activeQuizzes
-    });
-  } catch (error) {
-    console.error('Error fetching active quizzes:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch active quizzes',
-      error: error.message
-    });
-  }
-};
-
 // Submit quiz answers (for students)
 export const submitQuizAnswers = async (req, res) => {
   try {
@@ -492,12 +473,22 @@ export const submitQuizAnswers = async (req, res) => {
         message: 'Quiz not found'
       });
     }
-    
-    // Check if quiz is currently active (within scheduled time window)
-    if (quiz.isScheduled && !quiz.isCurrentlyActive()) {
+
+    // Check if quiz is currently active
+    if (!quiz.isCurrentlyActive()) {
+      const timeStatus = quiz.getTimeStatus();
+      let message = 'This quiz is not currently available.';
+      
+      if (timeStatus === 'upcoming') {
+        message = 'This quiz has not started yet. Please wait until the scheduled time.';
+      } else if (timeStatus === 'expired') {
+        message = 'This quiz has ended. The submission deadline has passed.';
+      }
+      
       return res.status(403).json({
         success: false,
-        message: 'This quiz is not currently available. Please check the scheduled time.'
+        message,
+        timeStatus
       });
     }
 
@@ -576,6 +567,5 @@ export default {
   deleteQuiz,
   permanentDeleteQuiz,
   getQuizStats,
-  getActiveQuizzesForStudents,
   submitQuizAnswers
 };
