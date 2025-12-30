@@ -209,7 +209,7 @@ export default function Login() {
         console.log(`🚀 Navigating to ${dashboardPath} (role: ${normalizedRole})`);
 
         setTimeout(() => {
-          navigate(dashboardPath, { replace: true });
+          navigate(dashboardPath);
         }, 1000);
       })
       .catch((err) => {

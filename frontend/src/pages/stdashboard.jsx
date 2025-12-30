@@ -314,6 +314,29 @@ const StudentDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="p-6">
         <div className="max-w-7xl">
+          {/* Back Button - Only show if there's history */}
+          {window.history.length > 1 && (
+            <button
+              onClick={() => navigate(-1)}
+              className="mb-4 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+              <span className="text-sm font-medium">Back</span>
+            </button>
+          )}
+          
           {/* Show admin viewing banner */}
           {isAdminViewing && adminToken && (
             <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
@@ -478,6 +501,11 @@ const StudentDashboard = () => {
                 const quizId = quiz.id || quiz._id || `quiz-${index}`;
                 const isHighlighted = highlightedQuizId && String(quizId) === String(highlightedQuizId);
                 
+                // Determine if quiz is active or upcoming
+                const timeStatus = quiz.timeStatus || 'active'; // default to active for non-scheduled quizzes
+                const isActive = quiz.isCurrentlyActive !== undefined ? quiz.isCurrentlyActive : true;
+                const isExpired = timeStatus === 'expired';
+                
                 // Log every quiz being rendered
                 console.log('📝 Rendering quiz:', {
                   index,
@@ -486,7 +514,10 @@ const StudentDashboard = () => {
                   'quiz.id': quiz.id,
                   'quiz._id': quiz._id,
                   highlightedQuizId,
-                  isHighlighted
+                  isHighlighted,
+                  timeStatus,
+                  isActive,
+                  isExpired
                 });
                 
                 return (
@@ -504,6 +535,8 @@ const StudentDashboard = () => {
                   className={`flex items-start justify-between p-3 border rounded-lg hover:border-gray-300 transition ${
                     isHighlighted 
                       ? 'border-blue-500 bg-blue-50 animate-pulse' 
+                      : isExpired
+                      ? 'border-gray-200 bg-gray-50 opacity-60'
                       : 'border-gray-200'
                   }`}
                   style={isHighlighted ? {
@@ -511,9 +544,26 @@ const StudentDashboard = () => {
                   } : {}}
                 >
                   <div className="flex-1 pr-4">
-                    <h3 className="font-semibold text-gray-900 text-sm mb-0.5">
-                      {quiz.title}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3 className="font-semibold text-gray-900 text-sm">
+                        {quiz.title}
+                      </h3>
+                      {timeStatus === 'upcoming' && (
+                        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">
+                          Upcoming
+                        </span>
+                      )}
+                      {timeStatus === 'active' && isActive && (
+                        <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full font-medium">
+                          Active Now
+                        </span>
+                      )}
+                      {timeStatus === 'expired' && (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
+                          Expired
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 mb-1.5">
                       {quiz.subject && (
                         <span className="text-teal-600 font-medium">
@@ -550,6 +600,14 @@ const StudentDashboard = () => {
                   </div>
                   <button
                     onClick={() => {
+                      if (isExpired) {
+                        alert('This quiz has expired. The deadline has passed.');
+                        return;
+                      }
+                      if (!isActive && timeStatus === 'upcoming') {
+                        alert('This quiz has not started yet. Please wait until the scheduled time.');
+                        return;
+                      }
                       const targetId = quiz.id || `quiz-${index}`;
                       try {
                         if (camera && camera.isActive && !camera.isActive()) {
@@ -558,9 +616,17 @@ const StudentDashboard = () => {
                       } catch (e) {}
                       navigate(`/permission?quizId=${encodeURIComponent(targetId)}`);
                     }}
-                    className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-600 transition whitespace-nowrap"
+                    disabled={isExpired || (!isActive && timeStatus === 'upcoming')}
+                    style={isExpired ? { backgroundColor: '#FF0000' } : {}}
+                    className={`inline-flex items-center justify-center text-white px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap min-w-[80px] ${
+                      isExpired
+                        ? 'cursor-not-allowed'
+                        : (!isActive && timeStatus === 'upcoming')
+                        ? '!bg-gray-300 !text-gray-500 cursor-not-allowed'
+                        : 'bg-green-500 hover:bg-green-600'
+                    }`}
                   >
-                    Take Quiz
+                    {isExpired ? 'Expired' : timeStatus === 'upcoming' ? 'Not Started' : 'Take Quiz'}
                   </button>
                 </div>
               )})}

@@ -157,28 +157,17 @@ const teacherQuizService = {
   },
 
   /**
-   * Get all currently active quizzes (public - for students)
-   * Returns only quizzes that are currently within their scheduled time window
-   * @returns {Promise} Response with array of active quizzes
-   */
-  async getActiveQuizzes() {
-    try {
-      const response = await api.get(`${BASE_URL}/active`);
-      return response;
-    } catch (error) {
-      console.error('Error fetching active quizzes:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * @deprecated Use getActiveQuizzes() instead
    * Get all shared quizzes (public - for students)
    * @returns {Promise} Response with array of shared quizzes
    */
   async getSharedQuizzes() {
-    // Redirect to new active quizzes endpoint
-    return this.getActiveQuizzes();
+    try {
+      const response = await api.get(`${BASE_URL}/shared`);
+      return response;
+    } catch (error) {
+      console.error('Error fetching shared quizzes:', error);
+      throw error;
+    }
   }
 };
 

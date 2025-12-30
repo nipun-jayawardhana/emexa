@@ -162,38 +162,56 @@ teacherQuizSchema.methods.calculateProgress = function() {
   return this.progress;
 };
 
-// Instance method to check if quiz is currently active (within scheduled time window)
+// Instance method to check if quiz is currently active based on schedule
 teacherQuizSchema.methods.isCurrentlyActive = function() {
-  if (!this.isScheduled || this.status !== 'scheduled') {
+  if (!this.isScheduled || !this.scheduleDate || !this.startTime || !this.endTime) {
     return false;
   }
   
   const now = new Date();
-  const quizDate = new Date(this.scheduleDate);
+  const scheduleDate = new Date(this.scheduleDate);
   
-  // Check if it's the correct date
-  const isSameDay = (
-    now.getFullYear() === quizDate.getFullYear() &&
-    now.getMonth() === quizDate.getMonth() &&
-    now.getDate() === quizDate.getDate()
-  );
+  // Parse start and end times (format: "HH:MM")
+  const [startHour, startMinute] = this.startTime.split(':').map(Number);
+  const [endHour, endMinute] = this.endTime.split(':').map(Number);
   
-  if (!isSameDay) {
-    return false;
+  // Create start and end datetime objects for the scheduled date
+  const startDateTime = new Date(scheduleDate);
+  startDateTime.setHours(startHour, startMinute, 0, 0);
+  
+  const endDateTime = new Date(scheduleDate);
+  endDateTime.setHours(endHour, endMinute, 0, 0);
+  
+  // Check if current time is between start and end time
+  return now >= startDateTime && now < endDateTime;
+};
+
+// Instance method to get quiz time status (upcoming, active, expired)
+teacherQuizSchema.methods.getTimeStatus = function() {
+  if (!this.isScheduled || !this.scheduleDate || !this.startTime || !this.endTime) {
+    return 'unscheduled';
   }
+  
+  const now = new Date();
+  const scheduleDate = new Date(this.scheduleDate);
   
   // Parse start and end times
   const [startHour, startMinute] = this.startTime.split(':').map(Number);
   const [endHour, endMinute] = this.endTime.split(':').map(Number);
   
-  const startDateTime = new Date(quizDate);
+  const startDateTime = new Date(scheduleDate);
   startDateTime.setHours(startHour, startMinute, 0, 0);
   
-  const endDateTime = new Date(quizDate);
-  endDateTime.setHours(endHour, endMinute, 59, 999);
+  const endDateTime = new Date(scheduleDate);
+  endDateTime.setHours(endHour, endMinute, 0, 0);
   
-  // Check if current time is within the window
-  return now >= startDateTime && now <= endDateTime;
+  if (now < startDateTime) {
+    return 'upcoming';
+  } else if (now >= startDateTime && now < endDateTime) {
+    return 'active';
+  } else {
+    return 'expired';
+  }
 };
 
 // Static method to find teacher's quizzes
@@ -221,18 +239,6 @@ teacherQuizSchema.statics.findScheduled = function(teacherId) {
     isScheduled: true,
     isDeleted: false
   }).sort({ scheduleDate: 1 });
-};
-
-// Static method to find currently active quizzes for students
-teacherQuizSchema.statics.findActiveQuizzes = async function() {
-  const scheduledQuizzes = await this.find({
-    status: 'scheduled',
-    isScheduled: true,
-    isDeleted: false
-  });
-  
-  // Filter quizzes that are currently active based on time
-  return scheduledQuizzes.filter(quiz => quiz.isCurrentlyActive());
 };
 
 // Virtual for formatted last edited
