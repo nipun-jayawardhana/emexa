@@ -454,7 +454,7 @@ const WellnessCentre = () => {
                 </button>
               </div>
 
-              <div className="flex justify-around items-end h-56 mb-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
+            <div className="flex justify-around items-end h-72 mb-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 pb-4 border border-gray-200">
                 {moodHistory.map((day, idx) => {
                   const barHeight = 50 + (day.value * 35);
                   
