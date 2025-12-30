@@ -25,6 +25,7 @@ import teacherQuizRoutes from './src/routes/teacherQuizRoutes.js';
 import notificationRoutes from './src/routes/notificationRoutes.js';
 import aiQuizRoutes from './src/routes/aiQuizRoutes.js';
 import wellnessAIRoutes from './src/routes/wellnessAIRoutes.js';
+import moodRoutes from './src/routes/moodRoutes.js';
 
 const app = express();
 
@@ -69,6 +70,7 @@ app.use('/api/teacher-quizzes', teacherQuizRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai-quiz', aiQuizRoutes);
 app.use('/api/wellness-ai', wellnessAIRoutes);
+app.use('/api/moods', moodRoutes);
 
 // Health check
 app.get('/', (req, res) => {
