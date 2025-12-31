@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   Check,
   X,
+  Flag,
 } from "lucide-react";
 import { io } from "socket.io-client";
 import teacherQuizService from "../services/teacherQuizService";
@@ -29,6 +30,7 @@ const QuizPage = () => {
   const [activeFilter, setActiveFilter] = useState("all"); // Start with NO filter selected
   const [quizData, setQuizData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [flaggedQuestions, setFlaggedQuestions] = useState(new Set());
 
   // AI Integration States
   const [sessionId] = useState(
@@ -744,11 +746,13 @@ const QuizPage = () => {
   const matchesFilter = (index) => {
     const answered = answers[index] !== undefined;
     const isCurrent = index === currentQuestion;
+    const isFlagged = flaggedQuestions.has(index);
 
     if (activeFilter === "all") return true;
     if (activeFilter === "current") return isCurrent;
     if (activeFilter === "answered") return answered;
     if (activeFilter === "unanswered") return !answered;
+    if (activeFilter === "flagged") return isFlagged;
 
     return true;
   };
@@ -756,6 +760,19 @@ const QuizPage = () => {
   const handleFilterClick = (filter) => {
     // Always switch to the clicked filter (don't toggle off)
     setActiveFilter(filter);
+  };
+
+  // Toggle flag for current question
+  const toggleFlag = () => {
+    setFlaggedQuestions((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(currentQuestion)) {
+        newSet.delete(currentQuestion);
+      } else {
+        newSet.add(currentQuestion);
+      }
+      return newSet;
+    });
   };
 
   const handleDownloadPDF = () => {
@@ -1324,6 +1341,7 @@ const QuizPage = () => {
             const answered = answers[index] !== undefined;
             const isCurrent = index === currentQuestion;
             const highlightQuestion = matchesFilter(index);
+            const isFlagged = flaggedQuestions.has(index);
 
             return (
               <button
@@ -1358,6 +1376,11 @@ const QuizPage = () => {
                     <Check className="w-3 h-3 text-white" strokeWidth={3} />
                   </div>
                 )}
+                {isFlagged && (
+                  <div className="absolute -top-1 -left-1">
+                    <Flag className="w-3 h-3 text-orange-500 fill-orange-500" />
+                  </div>
+                )}
               </button>
             );
           })}
@@ -1366,50 +1389,54 @@ const QuizPage = () => {
         <div className="space-y-3 mb-8">
           <button
             onClick={() => handleFilterClick("current")}
-            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "current" ? "bg-green-200" : "hover:bg-green-50"
-            }`}
+            className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "current"
-                  ? "bg-green-500"
-                  : "bg-white border-2 border-teal-700"
-              }`}
-            ></div>
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+              {activeFilter === "current" && (
+                <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
+              )}
+            </div>
             <span className="text-sm text-gray-700">Current question</span>
           </button>
           <button
             onClick={() => handleFilterClick("answered")}
-            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "answered" ? "bg-green-200" : "hover:bg-green-50"
-            }`}
+            className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "answered"
-                  ? "bg-green-500"
-                  : "bg-white border-2 border-teal-700"
-              }`}
-            ></div>
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+              {activeFilter === "answered" && (
+                <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
+              )}
+            </div>
             <span className="text-sm text-gray-700">Answered</span>
           </button>
           <button
             onClick={() => handleFilterClick("unanswered")}
-            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "unanswered"
-                ? "bg-green-200"
-                : "hover:bg-green-50"
-            }`}
+            className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "unanswered"
-                  ? "bg-green-500"
-                  : "bg-white border-2 border-teal-700"
-              }`}
-            ></div>
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+              {activeFilter === "unanswered" && (
+                <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
+              )}
+            </div>
             <span className="text-sm text-gray-700">Unanswered</span>
+          </button>
+          <button
+            onClick={() => handleFilterClick("flagged")}
+            className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
+          >
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+              {activeFilter === "flagged" && (
+                <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-sm text-gray-700">Flagged</span>
+              {flaggedQuestions.size > 0 && (
+                <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {flaggedQuestions.size}
+                </span>
+              )}
+            </div>
           </button>
         </div>
 
@@ -1521,10 +1548,34 @@ const QuizPage = () => {
             )}
 
             <div className="flex items-start justify-between mb-6">
-              <div>
+              <div className="flex items-center gap-3">
                 <h2 className="text-xl font-semibold text-gray-800">
                   Question {question.id}
                 </h2>
+                <button
+                  onClick={toggleFlag}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all ${
+                    flaggedQuestions.has(currentQuestion)
+                      ? "bg-orange-100 text-orange-700 border border-orange-300"
+                      : "bg-gray-100 text-gray-500 border border-gray-300 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200"
+                  }`}
+                  title={
+                    flaggedQuestions.has(currentQuestion)
+                      ? "Remove flag"
+                      : "Flag for review"
+                  }
+                >
+                  <Flag
+                    className={`w-4 h-4 ${
+                      flaggedQuestions.has(currentQuestion)
+                        ? "fill-orange-600"
+                        : ""
+                    }`}
+                  />
+                  <span className="text-sm font-medium">
+                    {flaggedQuestions.has(currentQuestion) ? "Flagged" : "Flag"}
+                  </span>
+                </button>
               </div>
             </div>
             <p className="text-lg text-gray-700 mb-8">{question.text}</p>
