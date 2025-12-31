@@ -50,7 +50,8 @@ const QuizPage = () => {
   // Load quiz data on component mount
   useEffect(() => {
     loadQuizData();
-    initializeAI();
+    // Don't initialize AI socket until camera permission is granted
+    // initializeAI();
 
     // Show camera permission dialog instead of auto-requesting
     // User can choose to allow or skip
@@ -148,6 +149,10 @@ const QuizPage = () => {
       console.log(
         "📷 AI: Requesting webcam permission for emotion tracking..."
       );
+
+      // Initialize AI socket connection when user actually requests camera
+      await initializeAI();
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 224, height: 224 },
       });
