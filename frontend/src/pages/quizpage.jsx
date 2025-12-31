@@ -43,20 +43,39 @@ const QuizPage = () => {
   const videoRef = useRef(null);
   const [hintsUsedCount, setHintsUsedCount] = useState(0);
   const [showCameraPermissionDialog, setShowCameraPermissionDialog] =
-    useState(true);
+    useState(false);
   const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
   const [bulbVisible, setBulbVisible] = useState(false);
 
   // Load quiz data on component mount
   useEffect(() => {
     loadQuizData();
-    // Don't initialize AI socket until camera permission is granted
-    // initializeAI();
 
-    // Show camera permission dialog instead of auto-requesting
-    // User can choose to allow or skip
+    // Check camera permission from localStorage (set by Permission page)
+    const cameraPermission = localStorage.getItem("cameraPermission");
+    console.log(
+      "📱 Retrieved camera permission from localStorage:",
+      cameraPermission
+    );
+
+    if (cameraPermission === "allowed") {
+      // Camera was allowed on permission page - enable AI hints
+      console.log("✅ Camera permission allowed - Enabling AI hints");
+      setWebcamEnabled(true);
+      setCameraPermissionDenied(false);
+      // Initialize AI socket for emotion tracking
+      initializeAI();
+    } else {
+      // Camera was denied or skipped - use teacher hints only
+      console.log("❌ Camera permission denied - Using teacher hints only");
+      setWebcamEnabled(false);
+      setCameraPermissionDenied(true);
+    }
+
+    // Don't show camera permission dialog on quiz page
+    // Camera permission is handled on the permission page before quiz starts
     setCameraPermissionLoading(false);
-    setShowCameraPermissionDialog(true);
+    setShowCameraPermissionDialog(false);
 
     return () => {
       // Cleanup on unmount
