@@ -1487,23 +1487,6 @@ const QuizPage = () => {
             </p>
           </div>
 
-          {/* Camera Denied Banner */}
-          {!cameraPermissionLoading && !webcamEnabled && (
-            <div className="bg-orange-50 border-l-4 border-orange-500 p-4 mb-6 rounded flex items-start gap-3">
-              <div className="text-orange-600 text-2xl mt-1">🚫</div>
-              <div>
-                <h4 className="font-semibold text-orange-800 mb-1">
-                  Camera Access Denied
-                </h4>
-                <p className="text-orange-700 text-sm">
-                  You're in <strong>Manual Mode</strong>. Only teacher-provided
-                  hints are available. To enable AI-powered hints, allow camera
-                  access.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Question Card */}
           <div className="bg-white rounded-lg shadow-md p-8 relative">
             {showBulb && bulbVisible && (
