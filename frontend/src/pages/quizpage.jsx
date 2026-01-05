@@ -24,6 +24,7 @@ const QuizPage = () => {
   const [showEmojiDialog, setShowEmojiDialog] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [revealedHints, setRevealedHints] = useState([]);
+  const [pendingHintRequest, setPendingHintRequest] = useState(null); // Store hint request details
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizStartTime] = useState(Date.now());
   const [totalTime, setTotalTime] = useState(0);
@@ -470,8 +471,15 @@ const QuizPage = () => {
 
     // First, check if AI hint already generated for this question (in memory)
     if (aiHints[currentQuestion]) {
-      console.log("✅ AI hint already exists in memory, showing it");
-      setShowHints(true);
+      console.log(
+        "✅ AI hint already exists in memory, showing emoji dialog first"
+      );
+      // Store that we should show existing hints after emoji selection
+      setPendingHintRequest({
+        type: "existing",
+        questionIndex: currentQuestion,
+      });
+      setShowEmojiDialog(true);
       return;
     }
 
@@ -480,24 +488,17 @@ const QuizPage = () => {
     const cachedHints = localStorage.getItem(localStorageKey);
 
     if (cachedHints && webcamEnabled) {
-      console.log("💾 Found cached AI hints in local storage");
-      // Load from local storage (parse as array if it's JSON)
-      try {
-        const parsedHints = JSON.parse(cachedHints);
-        setAiHints({
-          ...aiHints,
-          [currentQuestion]: Array.isArray(parsedHints)
-            ? parsedHints
-            : [cachedHints],
-        });
-      } catch (e) {
-        // If not JSON, treat as single hint
-        setAiHints({
-          ...aiHints,
-          [currentQuestion]: [cachedHints],
-        });
-      }
-      setShowHints(true);
+      console.log(
+        "💾 Found cached AI hints in local storage, showing emoji dialog first"
+      );
+      // Store pending request to load from cache after emoji selection
+      setPendingHintRequest({
+        type: "cached",
+        questionIndex: currentQuestion,
+        cachedHints: cachedHints,
+        localStorageKey: localStorageKey,
+      });
+      setShowEmojiDialog(true);
       return;
     }
 
@@ -519,18 +520,97 @@ const QuizPage = () => {
     );
 
     if (webcamEnabled) {
-      // 🎥 CAMERA ALLOWED: Generate AI hint first
-      console.log("🎥 Camera allowed - generating AI hint...");
+      // 🎥 CAMERA ALLOWED: Show emoji dialog first, then generate AI hint
+      console.log("🎥 Camera allowed - showing emoji dialog before AI hint...");
+      // Store that we need to generate AI hints after emoji selection
+      setPendingHintRequest({
+        type: "ai",
+        questionIndex: currentQuestion,
+        question: question,
+        hasTeacherHints: hasTeacherHints,
+      });
+      setShowEmojiDialog(true);
+    } else {
+      // 🚫 CAMERA DENIED: Show emoji dialog first, then show teacher hints
+      console.log(
+        "🚫 Camera denied - showing emoji dialog before teacher hints..."
+      );
+      if (hasTeacherHints) {
+        setPendingHintRequest({
+          type: "teacher",
+          questionIndex: currentQuestion,
+          hasTeacherHints: hasTeacherHints,
+        });
+        setShowEmojiDialog(true);
+      } else {
+        alert(
+          "No hints available for this question. Please ask your teacher to add hints."
+        );
+      }
+    }
+  };
+
+  const processHintRequest = async (request) => {
+    if (!request) return;
+
+    const {
+      type,
+      questionIndex,
+      question,
+      hasTeacherHints,
+      cachedHints,
+      localStorageKey,
+    } = request;
+
+    if (type === "existing") {
+      // Show existing hints from memory
+      console.log("✅ Showing existing hints from memory");
+      setShowHints(true);
+      return;
+    }
+
+    if (type === "cached") {
+      // Load from local storage
+      console.log("💾 Loading cached AI hints from local storage");
+      try {
+        const parsedHints = JSON.parse(cachedHints);
+        setAiHints({
+          ...aiHints,
+          [questionIndex]: Array.isArray(parsedHints)
+            ? parsedHints
+            : [cachedHints],
+        });
+      } catch (e) {
+        setAiHints({
+          ...aiHints,
+          [questionIndex]: [cachedHints],
+        });
+      }
+      setShowHints(true);
+      return;
+    }
+
+    if (type === "teacher") {
+      // Show teacher hints
+      console.log("📚 Displaying teacher-created hints");
+      setShowHints(true);
+      return;
+    }
+
+    if (type === "ai") {
+      // Generate AI hint
+      console.log("🎥 Generating AI hint...");
       try {
         const userStr = localStorage.getItem("user");
         if (!userStr) {
-          setShowEmojiDialog(true);
+          alert("Please log in to get hints");
           return;
         }
 
         const user = JSON.parse(userStr);
 
         const token = localStorage.getItem("token");
+        const hintLocalStorageKey = `hint_${quizId}_${question.id}`;
         const response = await fetch("http://localhost:5000/api/hint", {
           method: "POST",
           headers: {
@@ -541,7 +621,7 @@ const QuizPage = () => {
             userId: user.id,
             sessionId: sessionId,
             questionId: String(question.id),
-            questionIndex: currentQuestion,
+            questionIndex: questionIndex,
             questionText: question.text,
             options: question.options || [],
           }),
@@ -564,13 +644,13 @@ const QuizPage = () => {
           console.log("✅ Final hints count:", hintsArray.length);
 
           // Save to local storage as JSON array
-          localStorage.setItem(localStorageKey, JSON.stringify(hintsArray));
+          localStorage.setItem(hintLocalStorageKey, JSON.stringify(hintsArray));
           console.log("💾 AI hints saved to local storage");
 
           // Store AI hints in state (as array)
           setAiHints({
             ...aiHints,
-            [currentQuestion]: hintsArray,
+            [questionIndex]: hintsArray,
           });
 
           // Increment hints used count
@@ -601,28 +681,24 @@ const QuizPage = () => {
           alert("Error: Could not generate hint. No hints available.");
         }
       }
-    } else {
-      // 🚫 CAMERA DENIED: Show teacher hints only
-      console.log("🚫 Camera denied - showing teacher hints only");
-      if (hasTeacherHints) {
-        console.log("📚 Displaying teacher-created hints");
-        setShowHints(true);
-      } else {
-        alert(
-          "No hints available for this question. Please ask your teacher to add hints."
-        );
-      }
     }
   };
 
-  const handleEmojiClick = (emoji) => {
-    if (emoji === "confused" || emoji === "frustrated") {
-      setShowHints(true);
-    } else {
-      // For happy, neutral, excited - don't show hints
-      setShowHints(false);
-    }
+  const handleEmojiClick = async (emoji) => {
+    console.log(`😊 Emoji clicked: ${emoji}`);
     setShowEmojiDialog(false);
+
+    // Only proceed with hints for neutral, confused, frustrated
+    if (emoji === "neutral" || emoji === "confused" || emoji === "frustrated") {
+      console.log(`✅ Proceeding with hint request for emotion: ${emoji}`);
+      await processHintRequest(pendingHintRequest);
+    } else {
+      // For happy and excited - skip hints
+      console.log(`❌ Skipping hints for emotion: ${emoji}`);
+    }
+
+    // Clear pending request
+    setPendingHintRequest(null);
   };
 
   const handleRevealHint = (index) => {
