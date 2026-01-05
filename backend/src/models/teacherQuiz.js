@@ -60,7 +60,7 @@ const teacherQuizSchema = new mongoose.Schema({
   },
   dueDate: {
     type: Date,
-    required: true
+    required: false
   },
   questions: {
     type: [teacherQuestionSchema],

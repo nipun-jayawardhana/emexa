@@ -22,8 +22,10 @@ import TeacherDashboard from "./pages/TeacherDashboard";
 import TeacherCreateQuizWrapper from "./pages/TeacherCreateQuizWrapper";
 import Permission from "./pages/Permission";
 import WellnessCentre from "./pages/WellnessCentre";
+import Notification from "./pages/Notification";
 import RequireAuth from "./components/RequireAuth";
 import ProtectedRoute from "./components/ProtectedRoute";
+import HelpSupportCentre from './pages/HelpSupportCentre';
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
@@ -66,6 +68,16 @@ createRoot(document.getElementById("root")).render(
 
         {/* Permission Route */}
         <Route path="/permission" element={<Permission />} />
+
+        {/* Notification Route */}
+        <Route 
+          path="/notifications" 
+          element={
+            <ProtectedRoute allowedRoles={["student", "teacher", "admin"]}>
+              <Notification />
+            </ProtectedRoute>
+          } 
+        />
 
         {/* Teacher Routes - Accessible by teacher AND admin */}
         <Route
@@ -169,6 +181,9 @@ createRoot(document.getElementById("root")).render(
 
         {/* 404 Catch-all - Redirect to landing page */}
         <Route path="*" element={<Navigate to="/" replace />} />
+
+        <Route path="/help-support" element={<HelpSupportCentre />} />
+        
       </Routes>
     </BrowserRouter>
   </StrictMode>

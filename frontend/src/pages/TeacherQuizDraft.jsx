@@ -403,6 +403,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
         scheduleDate,
         startTime,
         endTime,
+        dueDate: dueDate || null,
         isScheduled: true,
       });
 
@@ -415,6 +416,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
       setScheduleDate("");
       setStartTime("");
       setEndTime("");
+      setDueDate("");
 
       alert(
         "✅ Quiz Scheduled Successfully!\n\nYour quiz has been scheduled. Click the 'Share' button to make it active and visible to students."
@@ -666,6 +668,14 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                         setScheduleDate(formattedDate);
                         setStartTime(quiz.startTime || "");
                         setEndTime(quiz.endTime || "");
+                        // Load existing due date if available
+                        if (quiz.dueDate) {
+                          const dueDateObj = new Date(quiz.dueDate);
+                          const formattedDueDate = dueDateObj
+                            .toISOString()
+                            .split("T")[0];
+                          setDueDate(formattedDueDate);
+                        }
                         setShowScheduleModal(true);
                       }}
                       className="bg-teal-50 border-2 border-teal-500 rounded-lg px-3 py-2 text-right hover:bg-teal-100 transition cursor-pointer relative group"
@@ -707,11 +717,26 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                   {quiz.dueDate && (
                     <button
                       onClick={() => {
-                        setSelectedQuizForDueDate(quiz);
-                        const date = new Date(quiz.dueDate);
-                        const formattedDate = date.toISOString().split("T")[0];
-                        setDueDate(formattedDate);
-                        setShowDueDateModal(true);
+                        setSelectedQuizForSchedule(quiz);
+                        // Load schedule date if exists
+                        if (quiz.scheduleDate) {
+                          const date = new Date(quiz.scheduleDate);
+                          const formattedDate = date
+                            .toISOString()
+                            .split("T")[0];
+                          setScheduleDate(formattedDate);
+                        }
+                        setStartTime(quiz.startTime || "");
+                        setEndTime(quiz.endTime || "");
+                        // Load existing due date
+                        if (quiz.dueDate) {
+                          const dueDateObj = new Date(quiz.dueDate);
+                          const formattedDueDate = dueDateObj
+                            .toISOString()
+                            .split("T")[0];
+                          setDueDate(formattedDueDate);
+                        }
+                        setShowScheduleModal(true);
                       }}
                       className="bg-orange-50 border-2 border-orange-500 rounded-lg px-3 py-2 text-right hover:bg-orange-100 transition cursor-pointer relative group"
                     >
@@ -975,6 +1000,19 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                 value={endTime}
                 onChange={setEndTime}
               />
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Due Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm"
+                  placeholder="Select due date"
+                />
+              </div>
             </div>
 
             <div className="flex items-center gap-3">
@@ -985,6 +1023,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                   setScheduleDate("");
                   setStartTime("");
                   setEndTime("");
+                  setDueDate("");
                 }}
                 className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm"
               >

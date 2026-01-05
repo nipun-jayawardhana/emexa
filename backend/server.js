@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config(); // MUST BE FIRST!
 
+// Auto-restart enabled with nodemon
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -20,7 +21,12 @@ import quizRoutes from './src/routes/quizroutes.js';
 import cameraRoutes from './src/routes/cameraRoutes.js';
 import teacherRoutes from './src/routes/teacherRoutes.js';
 import wellnessRoutes from './src/routes/wellnessRoutes.js';
-import teacherQuizRoutes from './src/routes/teacherQuizRoutes.js'; 
+import teacherQuizRoutes from './src/routes/teacherQuizRoutes.js';
+import notificationRoutes from './src/routes/notificationRoutes.js';
+import aiQuizRoutes from './src/routes/aiQuizRoutes.js';
+import wellnessAIRoutes from './src/routes/wellnessAIRoutes.js';
+import moodRoutes from './src/routes/moodRoutes.js';
+import helpSupportRoutes from './src/routes/helpSupportRoutes.js';
 
 const app = express();
 
@@ -61,7 +67,12 @@ app.use('/api/quiz', quizRoutes);
 app.use('/api/camera', cameraRoutes);
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/wellness', wellnessRoutes);
-app.use('/api/teacher-quizzes', teacherQuizRoutes); // New teacher quiz routes 
+app.use('/api/teacher-quizzes', teacherQuizRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/ai-quiz', aiQuizRoutes);
+app.use('/api/wellness-ai', wellnessAIRoutes);
+app.use('/api/moods', moodRoutes);
+app.use('/api/help-support', helpSupportRoutes);
 
 // Health check
 app.get('/', (req, res) => {
@@ -72,6 +83,11 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString(),
     cloudinary: {
       configured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY)
+    },
+    ai: {
+      gemini: !!process.env.GEMINI_API_KEY,
+      huggingface: !!process.env.HUGGING_FACE_API_KEY,
+      cohere: !!process.env.COHERE_API_KEY
     }
   });
 });
@@ -119,6 +135,7 @@ app.listen(PORT, HOST, () => {
   console.log(`📍 Server URL: http://${HOST}:${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`☁️  Cloudinary: ${process.env.CLOUDINARY_CLOUD_NAME ? '✅ ' + process.env.CLOUDINARY_CLOUD_NAME : '❌ Not configured'}`);
+  console.log(`🤖 AI Services:Gemini: ${process.env.GEMINI_API_KEY ? '✅ Configured' : '❌ Not configured'}`);
   console.log('='.repeat(50) + '\n');
 });
 

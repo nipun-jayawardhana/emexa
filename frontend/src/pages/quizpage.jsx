@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
+import axios from "axios";
 import {
   Clock,
   Home,
@@ -8,18 +9,24 @@ import {
   ChevronLeft,
   Check,
   X,
+  Flag,
 } from "lucide-react";
 import teacherQuizService from "../services/teacherQuizService";
 import headerLogo from "../assets/headerlogo.png";
 import DownloadIcon from "../assets/download.png";
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000';
+
 const QuizPage = () => {
   const { quizId } = useParams();
+  const [searchParams] = useSearchParams();
+  const showResults = searchParams.get('results') === 'true';
+  
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
   const [flaggedQuestions, setFlaggedQuestions] = useState(() => {
     try {
-      const saved = localStorage.getItem('flaggedQuestions');
+      const saved = localStorage.getItem("flaggedQuestions");
       return saved ? JSON.parse(saved) : [];
     } catch (err) {
       return [];
@@ -30,7 +37,7 @@ const QuizPage = () => {
   const [showEmojiDialog, setShowEmojiDialog] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [revealedHints, setRevealedHints] = useState([]);
-  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizSubmitted, setQuizSubmitted] = useState(showResults);
   const [quizStartTime] = useState(Date.now());
   const [totalTime, setTotalTime] = useState(0);
   const [activeFilter, setActiveFilter] = useState("all"); // Start with NO filter selected
@@ -241,7 +248,7 @@ const QuizPage = () => {
 
   // Persist flagged questions to localStorage
   useEffect(() => {
-    localStorage.setItem('flaggedQuestions', JSON.stringify(flaggedQuestions));
+    localStorage.setItem("flaggedQuestions", JSON.stringify(flaggedQuestions));
   }, [flaggedQuestions]);
 
   const handleAnswerSelect = (optionIndex) => {
@@ -250,7 +257,7 @@ const QuizPage = () => {
 
   const handleToggleFlag = (index) => {
     if (flaggedQuestions.includes(index)) {
-      setFlaggedQuestions(flaggedQuestions.filter(q => q !== index));
+      setFlaggedQuestions(flaggedQuestions.filter((q) => q !== index));
     } else {
       setFlaggedQuestions([...flaggedQuestions, index]);
     }
@@ -286,8 +293,34 @@ const QuizPage = () => {
     }
   };
 
-  const handleSubmit = () => {
-    setQuizSubmitted(true);
+  const handleSubmit = async () => {
+    try {
+      // Calculate time taken
+      const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
+      
+      // Prepare answers array
+      const answersArray = quizData.questions.map((_, index) => answers[index]);
+      
+      const token = localStorage.getItem('token');
+      
+      // Submit to backend
+      const response = await axios.post(
+        `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
+        {
+          answers: answersArray,
+          timeTaken
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      console.log('✅ Quiz submitted:', response.data);
+      setQuizSubmitted(true);
+    } catch (error) {
+      console.error('❌ Error submitting quiz:', error);
+      alert('Failed to submit quiz. Please try again.');
+    }
   };
 
   const calculateScore = () => {
@@ -815,13 +848,26 @@ const QuizPage = () => {
                 onClick={() => setCurrentQuestion(index)}
                 className={`
                   w-12 h-12 rounded-lg font-semibold flex items-center justify-center transition-all relative
-                  ${isCurrent && activeFilter === 'all' ? 'bg-teal-700 text-white ring-4 ring-teal-300' : 
-                    isCurrent && activeFilter !== 'all' ? 'bg-teal-700 text-white' :
-                    answered ? 'bg-white text-teal-700 border-2 border-teal-700' : 
-                    'bg-white text-gray-400 border-2 border-gray-200'}
-                  ${highlightQuestion && !isCurrent && activeFilter !== 'all' ? 'bg-teal-50' : ''}
-                  ${!highlightQuestion && activeFilter !== 'all' ? 'opacity-40' : ''}
-                  ${isFlagged ? 'ring-2 ring-orange-400' : ''}
+                  ${
+                    isCurrent && activeFilter === "all"
+                      ? "bg-teal-700 text-white ring-4 ring-teal-300"
+                      : isCurrent && activeFilter !== "all"
+                      ? "bg-teal-700 text-white"
+                      : answered
+                      ? "bg-white text-teal-700 border-2 border-teal-700"
+                      : "bg-white text-gray-400 border-2 border-gray-200"
+                  }
+                  ${
+                    highlightQuestion && !isCurrent && activeFilter !== "all"
+                      ? "bg-teal-50"
+                      : ""
+                  }
+                  ${
+                    !highlightQuestion && activeFilter !== "all"
+                      ? "opacity-40"
+                      : ""
+                  }
+                  ${isFlagged ? "ring-2 ring-orange-400" : ""}
                 `}
               >
                 {index + 1}
@@ -889,14 +935,20 @@ const QuizPage = () => {
             <span className="text-sm text-gray-700">Unanswered</span>
           </button>
           <button
-            onClick={() => handleFilterClick('flagged')}
+            onClick={() => handleFilterClick("flagged")}
             className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === 'flagged' ? 'bg-orange-200' : 'hover:bg-orange-50'
+              activeFilter === "flagged"
+                ? "bg-orange-200"
+                : "hover:bg-orange-50"
             }`}
           >
-            <div className={`w-4 h-4 rounded ${
-              activeFilter === 'flagged' ? 'bg-orange-500' : 'bg-white border-2 border-orange-500'
-            }`}></div>
+            <div
+              className={`w-4 h-4 rounded ${
+                activeFilter === "flagged"
+                  ? "bg-orange-500"
+                  : "bg-white border-2 border-orange-500"
+              }`}
+            ></div>
             <span className="text-sm text-gray-700">Flagged</span>
             {flaggedCount > 0 && (
               <span className="ml-auto text-xs font-bold bg-orange-500 text-white rounded-full px-2 py-0.5">
@@ -973,21 +1025,29 @@ const QuizPage = () => {
               <button
                 onClick={() => handleToggleFlag(currentQuestion)}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors"
-                title={flaggedQuestions.includes(currentQuestion) ? 'Unflag this question' : 'Flag this question for review'}
+                title={
+                  flaggedQuestions.includes(currentQuestion)
+                    ? "Unflag this question"
+                    : "Flag this question for review"
+                }
               >
                 <Flag
                   className={`w-5 h-5 transition-colors ${
                     flaggedQuestions.includes(currentQuestion)
-                      ? 'text-orange-500 fill-orange-500'
-                      : 'text-gray-400 hover:text-orange-500'
+                      ? "text-orange-500 fill-orange-500"
+                      : "text-gray-400 hover:text-orange-500"
                   }`}
                 />
-                <span className={`text-sm font-medium ${
-                  flaggedQuestions.includes(currentQuestion)
-                    ? 'text-orange-600'
-                    : 'text-gray-600'
-                }`}>
-                  {flaggedQuestions.includes(currentQuestion) ? 'Flagged' : 'Flag'}
+                <span
+                  className={`text-sm font-medium ${
+                    flaggedQuestions.includes(currentQuestion)
+                      ? "text-orange-600"
+                      : "text-gray-600"
+                  }`}
+                >
+                  {flaggedQuestions.includes(currentQuestion)
+                    ? "Flagged"
+                    : "Flag"}
                 </span>
               </button>
             </div>

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import camera from "../lib/camera";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import teacherQuizService from "../services/teacherQuizService";
 import AdminViewWrapper from "../components/AdminViewWrapper";
@@ -24,8 +24,11 @@ const StudentDashboard = () => {
   const [userEmail, setUserEmail] = useState("");
   const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
   const [sharedQuizzes, setSharedQuizzes] = useState([]);
+  const [highlightedQuizId, setHighlightedQuizId] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const quizRefs = useRef({});
   
   const adminToken = localStorage.getItem('adminToken');
   const isAdminViewing = localStorage.getItem('adminViewingAs');
@@ -42,6 +45,90 @@ const StudentDashboard = () => {
     const menuItem = pathToMenuItem[location.pathname] || "dashboard";
     setActiveMenuItem(menuItem);
   }, [location.pathname]);
+
+  // Handle highlighted quiz from notification
+  useEffect(() => {
+    console.log('🌐 Full URL:', window.location.href);
+    console.log('🌐 Pathname:', location.pathname);
+    console.log('🌐 Search:', location.search);
+    const quizId = searchParams.get('highlightQuiz');
+    console.log('🌐 URL Search Params:', searchParams.toString());
+    console.log('🎯 highlightQuiz parameter:', quizId);
+    if (quizId && !loading) {
+      console.log('✨ Setting highlighted quiz ID to:', quizId);
+      setHighlightedQuizId(quizId);
+    } else if (!quizId) {
+      console.log('⚠️ No highlightQuiz parameter in URL');
+    } else if (loading) {
+      console.log('⏳ Still loading, will try again...');
+    }
+  }, [searchParams, loading, location]);
+
+  // Scroll to highlighted quiz when it's rendered
+  useEffect(() => {
+    console.log('🔔 Scroll effect running. highlightedQuizId:', highlightedQuizId, 'loading:', loading);
+    
+    if (!highlightedQuizId || loading) {
+      console.log('⏹️ Exiting scroll effect early');
+      return;
+    }
+    
+    console.log('📍 Scroll effect triggered for quiz:', highlightedQuizId);
+    
+    // Use requestAnimationFrame for better timing
+    const attemptScroll = () => {
+      requestAnimationFrame(() => {
+        const allRefKeys = Object.keys(quizRefs.current);
+        console.log('🔑 All available quiz refs:', allRefKeys);
+        console.log('🔑 Total refs registered:', allRefKeys.length);
+        
+        // Try to find the element
+        let quizElement = quizRefs.current[highlightedQuizId];
+        
+        // If not found, try string conversion
+        if (!quizElement) {
+          const stringId = String(highlightedQuizId);
+          quizElement = quizRefs.current[stringId];
+          console.log('🔄 Tried string conversion:', stringId, 'Found:', !!quizElement);
+        }
+        
+        console.log('🔍 Quiz element found:', !!quizElement);
+        
+        if (quizElement) {
+          console.log('✅ Scrolling NOW to quiz!');
+          quizElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center',
+            inline: 'nearest'
+          });
+        } else {
+          console.log('❌ No element found for ID:', highlightedQuizId);
+          console.log('💡 Hint: Check if the quiz ID in notification matches any of these:', allRefKeys);
+        }
+      });
+    };
+    
+    // Try multiple times to ensure we catch the element
+    const timer1 = setTimeout(attemptScroll, 100);
+    const timer2 = setTimeout(attemptScroll, 500);
+    const timer3 = setTimeout(attemptScroll, 1000);
+    const timer4 = setTimeout(attemptScroll, 1500);
+    
+    // Clear highlight after 5 seconds
+    const clearTimer = setTimeout(() => {
+      console.log('⏰ Clearing highlight after 5 seconds');
+      setHighlightedQuizId(null);
+      setSearchParams({});
+    }, 5000);
+    
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+      clearTimeout(timer4);
+      clearTimeout(clearTimer);
+    };
+  }, [highlightedQuizId, loading]);
 
   // ============================================
   // CRITICAL: Check if admin is viewing a specific student
@@ -387,10 +474,41 @@ const StudentDashboard = () => {
 
                 const allQuizzes = [...sharedQuizzes, ...existingQuizzes];
                 return allQuizzes;
-              })().map((quiz, index) => (
+              })().map((quiz, index) => {
+                const quizId = quiz.id || quiz._id || `quiz-${index}`;
+                const isHighlighted = highlightedQuizId && String(quizId) === String(highlightedQuizId);
+                
+                // Log every quiz being rendered
+                console.log('📝 Rendering quiz:', {
+                  index,
+                  title: quiz.title,
+                  quizId,
+                  'quiz.id': quiz.id,
+                  'quiz._id': quiz._id,
+                  highlightedQuizId,
+                  isHighlighted
+                });
+                
+                return (
                 <div
                   key={index}
-                  className="flex items-start justify-between p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition"
+                  ref={(el) => {
+                    if (quizId && el) {
+                      quizRefs.current[quizId] = el;
+                      console.log('🔗 Registered ref for quiz:', quizId, quiz.title);
+                      if (isHighlighted) {
+                        console.log('⭐ This is the HIGHLIGHTED quiz!');
+                      }
+                    }
+                  }}
+                  className={`flex items-start justify-between p-3 border rounded-lg hover:border-gray-300 transition ${
+                    isHighlighted 
+                      ? 'border-blue-500 bg-blue-50 animate-pulse' 
+                      : 'border-gray-200'
+                  }`}
+                  style={isHighlighted ? {
+                    animation: 'pulse 1s ease-in-out 5'
+                  } : {}}
                 >
                   <div className="flex-1 pr-4">
                     <h3 className="font-semibold text-gray-900 text-sm mb-0.5">
@@ -445,7 +563,7 @@ const StudentDashboard = () => {
                     Take Quiz
                   </button>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
 
@@ -544,12 +662,76 @@ const StudentDashboard = () => {
   }
 
   // Regular student view
+  const studentMenuItems = [
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      icon: (
+        <svg
+          className="w-5 h-5 pointer-events-none"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+          />
+        </svg>
+      ),
+      onClick: () => navigate("/dashboard"),
+    },
+    {
+      id: "wellness",
+      label: "Wellness Centre",
+      icon: (
+        <svg
+          className="w-5 h-5 pointer-events-none"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+          />
+        </svg>
+      ),
+      onClick: () => navigate("/wellness-centre"),
+    },
+    {
+      id: "profile",
+      label: "Profile",
+      icon: (
+        <svg
+          className="w-5 h-5 pointer-events-none"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+          />
+        </svg>
+      ),
+      onClick: () => navigate("/profile"),
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-white">
       <Header userName={userName} userRole="student" />
       <Sidebar
         activeMenuItem={activeMenuItem}
         setActiveMenuItem={setActiveMenuItem}
+        menuItems={studentMenuItems}
       />
       <div className="ml-52 pt-14">
         <DashboardContent />
