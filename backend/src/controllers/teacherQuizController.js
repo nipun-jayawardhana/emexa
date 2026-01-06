@@ -275,11 +275,11 @@ export const scheduleQuiz = async (req, res) => {
     quiz.scheduleDate = new Date(scheduleDate);
     quiz.startTime = startTime;
     quiz.endTime = endTime;
-    quiz.status = 'active'; // Set to active so students can see it
+    quiz.status = 'scheduled'; // Set to scheduled, not active
     
     await quiz.save();
     
-    console.log('✅ Quiz scheduled and activated:', quiz._id);
+    console.log('✅ Quiz scheduled:', quiz._id);
     
     // Get teacher name for notification
     const teacher = await Teacher.findById(quiz.teacherId);
@@ -418,17 +418,20 @@ export const getQuizStats = async (req, res) => {
     };
     
     allQuizzes.forEach(quiz => {
-      // Scheduled = draft status but has schedule info
-      if (quiz.status === 'draft' && quiz.isScheduled) {
+      // Check if scheduled quiz is currently active
+      const isCurrentlyActive = quiz.isScheduled && quiz.isCurrentlyActive && quiz.isCurrentlyActive();
+      
+      // Scheduled = has schedule info but not currently in active time window
+      if ((quiz.status === 'draft' || quiz.status === 'scheduled') && quiz.isScheduled && !isCurrentlyActive) {
         formattedStats.scheduled++;
+      }
+      // Active = active status OR scheduled quiz that is currently in its time window
+      else if (quiz.status === 'active' || (quiz.status === 'scheduled' && isCurrentlyActive)) {
+        formattedStats.active++;
       }
       // Draft = draft status and no schedule info
       else if (quiz.status === 'draft' && !quiz.isScheduled) {
         formattedStats.drafts++;
-      }
-      // Active = active status
-      else if (quiz.status === 'active') {
-        formattedStats.active++;
       }
       // Closed
       else if (quiz.status === 'closed') {
@@ -468,6 +471,24 @@ export const submitQuizAnswers = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Quiz not found'
+      });
+    }
+
+    // Check if quiz is currently active
+    if (!quiz.isCurrentlyActive()) {
+      const timeStatus = quiz.getTimeStatus();
+      let message = 'This quiz is not currently available.';
+      
+      if (timeStatus === 'upcoming') {
+        message = 'This quiz has not started yet. Please wait until the scheduled time.';
+      } else if (timeStatus === 'expired') {
+        message = 'This quiz has ended. The submission deadline has passed.';
+      }
+      
+      return res.status(403).json({
+        success: false,
+        message,
+        timeStatus
       });
     }
 
