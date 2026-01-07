@@ -1,8 +1,9 @@
 // frontend/src/pages/TeacherDashboard.jsx
-// FIXED VERSION - Proper Layout and Navigation
+// FIXED VERSION - With Actual Data from Database
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import AdminViewWrapper from "../components/AdminViewWrapper";
 import Header from "../components/headerorigin";
 import Sidebar from "../components/sidebarorigin";
@@ -21,7 +22,6 @@ const TeacherDashboard = () => {
       return "dashboard";
     }
     const saved = localStorage.getItem("teacherActiveMenuItem");
-    // Don't allow 'profile' as active menu item since it navigates away
     if (saved === "profile") {
       return "dashboard";
     }
@@ -119,7 +119,6 @@ const TeacherDashboard = () => {
         </svg>
       ),
       onClick: () => {
-        // Don't set activeMenuItem here - let profile page handle its own state
         navigate("/teacher-profile");
       }
     },
@@ -151,7 +150,6 @@ const TeacherDashboard = () => {
     }
   };
 
-  // Admin viewing - wrap with AdminViewWrapper which handles layout
   if (isAdminViewing && adminToken) {
     return (
       <AdminViewWrapper dashboardType="teacher">
@@ -162,7 +160,6 @@ const TeacherDashboard = () => {
     );
   }
 
-  // Regular teacher view with proper spacing
   return (
     <div className="bg-gradient-to-br from-green-50 to-white min-h-screen">
       <Header userName={userName} userRole="teacher" />
@@ -171,7 +168,6 @@ const TeacherDashboard = () => {
         setActiveMenuItem={setActiveMenuItem}
         menuItems={teacherMenuItems}
       />
-      {/* Fixed: Added proper padding to account for sidebar and header */}
       <div className="ml-64 pt-20 p-6">
         {renderContent()}
       </div>
@@ -179,8 +175,71 @@ const TeacherDashboard = () => {
   );
 };
 
-// Dashboard Content Component
+// Dashboard Content Component with ACTUAL DATA
 const DashboardContent = () => {
+  const [loading, setLoading] = useState(true);
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [classProgress, setClassProgress] = useState([]);
+  const [engagementTrend, setEngagementTrend] = useState([]);
+  const [emotionalState, setEmotionalState] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [showAllStudents, setShowAllStudents] = useState(false);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        console.log('❌ No token found');
+        return;
+      }
+
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Fetch all dashboard data in parallel
+      const [statsRes, progressRes, trendRes, emotionRes, studentsRes] = await Promise.all([
+        axios.get("http://localhost:5000/api/teachers/dashboard/stats", { headers }),
+        axios.get("http://localhost:5000/api/teachers/dashboard/class-progress", { headers }),
+        axios.get("http://localhost:5000/api/teachers/dashboard/engagement-trend", { headers }),
+        axios.get("http://localhost:5000/api/teachers/dashboard/emotional-state", { headers }),
+        axios.get("http://localhost:5000/api/teachers/dashboard/students", { headers })
+      ]);
+
+      console.log('✅ Dashboard data fetched successfully');
+      
+      setDashboardStats(statsRes.data.data);
+      setClassProgress(progressRes.data.data);
+      setEngagementTrend(trendRes.data.data);
+      setEmotionalState(emotionRes.data.data);
+      setStudents(studentsRes.data.data);
+      
+    } catch (error) {
+      console.error("❌ Error fetching dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Calculate percentages for progress bars
+  const presentPercentage = dashboardStats?.totalStudents > 0 
+    ? Math.round((dashboardStats.presentToday / dashboardStats.totalStudents) * 100)
+    : 0;
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold text-gray-900 mb-2">
@@ -190,7 +249,7 @@ const DashboardContent = () => {
         Monitor and manage your classes and student performance
       </p>
 
-      {/* Stats Cards */}
+      {/* Stats Cards with ACTUAL DATA */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {/* Total Students */}
         <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
@@ -214,18 +273,22 @@ const DashboardContent = () => {
               <p className="text-gray-500 text-xs font-medium mb-1">
                 Total Students
               </p>
-              <p className="text-3xl font-bold text-gray-900">24</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {dashboardStats?.totalStudents || 0}
+              </p>
             </div>
           </div>
           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-500">Present today</span>
-              <span className="font-semibold text-gray-900">22/24</span>
+              <span className="font-semibold text-gray-900">
+                {dashboardStats?.presentToday || 0}/{dashboardStats?.totalStudents || 0}
+              </span>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2">
               <div
-                className="bg-blue-600 h-2 rounded-full"
-                style={{ width: "92%" }}
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${presentPercentage}%` }}
               ></div>
             </div>
           </div>
@@ -253,18 +316,26 @@ const DashboardContent = () => {
               <p className="text-gray-500 text-xs font-medium mb-1">
                 Average Progress
               </p>
-              <p className="text-3xl font-bold text-gray-900">78%</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {dashboardStats?.averageProgress || 0}%
+              </p>
             </div>
           </div>
           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-500">Target</span>
-              <span className="font-semibold text-gray-900">80%</span>
+              <span className="font-semibold text-gray-900">
+                {dashboardStats?.targetProgress || 80}%
+              </span>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2">
               <div
-                className="bg-green-500 h-2 rounded-full"
-                style={{ width: "78%" }}
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  (dashboardStats?.averageProgress || 0) >= (dashboardStats?.targetProgress || 80)
+                    ? 'bg-green-500'
+                    : 'bg-yellow-500'
+                }`}
+                style={{ width: `${Math.min(dashboardStats?.averageProgress || 0, 100)}%` }}
               ></div>
             </div>
           </div>
@@ -292,25 +363,29 @@ const DashboardContent = () => {
               <p className="text-gray-500 text-xs font-medium mb-1">
                 Engagement Level
               </p>
-              <p className="text-3xl font-bold text-gray-900">High</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {dashboardStats?.engagementLevel || 'Low'}
+              </p>
             </div>
           </div>
           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-500">Weekly change</span>
-              <span className="font-semibold text-green-600">+5%</span>
+              <span className="font-semibold text-green-600">
+                +{dashboardStats?.weeklyChange || 0}%
+              </span>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2">
               <div
-                className="bg-blue-600 h-2 rounded-full"
-                style={{ width: "85%" }}
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${dashboardStats?.engagementPercentage || 0}%` }}
               ></div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Class Progress Chart */}
+      {/* Class Progress Chart with ACTUAL DATA */}
       <div className="bg-white rounded-xl p-6 border border-gray-200 mb-6 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900 mb-6">
           Class Progress
@@ -326,27 +401,19 @@ const DashboardContent = () => {
 
           <div className="absolute left-8 right-4 top-2 bottom-16 border-l border-b border-gray-400">
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-              <div className="border-t border-dotted border-gray-300"></div>
-              <div className="border-t border-dotted border-gray-300"></div>
-              <div className="border-t border-dotted border-gray-300"></div>
-              <div className="border-t border-dotted border-gray-300"></div>
-              <div className="border-t border-dotted border-gray-300"></div>
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="border-t border-dotted border-gray-300"></div>
+              ))}
             </div>
 
             <div className="absolute inset-0 flex justify-around pointer-events-none">
-              <div className="border-l border-dotted border-gray-300 h-full"></div>
-              <div className="border-l border-dotted border-gray-300 h-full"></div>
-              <div className="border-l border-dotted border-gray-300 h-full"></div>
-              <div className="border-l border-dotted border-gray-300 h-full"></div>
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="border-l border-dotted border-gray-300 h-full"></div>
+              ))}
             </div>
 
             <div className="absolute inset-0 flex items-end justify-around px-8">
-              {[
-                { label: "Week 1", completed: 65, target: 82 },
-                { label: "Week 2", completed: 72, target: 80 },
-                { label: "Week 3", completed: 80, target: 82 },
-                { label: "Week 4", completed: 88, target: 80 },
-              ].map((week, index) => (
+              {classProgress.map((week, index) => (
                 <div key={index} className="flex items-end gap-1.5 h-full">
                   <div
                     className="w-10 bg-teal-700 rounded-t transition-all hover:opacity-80"
@@ -362,10 +429,9 @@ const DashboardContent = () => {
           </div>
 
           <div className="absolute left-8 right-4 bottom-0 flex justify-around text-sm text-gray-700 font-medium">
-            <span>Week 1</span>
-            <span>Week 2</span>
-            <span>Week 3</span>
-            <span>Week 4</span>
+            {classProgress.map((week, index) => (
+              <span key={index}>{week.label}</span>
+            ))}
           </div>
         </div>
 
@@ -383,7 +449,7 @@ const DashboardContent = () => {
 
       {/* Engagement Trend & Emotional State */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Engagement Trend Chart */}
+        {/* Engagement Trend Chart with ACTUAL DATA */}
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Engagement Trend
@@ -399,18 +465,15 @@ const DashboardContent = () => {
 
             <div className="absolute left-8 right-4 top-2 bottom-12 border-l border-b border-gray-400">
               <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                <div className="border-t border-dotted border-gray-300"></div>
-                <div className="border-t border-dotted border-gray-300"></div>
-                <div className="border-t border-dotted border-gray-300"></div>
-                <div className="border-t border-dotted border-gray-300"></div>
-                <div className="border-t border-dotted border-gray-300"></div>
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="border-t border-dotted border-gray-300"></div>
+                ))}
               </div>
 
               <div className="absolute inset-0 flex justify-around pointer-events-none">
-                <div className="border-l border-dotted border-gray-300 h-full"></div>
-                <div className="border-l border-dotted border-gray-300 h-full"></div>
-                <div className="border-l border-dotted border-gray-300 h-full"></div>
-                <div className="border-l border-dotted border-gray-300 h-full"></div>
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="border-l border-dotted border-gray-300 h-full"></div>
+                ))}
               </div>
 
               <svg
@@ -418,35 +481,36 @@ const DashboardContent = () => {
                 viewBox="0 0 100 100"
                 preserveAspectRatio="none"
               >
-                <polygon
-                  points="0,35 20,30 40,25 60,15 80,20 100,10 100,100 0,100"
-                  fill="#0d9488"
-                  opacity="0.1"
-                />
-                <polyline
-                  points="0,35 20,30 40,25 60,15 80,20 100,10"
-                  fill="none"
-                  stroke="#0d9488"
-                  strokeWidth="2"
-                  vectorEffect="non-scaling-stroke"
-                />
+                {engagementTrend.length > 0 && (
+                  <>
+                    <polygon
+                      points={engagementTrend.map((d, i) => 
+                        `${(i / (engagementTrend.length - 1)) * 100},${100 - d.score}`
+                      ).join(' ') + ' 100,100 0,100'}
+                      fill="#0d9488"
+                      opacity="0.1"
+                    />
+                    <polyline
+                      points={engagementTrend.map((d, i) => 
+                        `${(i / (engagementTrend.length - 1)) * 100},${100 - d.score}`
+                      ).join(' ')}
+                      fill="none"
+                      stroke="#0d9488"
+                      strokeWidth="2"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </>
+                )}
               </svg>
 
               <div className="absolute inset-0">
-                {[
-                  { left: "0%", top: "35%" },
-                  { left: "20%", top: "30%" },
-                  { left: "40%", top: "25%" },
-                  { left: "60%", top: "15%" },
-                  { left: "80%", top: "20%" },
-                  { left: "100%", top: "10%" },
-                ].map((point, idx) => (
+                {engagementTrend.map((point, idx) => (
                   <div
                     key={idx}
                     className="absolute w-2 h-2 bg-teal-700 rounded-full"
                     style={{
-                      left: point.left,
-                      top: point.top,
+                      left: `${(idx / (engagementTrend.length - 1)) * 100}%`,
+                      top: `${100 - point.score}%`,
                       transform: "translate(-50%, -50%)",
                     }}
                   ></div>
@@ -455,11 +519,9 @@ const DashboardContent = () => {
             </div>
 
             <div className="absolute left-8 right-4 bottom-0 flex justify-around text-xs text-gray-600">
-              <span>Mon</span>
-              <span>Tue</span>
-              <span>Wed</span>
-              <span>Thu</span>
-              <span>Fri</span>
+              {engagementTrend.map((day, index) => (
+                <span key={index}>{day.day}</span>
+              ))}
             </div>
           </div>
 
@@ -471,119 +533,159 @@ const DashboardContent = () => {
           </div>
         </div>
 
-        {/* Emotional State */}
+        {/* Emotional State with ACTUAL DATA */}
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Emotional State
           </h2>
           <div className="flex justify-center items-center h-64">
             <svg className="w-64 h-64" viewBox="0 0 200 200">
-              <path
-                d="M 100,100 L 100,0 A 100,100 0 0,1 200,100 Z"
-                fill="#0f766e"
-              />
-              <path
-                d="M 100,100 L 200,100 A 100,100 0 0,1 170.7,170.7 Z"
-                fill="#86efac"
-              />
-              <path
-                d="M 100,100 L 170.7,170.7 A 100,100 0 0,1 29.3,170.7 Z"
-                fill="#14b8a6"
-              />
-              <path
-                d="M 100,100 L 29.3,170.7 A 100,100 0 0,1 100,0 Z"
-                fill="#fde047"
-              />
+              {emotionalState && (
+                <>
+                  {/* Happy */}
+                  <path
+                    d={`M 100,100 L 100,0 A 100,100 0 0,1 ${100 + 100 * Math.cos((emotionalState.happy / 100) * 2 * Math.PI - Math.PI/2)},${100 + 100 * Math.sin((emotionalState.happy / 100) * 2 * Math.PI - Math.PI/2)} Z`}
+                    fill="#0f766e"
+                  />
+                  {/* Confused */}
+                  <path
+                    d={`M 100,100 L ${100 + 100 * Math.cos((emotionalState.happy / 100) * 2 * Math.PI - Math.PI/2)},${100 + 100 * Math.sin((emotionalState.happy / 100) * 2 * Math.PI - Math.PI/2)} A 100,100 0 0,1 ${100 + 100 * Math.cos(((emotionalState.happy + emotionalState.confused) / 100) * 2 * Math.PI - Math.PI/2)},${100 + 100 * Math.sin(((emotionalState.happy + emotionalState.confused) / 100) * 2 * Math.PI - Math.PI/2)} Z`}
+                    fill="#86efac"
+                  />
+                  {/* Frustrated */}
+                  <path
+                    d={`M 100,100 L ${100 + 100 * Math.cos(((emotionalState.happy + emotionalState.confused) / 100) * 2 * Math.PI - Math.PI/2)},${100 + 100 * Math.sin(((emotionalState.happy + emotionalState.confused) / 100) * 2 * Math.PI - Math.PI/2)} A 100,100 0 0,1 ${100 + 100 * Math.cos(((emotionalState.happy + emotionalState.confused + emotionalState.frustrated) / 100) * 2 * Math.PI - Math.PI/2)},${100 + 100 * Math.sin(((emotionalState.happy + emotionalState.confused + emotionalState.frustrated) / 100) * 2 * Math.PI - Math.PI/2)} Z`}
+                    fill="#14b8a6"
+                  />
+                  {/* Neutral */}
+                  <path
+                    d={`M 100,100 L ${100 + 100 * Math.cos(((emotionalState.happy + emotionalState.confused + emotionalState.frustrated) / 100) * 2 * Math.PI - Math.PI/2)},${100 + 100 * Math.sin(((emotionalState.happy + emotionalState.confused + emotionalState.frustrated) / 100) * 2 * Math.PI - Math.PI/2)} A 100,100 0 0,1 100,0 Z`}
+                    fill="#fde047"
+                  />
+                </>
+              )}
             </svg>
           </div>
           <div className="flex justify-center flex-wrap gap-3 mt-2">
             <div className="flex items-center space-x-1">
               <div className="w-3 h-3 bg-teal-700 rounded-sm"></div>
-              <span className="text-xs text-gray-600">Happy 40%</span>
+              <span className="text-xs text-gray-600">Happy {emotionalState?.happy || 0}%</span>
             </div>
             <div className="flex items-center space-x-1">
               <div className="w-3 h-3 bg-green-300 rounded-sm"></div>
-              <span className="text-xs text-gray-600">Confused 30%</span>
+              <span className="text-xs text-gray-600">Confused {emotionalState?.confused || 0}%</span>
             </div>
             <div className="flex items-center space-x-1">
               <div className="w-3 h-3 bg-teal-500 rounded-sm"></div>
-              <span className="text-xs text-gray-600">Frustrated 20%</span>
+              <span className="text-xs text-gray-600">Frustrated {emotionalState?.frustrated || 0}%</span>
             </div>
             <div className="flex items-center space-x-1">
               <div className="w-3 h-3 bg-yellow-300 rounded-sm"></div>
-              <span className="text-xs text-gray-600">Neutral 10%</span>
+              <span className="text-xs text-gray-600">Neutral {emotionalState?.neutral || 0}%</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Student Overview */}
+      {/* Student Overview with ACTUAL DATA */}
       <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Student Overview
           </h2>
-          <button className="text-xs text-purple-600 hover:text-purple-700 font-medium">
-            View All
-          </button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { name: "Emma Thompson", engagement: "High", progress: 92, image: "👩" },
-            { name: "Liam Johnson", engagement: "Medium", progress: 88, image: "👨" },
-            { name: "Olivia Davis", engagement: "High", progress: 95, image: "👩" },
-            { name: "Noah Williams", engagement: "Medium", progress: 85, image: "👨" },
-          ].map((student, index) => (
-            <div
-              key={index}
-              className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition"
+          {students.length > 4 && (
+            <button 
+              onClick={() => setShowAllStudents(!showAllStudents)}
+              className="text-xs text-purple-600 hover:text-purple-700 font-medium"
             >
-              <div className="flex items-start gap-3 mb-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center text-white text-xl shrink-0">
-                  {student.image}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-900 text-sm truncate">
-                    {student.name}
-                  </h3>
-                  <div className="flex items-center gap-1 mt-1">
-                    <span className="text-xs text-gray-600">Engagement:</span>
-                    <span className="text-xs font-semibold text-gray-900">
-                      {student.engagement}
-                    </span>
-                    <svg
-                      className="w-3 h-3 text-green-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+              {showAllStudents ? 'Show Less' : `View All (${students.length})`}
+            </button>
+          )}
+        </div>
+        {students.length === 0 ? (
+          <div className="text-center py-8">
+            <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            <p className="text-gray-500 text-sm">No students assigned to your quizzes yet</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {(showAllStudents ? students : students.slice(0, 4)).map((student, index) => (
+              <div
+                key={index}
+                className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition"
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center text-white text-xl shrink-0">
+                    {student.profileImage ? (
+                      <img 
+                        src={student.profileImage} 
+                        alt={student.name}
+                        className="w-full h-full rounded-full object-cover"
                       />
-                    </svg>
+                    ) : (
+                      <span>{student.name?.charAt(0) || '?'}</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 text-sm truncate">
+                      {student.name}
+                    </h3>
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className="text-xs text-gray-600">Engagement:</span>
+                      <span className={`text-xs font-semibold ${
+                        student.engagement === 'High' ? 'text-green-600' :
+                        student.engagement === 'Medium' ? 'text-yellow-600' :
+                        'text-red-600'
+                      }`}>
+                        {student.engagement}
+                      </span>
+                      <svg
+                        className={`w-3 h-3 ${
+                          student.engagement === 'High' ? 'text-green-600' :
+                          student.engagement === 'Medium' ? 'text-yellow-600' :
+                          'text-red-600'
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d={student.engagement === 'High' ? 
+                            "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" :
+                            "M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"
+                          }
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600">Progress</span>
+                    <span className="font-semibold text-gray-900">
+                      {student.progress}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${
+                        student.progress >= 80 ? 'bg-green-500' :
+                        student.progress >= 60 ? 'bg-yellow-500' :
+                        'bg-red-500'
+                      }`}
+                      style={{ width: `${student.progress}%` }}
+                    ></div>
                   </div>
                 </div>
               </div>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-600">Progress</span>
-                  <span className="font-semibold text-gray-900">
-                    {student.progress}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-green-500 h-2 rounded-full transition-all"
-                    style={{ width: `${student.progress}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
