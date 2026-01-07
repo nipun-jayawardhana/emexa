@@ -3,6 +3,7 @@ import {
   getUsers, 
   createUser, 
   getDashboardData, 
+  getUserDashboardById, 
   getProfile,
   updateProfile,
   changePassword,
@@ -39,6 +40,9 @@ router.put('/notification-settings', protect, updateNotificationSettings);
 router.put('/privacy-settings', protect, updatePrivacySettings);
 router.get('/export-data', protect, exportUserData);
 router.get('/dashboard', protect, getDashboardData);
+
+// FIXED: Changed authenticateToken to protect
+router.get('/:userId/dashboard', protect, getUserDashboardById);
 
 // ============================================
 // DEBUG ROUTES - Add these temporarily
