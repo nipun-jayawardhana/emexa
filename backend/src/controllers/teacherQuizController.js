@@ -1,5 +1,8 @@
 import TeacherQuiz from '../models/teacherQuiz.js';
 import Teacher from '../models/teacher.js';
+import Notification from '../models/notification.js';
+import { createQuizNotification } from './notificationController.js';
+
 
 // Create a new quiz (draft)
 export const createQuiz = async (req, res) => {
@@ -273,17 +276,33 @@ export const scheduleQuiz = async (req, res) => {
     quiz.scheduleDate = new Date(scheduleDate);
     quiz.startTime = startTime;
     quiz.endTime = endTime;
-    quiz.status = 'active'; // Set to active so students can see it
-    
-    await quiz.save();
-    
-    console.log('✅ Quiz scheduled and activated:', quiz._id);
-    
-    res.status(200).json({
-      success: true,
-      message: 'Quiz scheduled successfully',
-      quiz
-    });
+quiz.status = 'scheduled'; // Set to scheduled, not active
+
+await quiz.save();
+
+console.log('✅ Quiz scheduled:', quiz._id);
+
+// Get teacher name for notification
+const teacher = await Teacher.findById(quiz.teacherId);
+const teacherName = teacher ? teacher.name : 'Teacher';
+
+// Create notifications for all students
+const formattedDueDate = `${scheduleDate}, ${endTime}`;
+const notificationResult = await createQuizNotification(quiz._id, {
+  title: quiz.title,
+  subject: quiz.subject,
+  dueDate: formattedDueDate
+}, teacherName);
+
+console.log('🔔 Notification result:', notificationResult);
+
+res.status(200).json({
+  success: true,
+  message: 'Quiz scheduled successfully and notifications sent',
+  quiz,
+  notificationsSent: notificationResult.count || 0
+});
+
   } catch (error) {
     console.error('Error scheduling quiz:', error);
     res.status(500).json({
@@ -316,6 +335,10 @@ export const deleteQuiz = async (req, res) => {
     quiz.isDeleted = true;
     await quiz.save();
     
+// Delete all related notifications
+await Notification.deleteMany({ quizId: id });
+console.log('🗑️ Deleted notifications for quiz:', id);
+
     res.status(200).json({
       success: true,
       message: 'Quiz deleted successfully'
@@ -347,6 +370,10 @@ export const permanentDeleteQuiz = async (req, res) => {
       });
     }
     
+// Delete all related notifications
+await Notification.deleteMany({ quizId: id });
+console.log('🗑️ Deleted notifications for permanently deleted quiz:', id);
+
     res.status(200).json({
       success: true,
       message: 'Quiz permanently deleted'
@@ -393,10 +420,18 @@ export const getQuizStats = async (req, res) => {
     };
     
     allQuizzes.forEach(quiz => {
-      // Scheduled = draft status but has schedule info
-      if (quiz.status === 'draft' && quiz.isScheduled) {
-        formattedStats.scheduled++;
-      }
+// Check if scheduled quiz is currently active
+const isCurrentlyActive = quiz.isScheduled && quiz.isCurrentlyActive && quiz.isCurrentlyActive();
+
+// Scheduled = has schedule info but not currently in active time window
+if ((quiz.status === 'draft' || quiz.status === 'scheduled') && quiz.isScheduled && !isCurrentlyActive) {
+  formattedStats.scheduled++;
+}
+// Active = active status OR scheduled quiz that is currently in its time window
+else if (quiz.status === 'active' || (quiz.status === 'scheduled' && isCurrentlyActive)) {
+  formattedStats.active++;
+}
+
       // Draft = draft status and no schedule info
       else if (quiz.status === 'draft' && !quiz.isScheduled) {
         formattedStats.drafts++;
@@ -427,6 +462,107 @@ export const getQuizStats = async (req, res) => {
   }
 };
 
+// Submit quiz answers (for students)
+export const submitQuizAnswers = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { answers, timeTaken } = req.body;
+    const userId = req.user.id;
+
+    console.log('📝 Student submitting quiz:', id, 'User:', userId);
+
+    // Find the quiz
+    const quiz = await TeacherQuiz.findById(id);
+
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        message: 'Quiz not found'
+      });
+    }
+
+    // Check if quiz is currently active
+    if (!quiz.isCurrentlyActive()) {
+      const timeStatus = quiz.getTimeStatus();
+      let message = 'This quiz is not currently available.';
+      
+      if (timeStatus === 'upcoming') {
+        message = 'This quiz has not started yet. Please wait until the scheduled time.';
+      } else if (timeStatus === 'expired') {
+        message = 'This quiz has ended. The submission deadline has passed.';
+      }
+      
+      return res.status(403).json({
+        success: false,
+        message,
+        timeStatus
+      });
+    }
+
+    // Calculate score
+    let correctAnswers = 0;
+    const results = quiz.questions.map((question, index) => {
+      const userAnswer = answers[index];
+      const isCorrect = userAnswer === question.correctAnswer;
+      if (isCorrect) correctAnswers++;
+
+      return {
+        questionId: question._id,
+        userAnswer,
+        correctAnswer: question.correctAnswer,
+        isCorrect
+      };
+    });
+
+    const score = Math.round((correctAnswers / quiz.questions.length) * 100);
+
+    console.log(`✅ Quiz graded: ${correctAnswers}/${quiz.questions.length} correct (${score}%)`);
+
+    // Create submission confirmation notification for student
+    try {
+      await Notification.create({
+        recipientId: userId,
+        recipientRole: 'student',
+        type: 'quiz_graded',
+        title: quiz.title,
+        description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
+        quizId: id,
+        score: `${score}/100`,
+        status: 'graded',
+        isRead: false
+      });
+      console.log('✅ Submission notification created for student:', userId);
+    } catch (notifError) {
+      console.error('❌ Error creating submission notification:', notifError);
+    }
+
+    // TODO: Save submission to database
+    const quizResult = {
+      userId,
+      quizId: id,
+      score,
+      correctAnswers,
+      totalQuestions: quiz.questions.length,
+      timeTaken,
+      answers: results,
+      submittedAt: new Date()
+    };
+
+    res.json({
+      success: true,
+      message: 'Quiz submitted successfully',
+      result: quizResult
+    });
+  } catch (error) {
+    console.error('Error submitting quiz:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to submit quiz',
+      error: error.message
+    });
+  }
+};
+
 export default {
   createQuiz,
   getTeacherQuizzes,
@@ -437,5 +573,6 @@ export default {
   scheduleQuiz,
   deleteQuiz,
   permanentDeleteQuiz,
-  getQuizStats
+  getQuizStats,
+  submitQuizAnswers,
 };

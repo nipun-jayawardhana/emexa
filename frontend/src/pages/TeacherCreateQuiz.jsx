@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import teacherQuizService from "../services/teacherQuizService";
+import AIQuizGeneratorModal from "../components/AIQuizGeneratorModal";
+
 
 const TeacherCreateQuiz = ({
   setActiveMenuItem,
@@ -11,6 +13,9 @@ const TeacherCreateQuiz = ({
   const [isGradeLevelOpen, setIsGradeLevelOpen] = useState(false);
   const [selectedGrades, setSelectedGrades] = useState([]);
   const [questions, setQuestions] = useState([]);
+// ✨ NEW: AI Modal state
+const [showAIModal, setShowAIModal] = useState(false);
+
 
   // Use refs to track next available IDs
   const nextQuestionId = useRef(1);
@@ -106,33 +111,87 @@ const TeacherCreateQuiz = ({
   ];
 
   const selectGrade = (gradeId) => {
-    setSelectedGrades([gradeId]); // Single selection
-    setIsGradeLevelOpen(false); // Close dropdown after selection
-  };
+setSelectedGrades([gradeId]); // Single selection
+setIsGradeLevelOpen(false); // Close dropdown after selection
+};
 
-  const handleBackToDashboard = () => {
-    // Clear the editing draft ID when going back
-    if (setEditingDraftId) {
-      setEditingDraftId(null);
-    }
-    // If editing a draft, go back to drafts page; otherwise go to quizzes
-    setActiveMenuItem(editingDraftId ? "quiz-drafts" : "quizzes");
-  };
+const handleBackToDashboard = () => {
+  // Clear the editing draft ID when going back
+  if (setEditingDraftId) {
+    setEditingDraftId(null);
+  }
+  // If editing a draft, go back to drafts page; otherwise go to quizzes
+  setActiveMenuItem(editingDraftId ? "quiz-drafts" : "quizzes");
+};
 
-  const addQuestion = () => {
-    const questionId = nextQuestionId.current++;
-    nextOptionIds.current[questionId] = 3; // Start option IDs from 3 (after initial 2)
+// ✨ NEW: Handle AI quiz generation
+const handleAIQuizGenerated = (generatedQuiz) => {
+  console.log("🤖 AI Quiz Generated:", generatedQuiz);
+  
+  // Load the AI-generated quiz into the form for editing
+  setAssignmentTitle(generatedQuiz.title || "");
+  setSubject(generatedQuiz.subject || "");
+  
+  // Set grade level
+  if (generatedQuiz.gradeLevel && generatedQuiz.gradeLevel.length > 0) {
+    const gradeMap = {
+      "1st Year 1st Sem": "1-1",
+      "1st Year 2nd Sem": "1-2",
+      "2nd Year 1st Sem": "2-1",
+      "2nd Year 2nd Sem": "2-2",
+      "3rd Year 1st Sem": "3-1",
+      "3rd Year 2nd Sem": "3-2",
+      "4th Year 1st Sem": "4-1",
+      "4th Year 2nd Sem": "4-2",
+    };
+    const gradeId = gradeMap[generatedQuiz.gradeLevel[0]] || "1-1";
+    setSelectedGrades([gradeId]);
+  }
+  
+  // Set questions
+  if (generatedQuiz.questions && generatedQuiz.questions.length > 0) {
+    setQuestions(generatedQuiz.questions);
+    
+    // Update ID counters
+    const maxQuestionId = Math.max(...generatedQuiz.questions.map((q) => q.id));
+    nextQuestionId.current = maxQuestionId + 1;
+    
+    generatedQuiz.questions.forEach((q) => {
+      if (q.options && q.options.length > 0) {
+        const maxOptionId = Math.max(...q.options.map((opt) => opt.id));
+        nextOptionIds.current[q.id] = maxOptionId + 1;
+      }
+    });
+  }
+  
+  // Set editing draft ID so we can update this quiz
+  if (setEditingDraftId && generatedQuiz._id) {
+    setEditingDraftId(generatedQuiz._id);
+  }
+  
+  // Close modal
+  setShowAIModal(false);
+  
+  // Show success message
+  alert("✅ Quiz generated! Review and edit the questions below, then save.");
+};
 
-    const newQuestion = {
-      id: questionId,
-      type: "mcq", // Default to MCQ
+const addQuestion = () => {
+  const questionId = nextQuestionId.current++;
+  nextOptionIds.current[questionId] = 3; // Start option IDs from 3 (after initial 2)
+
+  const newQuestion = {
+    id: questionId,
+    type: "mcq", // Default to MCQ
+
       questionText: "",
       options: [
         { id: 1, text: "", isCorrect: false },
         { id: 2, text: "", isCorrect: false },
       ],
-      shortAnswer: "", // For short answer type
-      hints: ["", "", "", ""], // 4 hints for each question
+shortAnswer: "", // For short answer type
+hints: ["", "", "", ""], // 4 hints for each question
+
     };
     setQuestions([...questions, newQuestion]);
   };
@@ -337,7 +396,12 @@ const TeacherCreateQuiz = ({
           <h1 className="text-2xl font-bold text-gray-900">
             Create Assignment
           </h1>
-          <button className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm">
+{/* ✨ UPDATED: AI Assistant Button */}
+<button 
+  onClick={() => setShowAIModal(true)}
+  className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm transition-colors"
+>
+
             <svg
               className="w-4 h-4"
               fill="none"
@@ -681,6 +745,13 @@ const TeacherCreateQuiz = ({
           </button>
         </div>
       </div>
+{/* ✨ NEW: AI Quiz Generator Modal */}
+<AIQuizGeneratorModal
+  isOpen={showAIModal}
+  onClose={() => setShowAIModal(false)}
+  onQuizGenerated={handleAIQuizGenerated}
+/>
+
     </div>
   );
 };

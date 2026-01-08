@@ -135,6 +135,13 @@ export default function Login() {
             localStorage.setItem(key, userData[key]);
             console.log(`💾 localStorage.${key} =`, userData[key]);
           });
+          
+// Clear any saved menu state to ensure dashboard shows first
+if (userRole === 'teacher') {
+  localStorage.removeItem('teacherActiveMenuItem');
+  console.log('🗑️ Cleared teacherActiveMenuItem to show dashboard first');
+}
+
 
           if (!remember) {
             Object.keys(userData).forEach((key) => {
@@ -203,7 +210,8 @@ export default function Login() {
         console.log(`🚀 Navigating to ${dashboardPath} (role: ${normalizedRole})`);
 
         setTimeout(() => {
-          navigate(dashboardPath, { replace: true });
+navigate(dashboardPath, { replace: true });
+
         }, 1000);
       })
       .catch((err) => {

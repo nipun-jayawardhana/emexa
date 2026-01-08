@@ -162,6 +162,58 @@ teacherQuizSchema.methods.calculateProgress = function() {
   return this.progress;
 };
 
+// Instance method to check if quiz is currently active based on schedule
+teacherQuizSchema.methods.isCurrentlyActive = function() {
+  if (!this.isScheduled || !this.scheduleDate || !this.startTime || !this.endTime) {
+    return false;
+  }
+  
+  const now = new Date();
+  const scheduleDate = new Date(this.scheduleDate);
+  
+  // Parse start and end times (format: "HH:MM")
+  const [startHour, startMinute] = this.startTime.split(':').map(Number);
+  const [endHour, endMinute] = this.endTime.split(':').map(Number);
+  
+  // Create start and end datetime objects for the scheduled date
+  const startDateTime = new Date(scheduleDate);
+  startDateTime.setHours(startHour, startMinute, 0, 0);
+  
+  const endDateTime = new Date(scheduleDate);
+  endDateTime.setHours(endHour, endMinute, 0, 0);
+  
+  // Check if current time is between start and end time
+  return now >= startDateTime && now < endDateTime;
+};
+
+// Instance method to get quiz time status (upcoming, active, expired)
+teacherQuizSchema.methods.getTimeStatus = function() {
+  if (!this.isScheduled || !this.scheduleDate || !this.startTime || !this.endTime) {
+    return 'unscheduled';
+  }
+  
+  const now = new Date();
+  const scheduleDate = new Date(this.scheduleDate);
+  
+  // Parse start and end times
+  const [startHour, startMinute] = this.startTime.split(':').map(Number);
+  const [endHour, endMinute] = this.endTime.split(':').map(Number);
+  
+  const startDateTime = new Date(scheduleDate);
+  startDateTime.setHours(startHour, startMinute, 0, 0);
+  
+  const endDateTime = new Date(scheduleDate);
+  endDateTime.setHours(endHour, endMinute, 0, 0);
+  
+  if (now < startDateTime) {
+    return 'upcoming';
+  } else if (now >= startDateTime && now < endDateTime) {
+    return 'active';
+  } else {
+    return 'expired';
+  }
+};
+
 // Static method to find teacher's quizzes
 teacherQuizSchema.statics.findByTeacher = function(teacherId, includeDeleted = false) {
   const query = { teacherId };

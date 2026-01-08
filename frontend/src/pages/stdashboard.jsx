@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import camera from "../lib/camera";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import teacherQuizService from "../services/teacherQuizService";
 import AdminViewWrapper from "../components/AdminViewWrapper";
@@ -12,8 +12,7 @@ const formatTime12Hour = (time24) => {
   if (!time24) return "";
   const [hours, minutes] = time24.split(":");
   const hourNum = parseInt(hours);
-  const displayHour =
-    hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
+  const displayHour = hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
   const period = hourNum >= 12 ? "PM" : "AM";
   return `${displayHour}:${minutes} ${period}`;
 };
@@ -25,12 +24,15 @@ const StudentDashboard = () => {
   const [userEmail, setUserEmail] = useState("");
   const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
   const [sharedQuizzes, setSharedQuizzes] = useState([]);
+  const [highlightedQuizId, setHighlightedQuizId] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const quizRefs = useRef({});
+  const adminToken = localStorage.getItem('adminToken');
+  const isAdminViewing = localStorage.getItem('adminViewingAs');
+  const viewingUserId = localStorage.getItem('adminViewingUserId');
 
-  const adminToken = localStorage.getItem("adminToken");
-  const isAdminViewing = localStorage.getItem("adminViewingAs");
-  const viewingUserId = localStorage.getItem("adminViewingUserId");
 
   // Sync activeMenuItem with current location
   useEffect(() => {
@@ -39,52 +41,136 @@ const StudentDashboard = () => {
       "/wellness-centre": "wellness",
       "/profile": "profile",
     };
-
     const menuItem = pathToMenuItem[location.pathname] || "dashboard";
     setActiveMenuItem(menuItem);
   }, [location.pathname]);
+
+// Handle highlighted quiz from notification
+useEffect(() => {
+  console.log('🌐 Full URL:', window.location.href);
+  console.log('🌐 Pathname:', location.pathname);
+  console.log('🌐 Search:', location.search);
+  const quizId = searchParams.get('highlightQuiz');
+  console.log('🌐 URL Search Params:', searchParams.toString());
+  console.log('🎯 highlightQuiz parameter:', quizId);
+  if (quizId && !loading) {
+    console.log('✨ Setting highlighted quiz ID to:', quizId);
+    setHighlightedQuizId(quizId);
+  } else if (!quizId) {
+    console.log('⚠️ No highlightQuiz parameter in URL');
+  } else if (loading) {
+    console.log('⏳ Still loading, will try again...');
+  }
+}, [searchParams, loading, location]);
+
+// Scroll to highlighted quiz when it's rendered
+useEffect(() => {
+  console.log('🔔 Scroll effect running. highlightedQuizId:', highlightedQuizId, 'loading:', loading);
+  
+  if (!highlightedQuizId || loading) {
+    console.log('⏹️ Exiting scroll effect early');
+    return;
+  }
+  
+  console.log('📍 Scroll effect triggered for quiz:', highlightedQuizId);
+  
+  // Use requestAnimationFrame for better timing
+  const attemptScroll = () => {
+    requestAnimationFrame(() => {
+      const allRefKeys = Object.keys(quizRefs.current);
+      console.log('🔑 All available quiz refs:', allRefKeys);
+      console.log('🔑 Total refs registered:', allRefKeys.length);
+      
+      // Try to find the element
+      let quizElement = quizRefs.current[highlightedQuizId];
+      
+      // If not found, try string conversion
+      if (!quizElement) {
+        const stringId = String(highlightedQuizId);
+        quizElement = quizRefs.current[stringId];
+        console.log('🔄 Tried string conversion:', stringId, 'Found:', !!quizElement);
+      }
+      
+      console.log('🔍 Quiz element found:', !!quizElement);
+      
+      if (quizElement) {
+        console.log('✅ Scrolling NOW to quiz!');
+        quizElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center',
+          inline: 'nearest'
+        });
+      } else {
+        console.log('❌ No element found for ID:', highlightedQuizId);
+        console.log('💡 Hint: Check if the quiz ID in notification matches any of these:', allRefKeys);
+      }
+    });
+  };
+  
+  // Try multiple times to ensure we catch the element
+  const timer1 = setTimeout(attemptScroll, 100);
+  const timer2 = setTimeout(attemptScroll, 500);
+  const timer3 = setTimeout(attemptScroll, 1000);
+  const timer4 = setTimeout(attemptScroll, 1500);
+  
+  // Clear highlight after 5 seconds
+  const clearTimer = setTimeout(() => {
+    console.log('⏰ Clearing highlight after 5 seconds');
+    setHighlightedQuizId(null);
+    setSearchParams({});
+  }, 5000);
+  
+  return () => {
+    clearTimeout(timer1);
+    clearTimeout(timer2);
+    clearTimeout(timer3);
+    clearTimeout(timer4);
+    clearTimeout(clearTimer);
+  };
+}, [highlightedQuizId, loading]);
 
   // ============================================
   // CRITICAL: Check if admin is viewing a specific student
   // ============================================
   useEffect(() => {
     const initializeDashboard = async () => {
-      const isAdminViewingStudent = localStorage.getItem("adminViewingAs");
-      const adminToken = localStorage.getItem("adminToken");
-      const viewingUserId = localStorage.getItem("adminViewingUserId");
-      const viewingUserName = localStorage.getItem("adminViewingUserName");
-      const viewingUserEmail = localStorage.getItem("adminViewingUserEmail");
+    const isAdminViewingStudent = localStorage.getItem('adminViewingAs');
+    const adminToken = localStorage.getItem('adminToken');
+    const viewingUserId = localStorage.getItem('adminViewingUserId');
+    const viewingUserName = localStorage.getItem('adminViewingUserName');
+    const viewingUserEmail = localStorage.getItem('adminViewingUserEmail');
 
-      console.log("🔍 Student Dashboard Initialize:", {
-        isAdminViewingStudent,
-        viewingUserId,
-        viewingUserName,
-        hasAdminToken: !!adminToken,
-      });
+console.log('🔍 Student Dashboard Initialize:', {
+  isAdminViewingStudent,
+  viewingUserId,
+  viewingUserName,
+  hasAdminToken: !!adminToken
+});
 
-      // If admin is viewing a specific student
-      if (isAdminViewingStudent === "student" && adminToken && viewingUserId) {
-        console.log("👤 Admin viewing student:", viewingUserName);
+// If admin is viewing a specific student
+if (isAdminViewingStudent === 'student' && adminToken && viewingUserId) {
+  console.log('👤 Admin viewing student:', viewingUserName);
 
         try {
           // Fetch the specific student's data by ID
           const response = await axios.get(
             `http://localhost:5000/api/users/${viewingUserId}`,
             {
-              headers: { Authorization: `Bearer ${adminToken}` },
+             headers: { Authorization: `Bearer ${adminToken}` }
+
             }
           );
 
           const studentData = response.data;
-          console.log("✅ Fetched student data for admin view:", studentData);
+console.log('✅ Fetched student data for admin view:', studentData);
 
-          // Set the viewed student's information
-          setUserName(studentData.name || viewingUserName || "Student");
-          setUserEmail(studentData.email || viewingUserEmail || "");
+// Set the viewed student's information
+setUserName(studentData.name || viewingUserName || 'Student');
+setUserEmail(studentData.email || viewingUserEmail || '');
 
-          // Store for Header component
-          localStorage.setItem("displayUserName", studentData.name);
-          localStorage.setItem("displayUserEmail", studentData.email);
+// Store for Header component
+localStorage.setItem('displayUserName', studentData.name);
+localStorage.setItem('displayUserEmail', studentData.email);
 
           // Set dashboard data if available
           if (studentData) {
@@ -95,45 +181,46 @@ const StudentDashboard = () => {
               averageScore: studentData.averageScore || 82,
               studyTime: studentData.studyTime || 32,
               upcomingQuizzes: studentData.upcomingQuizzes || [],
-              recentActivity: studentData.recentActivity || [],
+              recentActivity: studentData.recentActivity || []
+
             });
           }
 
           setLoading(false);
-        } catch (error) {
-          console.error("❌ Error fetching student data for admin:", error);
-          alert("Failed to load student data. Returning to user management.");
+} catch (error) {
+  console.error('❌ Error fetching student data for admin:', error);
+  alert('Failed to load student data. Returning to user management.');
 
-          // Clear viewing flags
-          localStorage.removeItem("adminViewingUserId");
-          localStorage.removeItem("adminViewingUserName");
-          localStorage.removeItem("adminViewingUserEmail");
-          localStorage.removeItem("adminViewingAs");
-          localStorage.removeItem("displayUserName");
-          localStorage.removeItem("displayUserEmail");
+  // Clear viewing flags
+  localStorage.removeItem('adminViewingUserId');
+  localStorage.removeItem('adminViewingUserName');
+  localStorage.removeItem('adminViewingUserEmail');
+  localStorage.removeItem('adminViewingAs');
+  localStorage.removeItem('displayUserName');
+  localStorage.removeItem('displayUserEmail');
 
-          window.location.href = "/admin/user-management";
-        }
-      } else {
-        // Normal student viewing their own dashboard
-        console.log("👤 Student viewing own dashboard");
+  window.location.href = '/admin/user-management';
+}
+} else {
+  // Normal student viewing their own dashboard
+  console.log('👤 Student viewing own dashboard');
 
-        const token = localStorage.getItem("token");
-        const storedUserName = localStorage.getItem("userName");
-        const storedUserEmail = localStorage.getItem("userEmail");
+  const token = localStorage.getItem('token');
+  const storedUserName = localStorage.getItem('userName');
+  const storedUserEmail = localStorage.getItem('userEmail');
 
-        if (!token) {
-          console.log("❌ No token found, redirecting to login");
-          navigate("/login");
-          return;
-        }
+  if (!token) {
+    console.log('❌ No token found, redirecting to login');
+    navigate('/login');
+    return;
+  }
 
-        setUserName(storedUserName || "Student");
-        setUserEmail(storedUserEmail || "");
+  setUserName(storedUserName || 'Student');
+  setUserEmail(storedUserEmail || '');
 
-        // Fetch their own dashboard data
-        await fetchDashboardData();
-      }
+  // Fetch their own dashboard data
+  await fetchDashboardData();
+}
 
       // Fetch shared quizzes for both cases
       await fetchSharedQuizzes();
@@ -146,21 +233,18 @@ const StudentDashboard = () => {
   useEffect(() => {
     return () => {
       const currentPath = window.location.pathname;
+// Only clear if navigating back to user management
+if (currentPath === '/admin/user-management' || currentPath.includes('/admin')) {
+  console.log('🧹 Cleaning up admin viewing flags');
+  localStorage.removeItem('adminViewingUserId');
+  localStorage.removeItem('adminViewingUserName');
+  localStorage.removeItem('adminViewingUserEmail');
+  localStorage.removeItem('adminViewingUserRole');
+  localStorage.removeItem('adminViewingAs');
+  localStorage.removeItem('adminViewingUser');
+  localStorage.removeItem('displayUserName');
+  localStorage.removeItem('displayUserEmail');
 
-      // Only clear if navigating back to user management
-      if (
-        currentPath === "/admin/user-management" ||
-        currentPath.includes("/admin")
-      ) {
-        console.log("🧹 Cleaning up admin viewing flags");
-        localStorage.removeItem("adminViewingUserId");
-        localStorage.removeItem("adminViewingUserName");
-        localStorage.removeItem("adminViewingUserEmail");
-        localStorage.removeItem("adminViewingUserRole");
-        localStorage.removeItem("adminViewingAs");
-        localStorage.removeItem("adminViewingUser");
-        localStorage.removeItem("displayUserName");
-        localStorage.removeItem("displayUserEmail");
       }
     };
   }, []);
@@ -181,13 +265,12 @@ const StudentDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem("token");
+if (!token) {
+  console.log('❌ No token for dashboard fetch');
+  return;
+}
 
-      if (!token) {
-        console.log("❌ No token for dashboard fetch");
-        return;
-      }
-
-      console.log("📊 Fetching dashboard data...");
+console.log('📊 Fetching dashboard data...');
 
       const response = await axios.get(
         "http://localhost:5000/api/users/dashboard",
@@ -197,14 +280,15 @@ const StudentDashboard = () => {
           },
         }
       );
+console.log('✅ Dashboard data fetched:', response.data);
+setDashboardData(response.data);
 
-      console.log("✅ Dashboard data fetched:", response.data);
-      setDashboardData(response.data);
-    } catch (error) {
-      console.error("❌ Error fetching dashboard data:", error);
+} catch (error) {
+  console.error('❌ Error fetching dashboard data:', error);
 
-      if (error.response?.status === 401) {
-        console.log("⚠️ Unauthorized, clearing tokens");
+  if (error.response?.status === 401) {
+    console.log('⚠️ Unauthorized, clearing tokens');
+
         localStorage.removeItem("token");
         localStorage.removeItem("userName");
         navigate("/login");
@@ -229,46 +313,68 @@ const StudentDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="p-6">
         <div className="max-w-7xl">
+{/* Back Button - Only show if there's history */}
+{window.history.length > 1 && (
+  <button
+    onClick={() => navigate(-1)}
+    className="mb-4 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition"
+  >
+    <svg
+      className="w-5 h-5"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15 19l-7-7 7-7"
+      />
+    </svg>
+    <span className="text-sm font-medium">Back</span>
+  </button>
+)}
+
           {/* Show admin viewing banner */}
           {isAdminViewing && adminToken && (
             <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <svg
-                    className="w-5 h-5 text-yellow-600 mr-2"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-medium text-yellow-800">
-                      Admin View Mode - Viewing: {userName || "Student"}
-                    </p>
-                    <p className="text-xs text-yellow-700 mt-0.5">
-                      You are viewing this student's dashboard as an
-                      administrator
+<svg className="w-5 h-5 text-yellow-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+  <path
+    fillRule="evenodd"
+    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+    clipRule="evenodd"
+  />
+</svg>
+<div>
+  <p className="text-sm font-medium text-yellow-800">
+    Admin View Mode - Viewing: {userName || 'Student'}
+  </p>
+  <p className="text-xs text-yellow-700 mt-0.5">
+    You are viewing this student's dashboard as an administrator
+  </p>
+</div>
+
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => {
                     // Clear all viewing flags
-                    localStorage.removeItem("adminViewingUserId");
-                    localStorage.removeItem("adminViewingUserName");
-                    localStorage.removeItem("adminViewingUserEmail");
-                    localStorage.removeItem("adminViewingUserRole");
-                    localStorage.removeItem("adminViewingAs");
-                    localStorage.removeItem("adminViewingUser");
-                    localStorage.removeItem("displayUserName");
-                    localStorage.removeItem("displayUserEmail");
+localStorage.removeItem('adminViewingUserId');
+localStorage.removeItem('adminViewingUserName');
+localStorage.removeItem('adminViewingUserEmail');
+localStorage.removeItem('adminViewingUserRole');
+localStorage.removeItem('adminViewingAs');
+localStorage.removeItem('adminViewingUser');
+localStorage.removeItem('displayUserName');
+localStorage.removeItem('displayUserEmail');
 
-                    // Navigate back to user management
-                    window.location.href = "/admin/user-management";
+// Navigate back to user management
+window.location.href = '/admin/user-management';
+
                   }}
                   className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition text-sm font-medium"
                 >
@@ -291,18 +397,10 @@ const StudentDashboard = () => {
             <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
               <div className="flex items-start gap-3 mb-3">
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
-                  <svg
-                    className="w-6 h-6 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                    />
+<svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+</svg>
+
                   </svg>
                 </div>
                 <div className="flex-1">
@@ -318,29 +416,16 @@ const StudentDashboard = () => {
                   <span className="font-semibold text-gray-900">22/24</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full"
-                    style={{ width: "92%" }}
-                  ></div>
-                </div>
-              </div>
-            </div>
+<div className="bg-blue-600 h-2 rounded-full" style={{ width: "92%" }}></div>
+
 
             <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
               <div className="flex items-start gap-3 mb-3">
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center shrink-0">
-                  <svg
-                    className="w-6 h-6 text-green-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                    />
+<svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+</svg>
+
                   </svg>
                 </div>
                 <div className="flex-1">
@@ -356,10 +441,8 @@ const StudentDashboard = () => {
                   <span className="font-semibold text-gray-900">80%</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div
-                    className="bg-green-500 h-2 rounded-full"
-                    style={{ width: `${dashboardData?.averageScore || 82}%` }}
-                  ></div>
+<div className="bg-green-500 h-2 rounded-full" style={{ width: `${dashboardData?.averageScore || 82}%` }}></div>
+
                 </div>
               </div>
             </div>
@@ -367,18 +450,10 @@ const StudentDashboard = () => {
             <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
               <div className="flex items-start gap-3 mb-3">
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
-                  <svg
-                    className="w-6 h-6 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
+<svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+</svg>
+
                   </svg>
                 </div>
                 <div className="flex-1">
@@ -394,10 +469,8 @@ const StudentDashboard = () => {
                   <span className="font-semibold text-green-600">+5%</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full"
-                    style={{ width: "85%" }}
-                  ></div>
+<div className="bg-blue-600 h-2 rounded-full" style={{ width: "85%" }}></div>
+
                 </div>
               </div>
             </div>
@@ -415,41 +488,100 @@ const StudentDashboard = () => {
             <div className="space-y-3">
               {(() => {
                 const existingQuizzes =
-                  dashboardData?.upcomingQuizzes &&
-                  dashboardData.upcomingQuizzes.length > 0
+                dashboardData?.upcomingQuizzes && dashboardData.upcomingQuizzes.length > 0
+
                     ? dashboardData.upcomingQuizzes
                     : [
                         {
                           title: "Matrix",
                           date: "2025-10-20",
-                          description:
-                            "Prepare for your Matrix quiz by revising matrix operations, determinants, and inverse concepts.",
+description: "Prepare for your Matrix quiz by revising matrix operations, determinants, and inverse concepts.",
+
                         },
                         {
                           title: "Vectors",
                           date: "2025-10-25",
-                          description:
-                            "Review vector basics, dot and cross products, and geometric interpretations.",
+description: "Review vector basics, dot and cross products, and geometric interpretations.",
+
                         },
                         {
                           title: "Limits",
                           date: "2025-10-30",
-                          description:
-                            "Study the fundamentals of limits, continuity, and approaching values.",
+description: "Study the fundamentals of limits, continuity, and approaching values.",
+
                         },
                       ];
 
                 const allQuizzes = [...sharedQuizzes, ...existingQuizzes];
                 return allQuizzes;
-              })().map((quiz, index) => (
+              })().map((quiz, index) => {
+                const quizId = quiz.id || quiz._id || `quiz-${index}`;
+                const isHighlighted = highlightedQuizId && String(quizId) === String(highlightedQuizId);
+                
+                // Determine if quiz is active or upcoming
+                const timeStatus = quiz.timeStatus || 'active'; // default to active for non-scheduled quizzes
+                const isActive = quiz.isCurrentlyActive !== undefined ? quiz.isCurrentlyActive : true;
+                const isExpired = timeStatus === 'expired';
+                
+                // Log every quiz being rendered
+                console.log('📝 Rendering quiz:', {
+                  index,
+                  title: quiz.title,
+                  quizId,
+                  'quiz.id': quiz.id,
+                  'quiz._id': quiz._id,
+                  highlightedQuizId,
+                  isHighlighted,
+                  timeStatus,
+                  isActive,
+                  isExpired
+                });
+                
+                return (
                 <div
                   key={index}
-                  className="flex items-start justify-between p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition"
+                  ref={(el) => {
+                    if (quizId && el) {
+                      quizRefs.current[quizId] = el;
+                      console.log('🔗 Registered ref for quiz:', quizId, quiz.title);
+                      if (isHighlighted) {
+                        console.log('⭐ This is the HIGHLIGHTED quiz!');
+                      }
+                    }
+                  }}
+                  className={`flex items-start justify-between p-3 border rounded-lg hover:border-gray-300 transition ${
+                    isHighlighted 
+                      ? 'border-blue-500 bg-blue-50 animate-pulse' 
+                      : isExpired
+                      ? 'border-gray-200 bg-gray-50 opacity-60'
+                      : 'border-gray-200'
+                  }`}
+                  style={isHighlighted ? {
+                    animation: 'pulse 1s ease-in-out 5'
+                  } : {}}
                 >
                   <div className="flex-1 pr-4">
-                    <h3 className="font-semibold text-gray-900 text-sm mb-0.5">
-                      {quiz.title}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3 className="font-semibold text-gray-900 text-sm">
+                        {quiz.title}
+                      </h3>
+                      {timeStatus === 'upcoming' && (
+                        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">
+                          Upcoming
+                        </span>
+                      )}
+                      {timeStatus === 'active' && isActive && (
+                        <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full font-medium">
+                          Active Now
+                        </span>
+                      )}
+                      {timeStatus === 'expired' && (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
+                          Expired
+                        </span>
+                      )}
+                    </div>
+
                     <p className="text-xs text-gray-500 mb-1.5">
                       {quiz.subject && (
                         <span className="text-teal-600 font-medium">
@@ -458,18 +590,19 @@ const StudentDashboard = () => {
                       )}
                       <span className="text-blue-600 font-medium">
                         {(() => {
-                          const dateToShow =
-                            quiz.scheduleDate || quiz.dueDate || quiz.date;
-                          if (!dateToShow) return "No date set";
-                          try {
-                            return new Date(dateToShow).toLocaleDateString(
-                              "en-US",
-                              {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              }
-                            );
+const dateToShow =
+  quiz.scheduleDate || quiz.dueDate || quiz.date;
+if (!dateToShow) return "No date set";
+try {
+  return new Date(dateToShow).toLocaleDateString(
+    "en-US",
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }
+  );
+
                           } catch {
                             return "Invalid date";
                           }
@@ -477,39 +610,50 @@ const StudentDashboard = () => {
                       </span>
                       {quiz.scheduleDate && quiz.startTime && quiz.endTime && (
                         <span className="ml-1 text-gray-600">
-                          ({formatTime12Hour(quiz.startTime)} -{" "}
-                          {formatTime12Hour(quiz.endTime)})
+({formatTime12Hour(quiz.startTime)} - {formatTime12Hour(quiz.endTime)})
+
                         </span>
                       )}
                     </p>
                     <p className="text-xs text-gray-600 leading-relaxed">
                       {quiz.description ||
                         (quiz.questions?.length
-                          ? `${quiz.questions.length} question${
-                              quiz.questions.length !== 1 ? "s" : ""
-                            }`
+? `${quiz.questions.length} question${quiz.questions.length !== 1 ? "s" : ""}`
+
                           : `Prepare for your ${quiz.title} quiz`)}
                     </p>
                   </div>
                   <button
                     onClick={() => {
-                      const targetId = quiz.id || `quiz-${index}`;
-                      // Don't start camera here - let user choose on permission page
-                      // try {
-                      //   if (camera && camera.isActive && !camera.isActive()) {
-                      //     camera.start({ capture: false }).catch(() => {});
-                      //   }
-                      // } catch (e) {}
-                      navigate(
-                        `/permission?quizId=${encodeURIComponent(targetId)}`
-                      );
-                    }}
-                    className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-600 transition whitespace-nowrap"
-                  >
-                    Take Quiz
-                  </button>
-                </div>
-              ))}
+if (isExpired) {
+  alert('This quiz has expired. The deadline has passed.');
+  return;
+}
+if (!isActive && timeStatus === 'upcoming') {
+  alert('This quiz has not started yet. Please wait until the scheduled time.');
+  return;
+}
+const targetId = quiz.id || `quiz-${index}`;
+try {
+  if (camera && camera.isActive && !camera.isActive()) {
+    camera.start({ capture: false }).catch(() => {});
+  }
+} catch (e) {}
+navigate(`/permission?quizId=${encodeURIComponent(targetId)}`);
+}}
+disabled={isExpired || (!isActive && timeStatus === 'upcoming')}
+style={isExpired ? { backgroundColor: '#FF0000' } : {}}
+className={`inline-flex items-center justify-center text-white px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap min-w-[80px] ${
+  isExpired
+    ? 'cursor-not-allowed'
+    : (!isActive && timeStatus === 'upcoming')
+    ? '!bg-gray-300 !text-gray-500 cursor-not-allowed'
+    : 'bg-green-500 hover:bg-green-600'
+}`}
+>
+  {isExpired ? 'Expired' : timeStatus === 'upcoming' ? 'Not Started' : 'Take Quiz'}
+</button>
+
             </div>
           </div>
 
@@ -523,8 +667,8 @@ const StudentDashboard = () => {
               </button>
             </div>
             <div className="divide-y divide-gray-100">
-              {(dashboardData?.recentActivity &&
-              dashboardData.recentActivity.length > 0
+{(dashboardData?.recentActivity && dashboardData.recentActivity.length > 0
+
                 ? dashboardData.recentActivity
                 : [
                     {
@@ -549,10 +693,8 @@ const StudentDashboard = () => {
                     },
                   ]
               ).map((activity, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between py-3 first:pt-0"
-                >
+                  <div key={index} className="flex items-center justify-between py-3 first:pt-0">
+
                   <div>
                     <p className="font-semibold text-gray-900 text-sm">
                       {activity.type}
@@ -586,18 +728,20 @@ const StudentDashboard = () => {
               Personal Analytics
             </h2>
             <div className="flex flex-col items-center justify-center py-10">
-              <svg
-                className="w-12 h-12 text-gray-300 mb-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                />
+<svg
+  className="w-12 h-12 text-gray-300 mb-3"
+  fill="none"
+  stroke="currentColor"
+  viewBox="0 0 24 24"
+>
+  <path
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeWidth={2}
+    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+  />
+</svg>
+
               </svg>
               <p className="text-gray-500 text-xs mb-3">
                 Your personal analytics will appear here
@@ -622,12 +766,77 @@ const StudentDashboard = () => {
   }
 
   // Regular student view
+const studentMenuItems = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    icon: (
+      <svg
+        className="w-5 h-5 pointer-events-none"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+        />
+      </svg>
+    ),
+    onClick: () => navigate("/dashboard"),
+  },
+  {
+    id: "wellness",
+    label: "Wellness Centre",
+    icon: (
+      <svg
+        className="w-5 h-5 pointer-events-none"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+        />
+      </svg>
+    ),
+    onClick: () => navigate("/wellness-centre"),
+  },
+  {
+    id: "profile",
+    label: "Profile",
+    icon: (
+      <svg
+        className="w-5 h-5 pointer-events-none"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+        />
+      </svg>
+    ),
+    onClick: () => navigate("/profile"),
+  },
+];
+
   return (
     <div className="min-h-screen bg-white">
       <Header userName={userName} userRole="student" />
       <Sidebar
         activeMenuItem={activeMenuItem}
         setActiveMenuItem={setActiveMenuItem}
+        menuItems={studentMenuItems}
+
       />
       <div className="ml-52 pt-14">
         <DashboardContent />
@@ -637,3 +846,4 @@ const StudentDashboard = () => {
 };
 
 export default StudentDashboard;
+

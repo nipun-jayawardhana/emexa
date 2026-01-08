@@ -1,4 +1,6 @@
 // Sample quiz data (replace with database queries later)
+import Notification from '../models/notification.js';
+
 const sampleQuizzes = {
   'matrix-quiz': {
     id: 'matrix-quiz',
@@ -140,6 +142,24 @@ export const submitQuizAnswers = async (req, res) => {
       answers: results,
       submittedAt: new Date()
     };
+
+// Create submission confirmation notification for student
+try {
+  await Notification.create({
+    recipientId: userId,
+    recipientRole: 'student',
+    type: 'quiz_assigned',
+    title: quiz.title || 'Quiz Submitted',
+    description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
+    quizId: quizId,
+    score: `${score}/100`,
+    status: 'graded',
+    isRead: false
+  });
+  console.log('✅ Submission notification created for student:', userId);
+} catch (notifError) {
+  console.error('❌ Error creating submission notification:', notifError);
+}
 
     res.json({
       success: true,

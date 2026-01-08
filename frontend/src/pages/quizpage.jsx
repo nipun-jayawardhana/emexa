@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
+import axios from "axios";
 import {
   Clock,
   Home,
@@ -15,17 +16,31 @@ import teacherQuizService from "../services/teacherQuizService";
 import headerLogo from "../assets/headerlogo.png";
 import DownloadIcon from "../assets/download.png";
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000';
+
 const QuizPage = () => {
   const { quizId } = useParams();
+  const [searchParams] = useSearchParams();
+  const showResults = searchParams.get('results') === 'true';
+  
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
+  const [flaggedQuestions, setFlaggedQuestions] = useState(() => {
+    try {
+      const saved = localStorage.getItem("flaggedQuestions");
+      return saved ? JSON.parse(saved) : [];
+    } catch (err) {
+      return [];
+    }
+  });
+
   const [timeOnQuestion, setTimeOnQuestion] = useState(0);
   const [showBulb, setShowBulb] = useState(false);
   const [showEmojiDialog, setShowEmojiDialog] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [revealedHints, setRevealedHints] = useState([]);
   const [pendingHintRequest, setPendingHintRequest] = useState(null); // Store hint request details
-  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizSubmitted, setQuizSubmitted] = useState(showResults);
   const [quizStartTime] = useState(Date.now());
   const [totalTime, setTotalTime] = useState(0);
   const [activeFilter, setActiveFilter] = useState("all"); // Start with NO filter selected
@@ -50,9 +65,11 @@ const QuizPage = () => {
   const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
   const [bulbVisible, setBulbVisible] = useState(false);
 
+
   // Load quiz data on component mount
   useEffect(() => {
     loadQuizData();
+
 
     // Check camera permission from localStorage (set by Permission page)
     const cameraPermission = localStorage.getItem("cameraPermission");
@@ -279,17 +296,57 @@ const QuizPage = () => {
 
   const loadQuizData = async () => {
     try {
+
+  }, [quizId]);
+
+  const loadQuizData = async () => {
+    try {
+      console.log("Quiz Page - Loading quiz with ID:", quizId);
+      console.log("Quiz Page - URL:", window.location.href);
+
+
       // Get quiz ID from URL path parameter
       if (quizId) {
         try {
           // Try to load from backend first
           const response = await teacherQuizService.getSharedQuizzes();
+          console.log("Quiz Page - All shared quizzes from backend:", response);
 
           const teacherQuiz = response.quizzes.find((q) => {
+            console.log(
+              `Comparing quiz._id (${q._id}) with quizId (${quizId})`
+            );
             return String(q._id) === String(quizId) || q._id == quizId;
           });
 
+          console.log("Quiz Page - Found teacher quiz:", teacherQuiz);
+
           if (teacherQuiz) {
+            console.log(
+              "Quiz Page - Teacher quiz questions:",
+              teacherQuiz.questions
+            );
+
+            // Check if quiz is currently active
+            const timeStatus = teacherQuiz.timeStatus || 'active';
+            const isActive = teacherQuiz.isCurrentlyActive !== undefined ? teacherQuiz.isCurrentlyActive : true;
+            
+            console.log("Quiz Page - Time status:", timeStatus, "Is active:", isActive);
+
+            if (timeStatus === 'upcoming' || (!isActive && teacherQuiz.isScheduled)) {
+              alert('This quiz has not started yet. Please wait until the scheduled time: ' + 
+                    (teacherQuiz.scheduleDate ? new Date(teacherQuiz.scheduleDate).toLocaleDateString() : 'TBA') +
+                    ' at ' + (teacherQuiz.startTime || 'TBA'));
+              window.location.href = '/dashboard';
+              return;
+            }
+
+            if (timeStatus === 'expired') {
+              alert('This quiz has expired. The deadline has passed.');
+              window.location.href = '/dashboard';
+              return;
+            }
+
             if (teacherQuiz.questions && teacherQuiz.questions.length > 0) {
               // Convert teacher quiz format to quiz page format
               const formattedQuestions = teacherQuiz.questions.map(
@@ -308,12 +365,21 @@ const QuizPage = () => {
                 })
               );
 
+              console.log(
+                "Quiz Page - Formatted questions:",
+                formattedQuestions
+              );
+
               setQuizData({
                 title: teacherQuiz.title,
                 subject: teacherQuiz.subject,
                 questions: formattedQuestions,
               });
               setLoading(false);
+              console.log(
+                "Quiz Page - Successfully loaded teacher quiz from backend!"
+              );
+
               return;
             } else {
               console.warn("Quiz Page - Teacher quiz found but no questions!");
@@ -332,6 +398,8 @@ const QuizPage = () => {
       }
 
       // Fallback to default sample quiz
+      console.log("Quiz Page - Falling back to sample Biology quiz");
+
       setQuizData({
         title: "Introduction to Biology",
         questions: sampleQuestions,
@@ -425,7 +493,8 @@ const QuizPage = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeOnQuestion((prev) => prev + 1);
-      if (timeOnQuestion >= 10 && !showBulb && !answers[currentQuestion]) {
+      if (timeOnQuestion >= 60 && !showBulb && !answers[currentQuestion]) {
+
         setShowBulb(true);
       }
     }, 1000);
@@ -451,254 +520,238 @@ const QuizPage = () => {
     setRevealedHints([]);
   }, [currentQuestion]);
 
+  // Persist flagged questions to localStorage
+  useEffect(() => {
+    localStorage.setItem("flaggedQuestions", JSON.stringify(flaggedQuestions));
+  }, [flaggedQuestions]);
+
   const handleAnswerSelect = (optionIndex) => {
     setAnswers({ ...answers, [currentQuestion]: optionIndex });
   };
 
-  const handleBulbClick = async () => {
-    // Wait for camera permission to be determined
-    if (cameraPermissionLoading) {
-      console.log("⏳ Camera permission still loading, please wait...");
-      alert("Please wait while we check camera permissions...");
-      return;
-    }
+const handleToggleFlag = (index) => {
+  if (flaggedQuestions.includes(index)) {
+    setFlaggedQuestions(flaggedQuestions.filter((q) => q !== index));
+  } else {
+    setFlaggedQuestions([...flaggedQuestions, index]);
+  }
+};
 
-    const question = quizData.questions[currentQuestion];
+const handleBulbClick = async () => {
+  // Wait for camera permission to be determined
+  if (cameraPermissionLoading) {
+    console.log("⏳ Camera permission still loading, please wait...");
+    alert("Please wait while we check camera permissions...");
+    return;
+  }
 
-    console.log("🔍 Bulb clicked - Current question:", question);
-    console.log("🔍 Camera enabled:", webcamEnabled);
-    console.log("🔍 Hints available:", question.hints);
+  const question = quizData.questions[currentQuestion];
 
-    // First, check if AI hint already generated for this question (in memory)
-    if (aiHints[currentQuestion]) {
-      console.log(
-        "✅ AI hint already exists in memory, showing emoji dialog first"
-      );
-      // Store that we should show existing hints after emoji selection
-      setPendingHintRequest({
-        type: "existing",
-        questionIndex: currentQuestion,
-      });
-      setShowEmojiDialog(true);
-      return;
-    }
+  console.log("🔍 Bulb clicked - Current question:", question);
+  console.log("🔍 Camera enabled:", webcamEnabled);
+  console.log("🔍 Hints available:", question.hints);
 
-    // Check local storage for previously generated hint
-    const localStorageKey = `hint_${quizId}_${question.id}`;
-    const cachedHints = localStorage.getItem(localStorageKey);
-
-    if (cachedHints && webcamEnabled) {
-      console.log(
-        "💾 Found cached AI hints in local storage, showing emoji dialog first"
-      );
-      // Store pending request to load from cache after emoji selection
-      setPendingHintRequest({
-        type: "cached",
-        questionIndex: currentQuestion,
-        cachedHints: cachedHints,
-        localStorageKey: localStorageKey,
-      });
-      setShowEmojiDialog(true);
-      return;
-    }
-
-    // Check if teacher hints are available (non-empty)
-    const hasTeacherHints =
-      question.hints &&
-      question.hints.some((hint) => hint && hint.trim() !== "");
-
-    console.log("🔍 Has teacher hints?", hasTeacherHints);
-
-    // 🎯 MAIN LOGIC: Camera permission determines hint type
-    // ✅ Camera ALLOWED → AI hints (with teacher fallback)
-    // ❌ Camera DENIED → Teacher hints only
-
+  // First, check if AI hint already generated for this question (in memory)
+  if (aiHints[currentQuestion]) {
     console.log(
-      `🎯 HINT LOGIC: Camera ${webcamEnabled ? "ALLOWED" : "DENIED"} → ${
-        webcamEnabled ? "AI hints with teacher fallback" : "Teacher hints only"
-      }`
+      "✅ AI hint already exists in memory, showing emoji dialog first"
     );
+    // Store that we should show existing hints after emoji selection
+    setPendingHintRequest({
+      type: "existing",
+      questionIndex: currentQuestion,
+    });
+    setShowEmojiDialog(true);
+    return;
+  }
 
-    if (webcamEnabled) {
-      // 🎥 CAMERA ALLOWED: Show emoji dialog first, then generate AI hint
-      console.log("🎥 Camera allowed - showing emoji dialog before AI hint...");
-      // Store that we need to generate AI hints after emoji selection
+  // Check local storage for previously generated hint
+  const localStorageKey = `hint_${quizId}_${question.id}`;
+  const cachedHints = localStorage.getItem(localStorageKey);
+
+  if (cachedHints && webcamEnabled) {
+    console.log(
+      "💾 Found cached AI hints in local storage, showing emoji dialog first"
+    );
+    // Store pending request to load from cache after emoji selection
+    setPendingHintRequest({
+      type: "cached",
+      questionIndex: currentQuestion,
+      cachedHints: cachedHints,
+      localStorageKey: localStorageKey,
+    });
+    setShowEmojiDialog(true);
+    return;
+  }
+
+  // Check if teacher hints are available (non-empty)
+  const hasTeacherHints =
+    question.hints &&
+    question.hints.some((hint) => hint && hint.trim() !== "");
+
+  console.log("🔍 Has teacher hints?", hasTeacherHints);
+
+  console.log(
+    `🎯 HINT LOGIC: Camera ${webcamEnabled ? "ALLOWED" : "DENIED"} → ${
+      webcamEnabled ? "AI hints with teacher fallback" : "Teacher hints only"
+    }`
+  );
+
+  if (webcamEnabled) {
+    // 🎥 CAMERA ALLOWED: Show emoji dialog first, then generate AI hint
+    console.log("🎥 Camera allowed - showing emoji dialog before AI hint...");
+    setPendingHintRequest({
+      type: "ai",
+      questionIndex: currentQuestion,
+      question: question,
+      hasTeacherHints: hasTeacherHints,
+    });
+    setShowEmojiDialog(true);
+  } else {
+    // 🚫 CAMERA DENIED: Show emoji dialog first, then show teacher hints
+    console.log("🚫 Camera denied - showing emoji dialog before teacher hints...");
+    if (hasTeacherHints) {
       setPendingHintRequest({
-        type: "ai",
+        type: "teacher",
         questionIndex: currentQuestion,
-        question: question,
         hasTeacherHints: hasTeacherHints,
       });
       setShowEmojiDialog(true);
     } else {
-      // 🚫 CAMERA DENIED: Show emoji dialog first, then show teacher hints
-      console.log(
-        "🚫 Camera denied - showing emoji dialog before teacher hints..."
+      alert(
+        "No hints available for this question. Please ask your teacher to add hints."
       );
-      if (hasTeacherHints) {
-        setPendingHintRequest({
-          type: "teacher",
-          questionIndex: currentQuestion,
-          hasTeacherHints: hasTeacherHints,
+    }
+  }
+};
+
+const processHintRequest = async (request) => {
+  if (!request) return;
+
+  const {
+    type,
+    questionIndex,
+    question,
+    hasTeacherHints,
+    cachedHints,
+    localStorageKey,
+  } = request;
+
+  if (type === "existing") {
+    console.log("✅ Showing existing hints from memory");
+    setShowHints(true);
+    return;
+  }
+
+  if (type === "cached") {
+    console.log("💾 Loading cached AI hints from local storage");
+    try {
+      const parsedHints = JSON.parse(cachedHints);
+      setAiHints({
+        ...aiHints,
+        [questionIndex]: Array.isArray(parsedHints)
+          ? parsedHints
+          : [cachedHints],
+      });
+    } catch (e) {
+      setAiHints({
+        ...aiHints,
+        [questionIndex]: [cachedHints],
+      });
+    }
+    setShowHints(true);
+    return;
+  }
+
+  if (type === "teacher") {
+    console.log("📚 Displaying teacher-created hints");
+    setShowHints(true);
+    return;
+  }
+
+  if (type === "ai") {
+    console.log("🎥 Generating AI hint...");
+    try {
+      const userStr = localStorage.getItem("user");
+      if (!userStr) {
+        alert("Please log in to get hints");
+        return;
+      }
+
+      const user = JSON.parse(userStr);
+
+      const token = localStorage.getItem("token");
+      const hintLocalStorageKey = `hint_${quizId}_${question.id}`;
+      const response = await fetch("http://localhost:5000/api/hint", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          sessionId: sessionId,
+          questionId: String(question.id),
+          questionIndex: questionIndex,
+          questionText: question.text,
+          options: question.options || [],
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log("🤖 AI Hints generated:", data.data.hints);
+        let hintsArray = Array.isArray(data.data.hints)
+          ? data.data.hints
+          : [data.data.hint];
+
+        localStorage.setItem(hintLocalStorageKey, JSON.stringify(hintsArray));
+        setAiHints({
+          ...aiHints,
+          [questionIndex]: hintsArray,
         });
-        setShowEmojiDialog(true);
+
+        if (!data.data.alreadyRequested) {
+          setHintsUsedCount((prev) => prev + 1);
+        }
+
+        setShowHints(true);
       } else {
-        alert(
-          "No hints available for this question. Please ask your teacher to add hints."
-        );
-      }
-    }
-  };
-
-  const processHintRequest = async (request) => {
-    if (!request) return;
-
-    const {
-      type,
-      questionIndex,
-      question,
-      hasTeacherHints,
-      cachedHints,
-      localStorageKey,
-    } = request;
-
-    if (type === "existing") {
-      // Show existing hints from memory
-      console.log("✅ Showing existing hints from memory");
-      setShowHints(true);
-      return;
-    }
-
-    if (type === "cached") {
-      // Load from local storage
-      console.log("💾 Loading cached AI hints from local storage");
-      try {
-        const parsedHints = JSON.parse(cachedHints);
-        setAiHints({
-          ...aiHints,
-          [questionIndex]: Array.isArray(parsedHints)
-            ? parsedHints
-            : [cachedHints],
-        });
-      } catch (e) {
-        setAiHints({
-          ...aiHints,
-          [questionIndex]: [cachedHints],
-        });
-      }
-      setShowHints(true);
-      return;
-    }
-
-    if (type === "teacher") {
-      // Show teacher hints
-      console.log("📚 Displaying teacher-created hints");
-      setShowHints(true);
-      return;
-    }
-
-    if (type === "ai") {
-      // Generate AI hint
-      console.log("🎥 Generating AI hint...");
-      try {
-        const userStr = localStorage.getItem("user");
-        if (!userStr) {
-          alert("Please log in to get hints");
-          return;
-        }
-
-        const user = JSON.parse(userStr);
-
-        const token = localStorage.getItem("token");
-        const hintLocalStorageKey = `hint_${quizId}_${question.id}`;
-        const response = await fetch("http://localhost:5000/api/hint", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            userId: user.id,
-            sessionId: sessionId,
-            questionId: String(question.id),
-            questionIndex: questionIndex,
-            questionText: question.text,
-            options: question.options || [],
-          }),
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-          console.log("🤖 AI Hints generated:", data.data.hints);
-          console.log("🤖 Hints type:", typeof data.data.hints);
-          console.log("🤖 Is array?:", Array.isArray(data.data.hints));
-          console.log("🤖 Hints length:", data.data.hints?.length);
-
-          // Ensure hints are always an array
-          let hintsArray = Array.isArray(data.data.hints)
-            ? data.data.hints
-            : [data.data.hint];
-
-          console.log("✅ Final hints array:", hintsArray);
-          console.log("✅ Final hints count:", hintsArray.length);
-
-          // Save to local storage as JSON array
-          localStorage.setItem(hintLocalStorageKey, JSON.stringify(hintsArray));
-          console.log("💾 AI hints saved to local storage");
-
-          // Store AI hints in state (as array)
-          setAiHints({
-            ...aiHints,
-            [questionIndex]: hintsArray,
-          });
-
-          // Increment hints used count
-          if (!data.data.alreadyRequested) {
-            setHintsUsedCount((prev) => prev + 1);
-          }
-
-          setShowHints(true);
-        } else {
-          // AI failed - fallback to teacher hints if available
-          console.error("🤖 AI Error:", data.message);
-          if (hasTeacherHints) {
-            console.log("📚 AI failed, falling back to teacher hints");
-            setShowHints(true);
-          } else {
-            alert(
-              data.message || "Unable to generate hint. No hints available."
-            );
-          }
-        }
-      } catch (error) {
-        console.error("🤖 AI generation error:", error);
-        // Fallback to teacher hints if available
+        console.error("🤖 AI Error:", data.message);
         if (hasTeacherHints) {
-          console.log("📚 AI error, falling back to teacher hints");
+          console.log("📚 AI failed, falling back to teacher hints");
           setShowHints(true);
         } else {
-          alert("Error: Could not generate hint. No hints available.");
+          alert(data.message || "Unable to generate hint. No hints available.");
         }
       }
+    } catch (error) {
+      console.error("🤖 AI generation error:", error);
+      if (hasTeacherHints) {
+        console.log("📚 AI error, falling back to teacher hints");
+        setShowHints(true);
+      } else {
+        alert("Error: Could not generate hint. No hints available.");
+      }
     }
-  };
+  }
+};
 
-  const handleEmojiClick = async (emoji) => {
-    console.log(`😊 Emoji clicked: ${emoji}`);
-    setShowEmojiDialog(false);
+const handleEmojiClick = async (emoji) => {
+  console.log(`😊 Emoji clicked: ${emoji}`);
+  setShowEmojiDialog(false);
 
-    // Only proceed with hints for neutral, confused, frustrated
-    if (emoji === "neutral" || emoji === "confused" || emoji === "frustrated") {
-      console.log(`✅ Proceeding with hint request for emotion: ${emoji}`);
-      await processHintRequest(pendingHintRequest);
-    } else {
-      // For happy and excited - skip hints
-      console.log(`❌ Skipping hints for emotion: ${emoji}`);
-    }
+  if (emoji === "neutral" || emoji === "confused" || emoji === "frustrated") {
+    console.log(`✅ Proceeding with hint request for emotion: ${emoji}`);
+    await processHintRequest(pendingHintRequest);
+  } else {
+    console.log(`❌ Skipping hints for emotion: ${emoji}`);
+  }
 
-    // Clear pending request
-    setPendingHintRequest(null);
+  setPendingHintRequest(null);
+};
+
   };
 
   const handleRevealHint = (index) => {
@@ -718,88 +771,88 @@ const QuizPage = () => {
   };
 
   const handleSubmit = async () => {
-    // Generate AI feedback
-    try {
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        const rawScore = calculateScore();
+try {
+  // Submit quiz answers (from dev)
+  const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
+  const answersArray = quizData.questions.map((_, index) => answers[index]);
+  const token = localStorage.getItem('token');
 
-        // Use _id or id, whichever is available
-        const userId = user._id || user.id;
+  const submitResponse = await axios.post(
+    `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
+    {
+      answers: answersArray,
+      timeTaken,
+    },
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  console.log('✅ Quiz submitted:', submitResponse.data);
 
-        if (!userId) {
-          console.error("❌ User ID not found in localStorage");
-          setQuizSubmitted(true);
-          return;
-        }
+  // Then generate AI feedback (from your branch)
+  const userStr = localStorage.getItem("user");
+  if (userStr) {
+    const user = JSON.parse(userStr);
+    const rawScore = calculateScore();
 
-        console.log("📤 Submitting quiz feedback request:", {
-          userId,
-          quizId,
-          sessionId,
-          rawScore,
-          totalQuestions: quizData.questions.length,
-        });
+    const userId = user._id || user.id;
 
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:5000/api/feedback", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            userId: userId,
-            quizId: quizId,
-            sessionId: sessionId,
-            rawScore: rawScore,
-            totalQuestions: quizData.questions.length,
-            answers: Object.entries(answers).map(([index, answer]) => ({
-              questionId: quizData.questions[index].id,
-              selectedAnswer: answer,
-              isCorrect: answer === quizData.questions[index].correctAnswer,
-            })),
-          }),
-        });
+    if (!userId) {
+      console.error("❌ User ID not found in localStorage");
+      setQuizSubmitted(true);
+      return;
+    }
 
-        const data = await response.json();
+    console.log("📤 Submitting quiz feedback request:", {
+      userId,
+      quizId,
+      sessionId,
+      rawScore,
+      totalQuestions: quizData.questions.length,
+    });
 
-        if (data.success) {
-          console.log("🎯 AI Feedback generated:", data.data.feedback);
-          console.log(
-            "📊 Final Score:",
-            data.data.finalScore,
-            "/",
-            quizData.questions.length
-          );
-          console.log("💡 Hints Used:", data.data.hintsUsed);
-          console.log("✅ Full feedback data:", data.data);
+    const feedbackResponse = await fetch("http://localhost:5000/api/feedback", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        userId: userId,
+        quizId: quizId,
+        sessionId: sessionId,
+        rawScore: rawScore,
+        totalQuestions: quizData.questions.length,
+        answers: Object.entries(answers).map(([index, answer]) => ({
+          questionId: quizData.questions[index].id,
+          selectedAnswer: answer,
+          isCorrect: answer === quizData.questions[index].correctAnswer,
+        })),
+      }),
+    });
 
-          setAiFeedback(data.data);
-        } else {
-          console.error("❌ Feedback API error:", data.message);
-          console.error("❌ Full error:", data);
-          setAiFeedback({
-            feedback: "Unable to generate personalized feedback at this time.",
-            emotionalSummary: null,
-            hintsUsed: 0,
-            finalScore: rawScore,
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Error generating AI feedback:", error);
-      console.error("Error details:", error.message, error.stack);
+    const data = await feedbackResponse.json();
+
+    if (data.success) {
+      console.log("🎯 AI Feedback generated:", data.data.feedback);
+      setAiFeedback(data.data);
+    } else {
+      console.error("❌ Feedback API error:", data.message);
       setAiFeedback({
         feedback: "Unable to generate personalized feedback at this time.",
         emotionalSummary: null,
         hintsUsed: 0,
-        finalScore: 0,
+        finalScore: rawScore,
       });
     }
+  }
+} catch (error) {
+  console.error("Error during quiz submission or feedback:", error);
+  alert("Failed to submit quiz or generate feedback. Please try again.");
+}
 
-    setQuizSubmitted(true);
+setQuizSubmitted(true);
+
   };
 
   const calculateScore = () => {

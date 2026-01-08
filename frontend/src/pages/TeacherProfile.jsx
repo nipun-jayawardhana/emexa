@@ -776,7 +776,9 @@ const handleSavePrivacy = async () => {
   const handleExportData = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/teacher/export-data', {
+      const API_BASE = 'http://localhost:5000';
+      const response = await axios.get(`${API_BASE}/api/users/export-data`, {
+
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -981,6 +983,19 @@ const handleSavePrivacy = async () => {
       setTimeout(() => {
         printWindow.print();
       }, 250);
+
+// Create notification for successful data export
+const fileName = `Teacher_Data_Export_${new Date().toISOString().split('T')[0]}.pdf`;
+try {
+  await axios.post(
+    `${API_BASE}/api/notifications/data-export`,
+    { fileName },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  console.log('✅ Data export notification created');
+} catch (notifError) {
+  console.error('Failed to create notification:', notifError);
+}
 
       alert('Data export ready. Please select "Save as PDF" in the print dialog.');
     } catch (error) {

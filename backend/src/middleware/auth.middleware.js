@@ -4,10 +4,19 @@ import Teacher from '../models/teacher.js';
 import User from '../models/user.js';
 
 /**
+/**
  * Protect middleware - Verifies JWT and finds user
  * Sets req.user and req.userId for downstream use
  */
 export const protect = async (req, res, next) => {
+  // middleware logic stays here
+};
+
+/**
+ * authenticateToken - Alias for protect middleware
+ */
+export const authenticateToken = protect;
+
   try {
     let token;
 
@@ -80,7 +89,8 @@ export const protect = async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error('❌ Protect middleware error:', error);
+console.error('❌ Authentication middleware error:', error);
+
     next(error);
   }
 };
@@ -88,6 +98,15 @@ export const protect = async (req, res, next) => {
 /**
  * Authorize middleware - Ensures user has required role(s)
  * Use after protect middleware
+ * Protect middleware - Verifies JWT and finds user
+ * Sets req.user and req.userId for downstream use
+ * (Alias for authenticateToken for backward compatibility)
+ */
+export const protect = authenticateToken;
+
+/**
+ * Authorize middleware - Ensures user has required role(s)
+ * Use after protect/authenticateToken middleware
  * @param {...string} roles - Allowed roles
  */
 export const authorize = (...roles) => {
