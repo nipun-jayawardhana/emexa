@@ -9,14 +9,6 @@ import User from '../models/user.js';
  * Sets req.user and req.userId for downstream use
  */
 export const protect = async (req, res, next) => {
-  // middleware logic stays here
-};
-
-/**
- * authenticateToken - Alias for protect middleware
- */
-export const authenticateToken = protect;
-
   try {
     let token;
 
@@ -27,9 +19,9 @@ export const authenticateToken = protect;
 
     // Check if token exists
     if (!token) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         success: false,
-        message: 'Not authorized to access this route. No token provided.' 
+        message: 'Not authorized to access this route. No token provided.'
       });
     }
 
@@ -42,20 +34,20 @@ export const authenticateToken = protect;
 
       // Try to find user in Student, Teacher, or User collections
       let user = await Student.findById(decoded.id).select('-password');
-      
+
       if (!user) {
         user = await Teacher.findById(decoded.id).select('-password');
       }
-      
+
       if (!user) {
         user = await User.findById(decoded.id).select('-password');
       }
 
       if (!user) {
         console.log('❌ User not found for token ID:', decoded.id);
-        return res.status(401).json({ 
+        return res.status(401).json({
           success: false,
-          message: 'User no longer exists' 
+          message: 'User no longer exists'
         });
       }
 
@@ -68,28 +60,28 @@ export const authenticateToken = protect;
       next();
     } catch (error) {
       console.error('❌ Token verification failed:', error.message);
-      
+
       if (error.name === 'JsonWebTokenError') {
-        return res.status(401).json({ 
+        return res.status(401).json({
           success: false,
-          message: 'Invalid token' 
+          message: 'Invalid token'
         });
       }
-      
+
       if (error.name === 'TokenExpiredError') {
-        return res.status(401).json({ 
+        return res.status(401).json({
           success: false,
-          message: 'Token expired. Please login again.' 
+          message: 'Token expired. Please login again.'
         });
       }
-      
-      return res.status(401).json({ 
+
+      return res.status(401).json({
         success: false,
-        message: 'Not authorized to access this route' 
+        message: 'Not authorized to access this route'
       });
     }
   } catch (error) {
-console.error('❌ Authentication middleware error:', error);
+    console.error('❌ Authentication middleware error:', error);
 
     next(error);
   }
@@ -102,7 +94,6 @@ console.error('❌ Authentication middleware error:', error);
  * Sets req.user and req.userId for downstream use
  * (Alias for authenticateToken for backward compatibility)
  */
-export const protect = authenticateToken;
 
 /**
  * Authorize middleware - Ensures user has required role(s)
