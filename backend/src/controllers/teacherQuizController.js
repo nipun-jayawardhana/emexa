@@ -3,6 +3,7 @@ import Teacher from '../models/teacher.js';
 import Notification from '../models/notification.js';
 import { createQuizNotification } from './notificationController.js';
 
+
 // Create a new quiz (draft)
 export const createQuiz = async (req, res) => {
   try {
@@ -275,32 +276,33 @@ export const scheduleQuiz = async (req, res) => {
     quiz.scheduleDate = new Date(scheduleDate);
     quiz.startTime = startTime;
     quiz.endTime = endTime;
-    quiz.status = 'scheduled'; // Set to scheduled, not active
-    
-    await quiz.save();
-    
-    console.log('✅ Quiz scheduled:', quiz._id);
-    
-    // Get teacher name for notification
-    const teacher = await Teacher.findById(quiz.teacherId);
-    const teacherName = teacher ? teacher.name : 'Teacher';
-    
-    // Create notifications for all students
-    const formattedDueDate = `${scheduleDate}, ${endTime}`;
-    const notificationResult = await createQuizNotification(quiz._id, {
-      title: quiz.title,
-      subject: quiz.subject,
-      dueDate: formattedDueDate
-    }, teacherName);
-    
-    console.log('🔔 Notification result:', notificationResult);
-    
-    res.status(200).json({
-      success: true,
-      message: 'Quiz scheduled successfully and notifications sent',
-      quiz,
-      notificationsSent: notificationResult.count || 0
-    });
+quiz.status = 'scheduled'; // Set to scheduled, not active
+
+await quiz.save();
+
+console.log('✅ Quiz scheduled:', quiz._id);
+
+// Get teacher name for notification
+const teacher = await Teacher.findById(quiz.teacherId);
+const teacherName = teacher ? teacher.name : 'Teacher';
+
+// Create notifications for all students
+const formattedDueDate = `${scheduleDate}, ${endTime}`;
+const notificationResult = await createQuizNotification(quiz._id, {
+  title: quiz.title,
+  subject: quiz.subject,
+  dueDate: formattedDueDate
+}, teacherName);
+
+console.log('🔔 Notification result:', notificationResult);
+
+res.status(200).json({
+  success: true,
+  message: 'Quiz scheduled successfully and notifications sent',
+  quiz,
+  notificationsSent: notificationResult.count || 0
+});
+
   } catch (error) {
     console.error('Error scheduling quiz:', error);
     res.status(500).json({
@@ -333,10 +335,10 @@ export const deleteQuiz = async (req, res) => {
     quiz.isDeleted = true;
     await quiz.save();
     
-    // Delete all related notifications
-    await Notification.deleteMany({ quizId: id });
-    console.log('🗑️ Deleted notifications for quiz:', id);
-    
+// Delete all related notifications
+await Notification.deleteMany({ quizId: id });
+console.log('🗑️ Deleted notifications for quiz:', id);
+
     res.status(200).json({
       success: true,
       message: 'Quiz deleted successfully'
@@ -368,10 +370,10 @@ export const permanentDeleteQuiz = async (req, res) => {
       });
     }
     
-    // Delete all related notifications
-    await Notification.deleteMany({ quizId: id });
-    console.log('🗑️ Deleted notifications for permanently deleted quiz:', id);
-    
+// Delete all related notifications
+await Notification.deleteMany({ quizId: id });
+console.log('🗑️ Deleted notifications for permanently deleted quiz:', id);
+
     res.status(200).json({
       success: true,
       message: 'Quiz permanently deleted'
@@ -418,20 +420,25 @@ export const getQuizStats = async (req, res) => {
     };
     
     allQuizzes.forEach(quiz => {
-      // Check if scheduled quiz is currently active
-      const isCurrentlyActive = quiz.isScheduled && quiz.isCurrentlyActive && quiz.isCurrentlyActive();
-      
-      // Scheduled = has schedule info but not currently in active time window
-      if ((quiz.status === 'draft' || quiz.status === 'scheduled') && quiz.isScheduled && !isCurrentlyActive) {
-        formattedStats.scheduled++;
-      }
-      // Active = active status OR scheduled quiz that is currently in its time window
-      else if (quiz.status === 'active' || (quiz.status === 'scheduled' && isCurrentlyActive)) {
-        formattedStats.active++;
-      }
+// Check if scheduled quiz is currently active
+const isCurrentlyActive = quiz.isScheduled && quiz.isCurrentlyActive && quiz.isCurrentlyActive();
+
+// Scheduled = has schedule info but not currently in active time window
+if ((quiz.status === 'draft' || quiz.status === 'scheduled') && quiz.isScheduled && !isCurrentlyActive) {
+  formattedStats.scheduled++;
+}
+// Active = active status OR scheduled quiz that is currently in its time window
+else if (quiz.status === 'active' || (quiz.status === 'scheduled' && isCurrentlyActive)) {
+  formattedStats.active++;
+}
+
       // Draft = draft status and no schedule info
       else if (quiz.status === 'draft' && !quiz.isScheduled) {
         formattedStats.drafts++;
+      }
+      // Active = active status
+      else if (quiz.status === 'active') {
+        formattedStats.active++;
       }
       // Closed
       else if (quiz.status === 'closed') {
@@ -567,5 +574,5 @@ export default {
   deleteQuiz,
   permanentDeleteQuiz,
   getQuizStats,
-  submitQuizAnswers
+  submitQuizAnswers,
 };

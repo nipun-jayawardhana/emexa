@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import {
@@ -11,6 +11,7 @@ import {
   X,
   Flag,
 } from "lucide-react";
+import { io } from "socket.io-client";
 import teacherQuizService from "../services/teacherQuizService";
 import headerLogo from "../assets/headerlogo.png";
 import DownloadIcon from "../assets/download.png";
@@ -32,27 +33,277 @@ const QuizPage = () => {
       return [];
     }
   });
+
   const [timeOnQuestion, setTimeOnQuestion] = useState(0);
   const [showBulb, setShowBulb] = useState(false);
   const [showEmojiDialog, setShowEmojiDialog] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [revealedHints, setRevealedHints] = useState([]);
+  const [pendingHintRequest, setPendingHintRequest] = useState(null); // Store hint request details
   const [quizSubmitted, setQuizSubmitted] = useState(showResults);
   const [quizStartTime] = useState(Date.now());
   const [totalTime, setTotalTime] = useState(0);
   const [activeFilter, setActiveFilter] = useState("all"); // Start with NO filter selected
   const [quizData, setQuizData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [flaggedQuestions, setFlaggedQuestions] = useState(new Set());
+
+  // AI Integration States
+  const [sessionId] = useState(
+    `quiz_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  );
+  const [aiHints, setAiHints] = useState({});
+  const [aiFeedback, setAiFeedback] = useState(null);
+  const [emotionSocket, setEmotionSocket] = useState(null);
+  const [webcamEnabled, setWebcamEnabled] = useState(false);
+  const [cameraPermissionLoading, setCameraPermissionLoading] = useState(false);
+  const [videoStream, setVideoStream] = useState(null);
+  const videoRef = useRef(null);
+  const [hintsUsedCount, setHintsUsedCount] = useState(0);
+  const [showCameraPermissionDialog, setShowCameraPermissionDialog] =
+    useState(false);
+  const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
+  const [bulbVisible, setBulbVisible] = useState(false);
+
 
   // Load quiz data on component mount
   useEffect(() => {
     loadQuizData();
+
+
+    // Check camera permission from localStorage (set by Permission page)
+    const cameraPermission = localStorage.getItem("cameraPermission");
+    console.log(
+      "📱 Retrieved camera permission from localStorage:",
+      cameraPermission
+    );
+
+    if (cameraPermission === "allowed") {
+      // Camera was allowed on permission page - enable AI hints
+      console.log("✅ Camera permission allowed - Enabling AI hints");
+      setWebcamEnabled(true);
+      setCameraPermissionDenied(false);
+      // Initialize AI socket for emotion tracking
+      initializeAI();
+    } else {
+      // Camera was denied or skipped - use teacher hints only
+      console.log("❌ Camera permission denied - Using teacher hints only");
+      setWebcamEnabled(false);
+      setCameraPermissionDenied(true);
+    }
+
+    // Don't show camera permission dialog on quiz page
+    // Camera permission is handled on the permission page before quiz starts
+    setCameraPermissionLoading(false);
+    setShowCameraPermissionDialog(false);
+
+    return () => {
+      // Cleanup on unmount
+      if (emotionSocket) {
+        emotionSocket.disconnect();
+      }
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+      }
+      if (videoStream) {
+        videoStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [quizId]);
+
+  // Attach video stream to element when it becomes available
+  useEffect(() => {
+    if (videoRef.current && videoStream && !videoRef.current.srcObject) {
+      videoRef.current.srcObject = videoStream;
+      console.log("📹 Video stream attached to element (delayed)");
+    }
+  }, [videoStream]);
+
+  // Show hint bulb after 10 seconds (for both camera allowed and denied)
+  useEffect(() => {
+    if (!cameraPermissionLoading) {
+      const timer = setTimeout(() => {
+        setBulbVisible(true);
+        console.log("💡 Hint bulb now visible after 10 seconds");
+      }, 10000); // 10 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [cameraPermissionLoading]);
+
+  // Log final camera permission status when state updates
+  useEffect(() => {
+    if (!cameraPermissionLoading) {
+      console.log(
+        `🎯 CAMERA PERMISSION FINAL: ${
+          webcamEnabled
+            ? "✅ ALLOWED - AI hints available"
+            : "❌ DENIED - Teacher hints only"
+        }`
+      );
+    }
+  }, [cameraPermissionLoading, webcamEnabled]);
+
+  // Initialize AI features (Socket.IO connection only - no webcam yet)
+  const initializeAI = async () => {
+    try {
+      // Get user info from localStorage
+      const userStr = localStorage.getItem("user");
+      if (!userStr) return;
+
+      const user = JSON.parse(userStr);
+
+      // Connect to emotion tracking socket
+      const socket = io("http://localhost:5000/emotion", {
+        transports: ["websocket"],
+        reconnection: true,
+      });
+
+      socket.on("connect", () => {
+        console.log("🤖 AI: Connected to emotion tracking");
+        socket.emit("join-session", sessionId);
+      });
+
+      socket.on("emotion-detected", (data) => {
+        console.log(
+          "😊 AI: Emotion detected -",
+          data.emotion,
+          `(${Math.round(data.confidence * 100)}%)`
+        );
+      });
+
+      socket.on("emotion-error", (error) => {
+        console.error("❌ AI: Emotion error", error);
+      });
+
+      setEmotionSocket(socket);
+    } catch (error) {
+      console.error("AI initialization error:", error);
+    }
+  };
+
+  // Request webcam permission and start emotion tracking
+  const requestCameraPermission = async () => {
+    try {
+      setCameraPermissionLoading(true);
+      console.log(
+        "📷 AI: Requesting webcam permission for emotion tracking..."
+      );
+
+      // Initialize AI socket connection when user actually requests camera
+      await initializeAI();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 224, height: 224 },
+      });
+
+      // Set webcam enabled immediately when permission is granted
+      setWebcamEnabled(true);
+      setVideoStream(stream);
+      setCameraPermissionDenied(false);
+      setShowCameraPermissionDialog(false);
+      console.log(
+        "✅ AI: Webcam permission granted - emotion tracking active - AI hints enabled"
+      );
+
+      // Attach stream to video element if available
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        console.log("📹 Video stream attached to element");
+      }
+    } catch (err) {
+      console.log(
+        "⚠️ AI: Webcam permission denied or device not found - falling back to manual mode - teacher hints only"
+      );
+      console.error("📷 Camera error details:", err.name, err.message);
+
+      // Handle NotFoundError (no camera device) same as denied permission
+      if (err.name === "NotFoundError") {
+        console.log("📷 No camera device found on this system");
+      } else if (err.name === "NotAllowedError") {
+        console.log("📷 User denied camera permission");
+      } else if (err.name === "NotReadableError") {
+        console.log("📷 Camera device is in use by another application");
+      }
+
+      setCameraPermissionDenied(true);
+      setWebcamEnabled(false);
+      setShowCameraPermissionDialog(false);
+    } finally {
+      setCameraPermissionLoading(false);
+      console.log(
+        `🎯 CAMERA PERMISSION CHECK: Permission request completed. State will update shortly.`
+      );
+    }
+  };
+
+  // Capture and send emotion snapshot every 60 seconds
+  useEffect(() => {
+    if (!webcamEnabled || !emotionSocket || quizSubmitted) return;
+
+    const userStr = localStorage.getItem("user");
+    if (!userStr) return;
+    const user = JSON.parse(userStr);
+
+    const captureEmotion = () => {
+      if (!videoRef.current) {
+        console.log("📸 AI: No video ref, skipping emotion capture");
+        return;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 224;
+      canvas.height = 224;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(videoRef.current, 0, 0, 224, 224);
+      const base64Image = canvas.toDataURL("image/jpeg");
+
+      if (!base64Image || base64Image === "data:,") {
+        console.log("📸 AI: Invalid image data, skipping");
+        return;
+      }
+
+      if (!user.id || !sessionId || currentQuestion === undefined) {
+        console.log("📸 AI: Missing user/session data", {
+          userId: user.id,
+          sessionId,
+          questionIndex: currentQuestion,
+        });
+        return;
+      }
+
+      emotionSocket.emit("emotion-snapshot", {
+        image: base64Image,
+        userId: user.id,
+        sessionId: sessionId,
+        questionIndex: currentQuestion,
+      });
+
+      console.log("📸 AI: Emotion snapshot sent", {
+        userId: user.id,
+        sessionId,
+        questionIndex: currentQuestion,
+      });
+    };
+
+    // Capture immediately on question change
+    captureEmotion();
+
+    // Then every 10 seconds
+    const interval = setInterval(captureEmotion, 10000);
+
+    return () => clearInterval(interval);
+  }, [webcamEnabled, emotionSocket, currentQuestion, quizSubmitted]);
+
+  const loadQuizData = async () => {
+    try {
+
   }, [quizId]);
 
   const loadQuizData = async () => {
     try {
       console.log("Quiz Page - Loading quiz with ID:", quizId);
       console.log("Quiz Page - URL:", window.location.href);
+
 
       // Get quiz ID from URL path parameter
       if (quizId) {
@@ -128,6 +379,7 @@ const QuizPage = () => {
               console.log(
                 "Quiz Page - Successfully loaded teacher quiz from backend!"
               );
+
               return;
             } else {
               console.warn("Quiz Page - Teacher quiz found but no questions!");
@@ -147,6 +399,7 @@ const QuizPage = () => {
 
       // Fallback to default sample quiz
       console.log("Quiz Page - Falling back to sample Biology quiz");
+
       setQuizData({
         title: "Introduction to Biology",
         questions: sampleQuestions,
@@ -241,6 +494,7 @@ const QuizPage = () => {
     const timer = setInterval(() => {
       setTimeOnQuestion((prev) => prev + 1);
       if (timeOnQuestion >= 60 && !showBulb && !answers[currentQuestion]) {
+
         setShowBulb(true);
       }
     }, 1000);
@@ -275,26 +529,229 @@ const QuizPage = () => {
     setAnswers({ ...answers, [currentQuestion]: optionIndex });
   };
 
-  const handleToggleFlag = (index) => {
-    if (flaggedQuestions.includes(index)) {
-      setFlaggedQuestions(flaggedQuestions.filter((q) => q !== index));
-    } else {
-      setFlaggedQuestions([...flaggedQuestions, index]);
-    }
-  };
+const handleToggleFlag = (index) => {
+  if (flaggedQuestions.includes(index)) {
+    setFlaggedQuestions(flaggedQuestions.filter((q) => q !== index));
+  } else {
+    setFlaggedQuestions([...flaggedQuestions, index]);
+  }
+};
 
-  const handleBulbClick = () => {
+const handleBulbClick = async () => {
+  // Wait for camera permission to be determined
+  if (cameraPermissionLoading) {
+    console.log("⏳ Camera permission still loading, please wait...");
+    alert("Please wait while we check camera permissions...");
+    return;
+  }
+
+  const question = quizData.questions[currentQuestion];
+
+  console.log("🔍 Bulb clicked - Current question:", question);
+  console.log("🔍 Camera enabled:", webcamEnabled);
+  console.log("🔍 Hints available:", question.hints);
+
+  // First, check if AI hint already generated for this question (in memory)
+  if (aiHints[currentQuestion]) {
+    console.log(
+      "✅ AI hint already exists in memory, showing emoji dialog first"
+    );
+    // Store that we should show existing hints after emoji selection
+    setPendingHintRequest({
+      type: "existing",
+      questionIndex: currentQuestion,
+    });
     setShowEmojiDialog(true);
-  };
+    return;
+  }
 
-  const handleEmojiClick = (emoji) => {
-    if (emoji === "confused" || emoji === "frustrated") {
-      setShowHints(true);
+  // Check local storage for previously generated hint
+  const localStorageKey = `hint_${quizId}_${question.id}`;
+  const cachedHints = localStorage.getItem(localStorageKey);
+
+  if (cachedHints && webcamEnabled) {
+    console.log(
+      "💾 Found cached AI hints in local storage, showing emoji dialog first"
+    );
+    // Store pending request to load from cache after emoji selection
+    setPendingHintRequest({
+      type: "cached",
+      questionIndex: currentQuestion,
+      cachedHints: cachedHints,
+      localStorageKey: localStorageKey,
+    });
+    setShowEmojiDialog(true);
+    return;
+  }
+
+  // Check if teacher hints are available (non-empty)
+  const hasTeacherHints =
+    question.hints &&
+    question.hints.some((hint) => hint && hint.trim() !== "");
+
+  console.log("🔍 Has teacher hints?", hasTeacherHints);
+
+  console.log(
+    `🎯 HINT LOGIC: Camera ${webcamEnabled ? "ALLOWED" : "DENIED"} → ${
+      webcamEnabled ? "AI hints with teacher fallback" : "Teacher hints only"
+    }`
+  );
+
+  if (webcamEnabled) {
+    // 🎥 CAMERA ALLOWED: Show emoji dialog first, then generate AI hint
+    console.log("🎥 Camera allowed - showing emoji dialog before AI hint...");
+    setPendingHintRequest({
+      type: "ai",
+      questionIndex: currentQuestion,
+      question: question,
+      hasTeacherHints: hasTeacherHints,
+    });
+    setShowEmojiDialog(true);
+  } else {
+    // 🚫 CAMERA DENIED: Show emoji dialog first, then show teacher hints
+    console.log("🚫 Camera denied - showing emoji dialog before teacher hints...");
+    if (hasTeacherHints) {
+      setPendingHintRequest({
+        type: "teacher",
+        questionIndex: currentQuestion,
+        hasTeacherHints: hasTeacherHints,
+      });
+      setShowEmojiDialog(true);
     } else {
-      // For happy, neutral, excited - don't show hints
-      setShowHints(false);
+      alert(
+        "No hints available for this question. Please ask your teacher to add hints."
+      );
     }
-    setShowEmojiDialog(false);
+  }
+};
+
+const processHintRequest = async (request) => {
+  if (!request) return;
+
+  const {
+    type,
+    questionIndex,
+    question,
+    hasTeacherHints,
+    cachedHints,
+    localStorageKey,
+  } = request;
+
+  if (type === "existing") {
+    console.log("✅ Showing existing hints from memory");
+    setShowHints(true);
+    return;
+  }
+
+  if (type === "cached") {
+    console.log("💾 Loading cached AI hints from local storage");
+    try {
+      const parsedHints = JSON.parse(cachedHints);
+      setAiHints({
+        ...aiHints,
+        [questionIndex]: Array.isArray(parsedHints)
+          ? parsedHints
+          : [cachedHints],
+      });
+    } catch (e) {
+      setAiHints({
+        ...aiHints,
+        [questionIndex]: [cachedHints],
+      });
+    }
+    setShowHints(true);
+    return;
+  }
+
+  if (type === "teacher") {
+    console.log("📚 Displaying teacher-created hints");
+    setShowHints(true);
+    return;
+  }
+
+  if (type === "ai") {
+    console.log("🎥 Generating AI hint...");
+    try {
+      const userStr = localStorage.getItem("user");
+      if (!userStr) {
+        alert("Please log in to get hints");
+        return;
+      }
+
+      const user = JSON.parse(userStr);
+
+      const token = localStorage.getItem("token");
+      const hintLocalStorageKey = `hint_${quizId}_${question.id}`;
+      const response = await fetch("http://localhost:5000/api/hint", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          sessionId: sessionId,
+          questionId: String(question.id),
+          questionIndex: questionIndex,
+          questionText: question.text,
+          options: question.options || [],
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log("🤖 AI Hints generated:", data.data.hints);
+        let hintsArray = Array.isArray(data.data.hints)
+          ? data.data.hints
+          : [data.data.hint];
+
+        localStorage.setItem(hintLocalStorageKey, JSON.stringify(hintsArray));
+        setAiHints({
+          ...aiHints,
+          [questionIndex]: hintsArray,
+        });
+
+        if (!data.data.alreadyRequested) {
+          setHintsUsedCount((prev) => prev + 1);
+        }
+
+        setShowHints(true);
+      } else {
+        console.error("🤖 AI Error:", data.message);
+        if (hasTeacherHints) {
+          console.log("📚 AI failed, falling back to teacher hints");
+          setShowHints(true);
+        } else {
+          alert(data.message || "Unable to generate hint. No hints available.");
+        }
+      }
+    } catch (error) {
+      console.error("🤖 AI generation error:", error);
+      if (hasTeacherHints) {
+        console.log("📚 AI error, falling back to teacher hints");
+        setShowHints(true);
+      } else {
+        alert("Error: Could not generate hint. No hints available.");
+      }
+    }
+  }
+};
+
+const handleEmojiClick = async (emoji) => {
+  console.log(`😊 Emoji clicked: ${emoji}`);
+  setShowEmojiDialog(false);
+
+  if (emoji === "neutral" || emoji === "confused" || emoji === "frustrated") {
+    console.log(`✅ Proceeding with hint request for emotion: ${emoji}`);
+    await processHintRequest(pendingHintRequest);
+  } else {
+    console.log(`❌ Skipping hints for emotion: ${emoji}`);
+  }
+
+  setPendingHintRequest(null);
+};
+
   };
 
   const handleRevealHint = (index) => {
@@ -314,33 +771,88 @@ const QuizPage = () => {
   };
 
   const handleSubmit = async () => {
-    try {
-      // Calculate time taken
-      const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
-      
-      // Prepare answers array
-      const answersArray = quizData.questions.map((_, index) => answers[index]);
-      
-      const token = localStorage.getItem('token');
-      
-      // Submit to backend
-      const response = await axios.post(
-        `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
-        {
-          answers: answersArray,
-          timeTaken
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-      
-      console.log('✅ Quiz submitted:', response.data);
-      setQuizSubmitted(true);
-    } catch (error) {
-      console.error('❌ Error submitting quiz:', error);
-      alert('Failed to submit quiz. Please try again.');
+try {
+  // Submit quiz answers (from dev)
+  const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
+  const answersArray = quizData.questions.map((_, index) => answers[index]);
+  const token = localStorage.getItem('token');
+
+  const submitResponse = await axios.post(
+    `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
+    {
+      answers: answersArray,
+      timeTaken,
+    },
+    {
+      headers: { Authorization: `Bearer ${token}` },
     }
+  );
+  console.log('✅ Quiz submitted:', submitResponse.data);
+
+  // Then generate AI feedback (from your branch)
+  const userStr = localStorage.getItem("user");
+  if (userStr) {
+    const user = JSON.parse(userStr);
+    const rawScore = calculateScore();
+
+    const userId = user._id || user.id;
+
+    if (!userId) {
+      console.error("❌ User ID not found in localStorage");
+      setQuizSubmitted(true);
+      return;
+    }
+
+    console.log("📤 Submitting quiz feedback request:", {
+      userId,
+      quizId,
+      sessionId,
+      rawScore,
+      totalQuestions: quizData.questions.length,
+    });
+
+    const feedbackResponse = await fetch("http://localhost:5000/api/feedback", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        userId: userId,
+        quizId: quizId,
+        sessionId: sessionId,
+        rawScore: rawScore,
+        totalQuestions: quizData.questions.length,
+        answers: Object.entries(answers).map(([index, answer]) => ({
+          questionId: quizData.questions[index].id,
+          selectedAnswer: answer,
+          isCorrect: answer === quizData.questions[index].correctAnswer,
+        })),
+      }),
+    });
+
+    const data = await feedbackResponse.json();
+
+    if (data.success) {
+      console.log("🎯 AI Feedback generated:", data.data.feedback);
+      setAiFeedback(data.data);
+    } else {
+      console.error("❌ Feedback API error:", data.message);
+      setAiFeedback({
+        feedback: "Unable to generate personalized feedback at this time.",
+        emotionalSummary: null,
+        hintsUsed: 0,
+        finalScore: rawScore,
+      });
+    }
+  }
+} catch (error) {
+  console.error("Error during quiz submission or feedback:", error);
+  alert("Failed to submit quiz or generate feedback. Please try again.");
+}
+
+setQuizSubmitted(true);
+
   };
 
   const calculateScore = () => {
@@ -363,22 +875,33 @@ const QuizPage = () => {
   const matchesFilter = (index) => {
     const answered = answers[index] !== undefined;
     const isCurrent = index === currentQuestion;
-    const isFlagged = flaggedQuestions.includes(index);
+    const isFlagged = flaggedQuestions.has(index);
 
     if (activeFilter === "all") return true;
     if (activeFilter === "current") return isCurrent;
     if (activeFilter === "answered") return answered;
     if (activeFilter === "unanswered") return !answered;
+    if (activeFilter === "flagged") return isFlagged;
 
     return true;
   };
 
-  // Count flagged questions
-  const flaggedCount = flaggedQuestions.length;
-
   const handleFilterClick = (filter) => {
     // Always switch to the clicked filter (don't toggle off)
     setActiveFilter(filter);
+  };
+
+  // Toggle flag for current question
+  const toggleFlag = () => {
+    setFlaggedQuestions((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(currentQuestion)) {
+        newSet.delete(currentQuestion);
+      } else {
+        newSet.add(currentQuestion);
+      }
+      return newSet;
+    });
   };
 
   const handleDownloadPDF = () => {
@@ -719,21 +1242,108 @@ const QuizPage = () => {
             </div>
           </div>
 
-          <div className="bg-red-50 border-l-4 border-red-400 p-6 mb-8">
+          <div className="bg-red-50 border-l-4 border-red-400 p-6 mb-8 rounded-lg">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-gray-800">Your Score</h3>
               <div className="text-5xl font-bold text-red-500">
                 {percentage}%
               </div>
             </div>
-            <p className="text-gray-700 mb-4">
-              You answered{" "}
-              <span className="font-bold">
-                {score} out of {quizData.questions.length}
-              </span>{" "}
-              questions correctly
-            </p>
+
+            {/* Score Breakdown */}
+            <div className="space-y-3 mb-6">
+              <div className="flex justify-between items-center py-2 border-b border-red-200">
+                <span className="text-gray-700">Correct Answers:</span>
+                <span className="font-bold text-green-600">
+                  {score} / {quizData.questions.length}
+                </span>
+              </div>
+
+              {aiFeedback && aiFeedback.hintsUsed > 0 && (
+                <div className="flex justify-between items-center py-2 border-b border-red-200">
+                  <span className="text-gray-700">Hints Used Penalty:</span>
+                  <span className="font-bold text-orange-600">
+                    - {aiFeedback.hintsUsed} mark
+                    {aiFeedback.hintsUsed > 1 ? "s" : ""}
+                  </span>
+                </div>
+              )}
+
+              {aiFeedback && aiFeedback.finalScore !== undefined && (
+                <div className="flex justify-between items-center py-3 bg-white px-3 rounded-lg">
+                  <span className="text-lg font-bold text-gray-800">
+                    Final Score:
+                  </span>
+                  <span className="text-2xl font-bold text-red-500">
+                    {aiFeedback.finalScore} / {quizData.questions.length}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {aiFeedback && aiFeedback.hintsUsed > 0 && (
+              <p className="text-sm text-gray-600 italic">
+                💡 Each hint used deducts 1 mark from your final score
+              </p>
+            )}
           </div>
+
+          {/* AI Personalized Feedback */}
+          {aiFeedback && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 p-6 mb-8 rounded-lg shadow-md">
+              <div className="flex items-center mb-4">
+                <svg
+                  className="w-7 h-7 text-blue-600 mr-3"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                  <path
+                    fillRule="evenodd"
+                    d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <h3 className="text-xl font-bold text-gray-800">
+                  🤖 Personalized Performance Feedback
+                </h3>
+              </div>
+              {aiFeedback.feedback ? (
+                <>
+                  <p className="text-gray-700 leading-relaxed text-lg mb-4 italic">
+                    "{aiFeedback.feedback}"
+                  </p>
+                  {aiFeedback.emotionalSummary &&
+                    aiFeedback.emotionalSummary.totalCaptures > 0 && (
+                      <div className="mt-4 pt-4 border-t border-blue-200">
+                        <p className="text-sm text-gray-700">
+                          <span className="font-semibold text-blue-700">
+                            📊 Emotional Analysis:
+                          </span>{" "}
+                          Your most common emotional state was{" "}
+                          <span className="font-semibold">
+                            {aiFeedback.emotionalSummary.mostCommonEmotion}
+                          </span>
+                          {aiFeedback.emotionalSummary.confusedCount > 0 &&
+                            `. Moments of confusion were detected ${
+                              aiFeedback.emotionalSummary.confusedCount
+                            } time${
+                              aiFeedback.emotionalSummary.confusedCount > 1
+                                ? "s"
+                                : ""
+                            }`}
+                          .
+                        </p>
+                      </div>
+                    )}
+                </>
+              ) : (
+                <p className="text-gray-600 italic">
+                  Generating personalized feedback based on your performance...
+                </p>
+              )}
+            </div>
+          )}
 
           {quizData.questions.map((question, index) => {
             const userAnswer = answers[index];
@@ -859,8 +1469,8 @@ const QuizPage = () => {
           {quizData.questions.map((_, index) => {
             const answered = answers[index] !== undefined;
             const isCurrent = index === currentQuestion;
-            const isFlagged = flaggedQuestions.includes(index);
             const highlightQuestion = matchesFilter(index);
+            const isFlagged = flaggedQuestions.has(index);
 
             return (
               <button
@@ -887,18 +1497,17 @@ const QuizPage = () => {
                       ? "opacity-40"
                       : ""
                   }
-                  ${isFlagged ? "ring-2 ring-orange-400" : ""}
                 `}
               >
                 {index + 1}
-                {answered && !isCurrent && !isFlagged && (
+                {answered && !isCurrent && (
                   <div className="absolute -top-1 -right-1 bg-teal-700 rounded-full w-4 h-4 flex items-center justify-center">
                     <Check className="w-3 h-3 text-white" strokeWidth={3} />
                   </div>
                 )}
                 {isFlagged && (
-                  <div className="absolute -top-1 -right-1 bg-orange-500 rounded-full w-4 h-4 flex items-center justify-center">
-                    <Flag className="w-2.5 h-2.5 text-white fill-white" />
+                  <div className="absolute -top-1 -left-1">
+                    <Flag className="w-3 h-3 text-orange-500 fill-orange-500" />
                   </div>
                 )}
               </button>
@@ -909,72 +1518,54 @@ const QuizPage = () => {
         <div className="space-y-3 mb-8">
           <button
             onClick={() => handleFilterClick("current")}
-            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "current" ? "bg-green-200" : "hover:bg-green-50"
-            }`}
+            className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "current"
-                  ? "bg-green-500"
-                  : "bg-white border-2 border-teal-700"
-              }`}
-            ></div>
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+              {activeFilter === "current" && (
+                <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
+              )}
+            </div>
             <span className="text-sm text-gray-700">Current question</span>
           </button>
           <button
             onClick={() => handleFilterClick("answered")}
-            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "answered" ? "bg-green-200" : "hover:bg-green-50"
-            }`}
+            className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "answered"
-                  ? "bg-green-500"
-                  : "bg-white border-2 border-teal-700"
-              }`}
-            ></div>
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+              {activeFilter === "answered" && (
+                <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
+              )}
+            </div>
             <span className="text-sm text-gray-700">Answered</span>
           </button>
           <button
             onClick={() => handleFilterClick("unanswered")}
-            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "unanswered"
-                ? "bg-green-200"
-                : "hover:bg-green-50"
-            }`}
+            className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "unanswered"
-                  ? "bg-green-500"
-                  : "bg-white border-2 border-teal-700"
-              }`}
-            ></div>
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+              {activeFilter === "unanswered" && (
+                <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
+              )}
+            </div>
             <span className="text-sm text-gray-700">Unanswered</span>
           </button>
           <button
             onClick={() => handleFilterClick("flagged")}
-            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "flagged"
-                ? "bg-orange-200"
-                : "hover:bg-orange-50"
-            }`}
+            className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "flagged"
-                  ? "bg-orange-500"
-                  : "bg-white border-2 border-orange-500"
-              }`}
-            ></div>
-            <span className="text-sm text-gray-700">Flagged</span>
-            {flaggedCount > 0 && (
-              <span className="ml-auto text-xs font-bold bg-orange-500 text-white rounded-full px-2 py-0.5">
-                {flaggedCount}
-              </span>
-            )}
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+              {activeFilter === "flagged" && (
+                <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-sm text-gray-700">Flagged</span>
+              {flaggedQuestions.size > 0 && (
+                <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {flaggedQuestions.size}
+                </span>
+              )}
+            </div>
           </button>
         </div>
 
@@ -1027,49 +1618,77 @@ const QuizPage = () => {
 
           {/* Question Card */}
           <div className="bg-white rounded-lg shadow-md p-8 relative">
-            {showBulb && (
-              <button
-                onClick={handleBulbClick}
-                className="absolute top-6 right-6 animate-bounce"
-              >
-                <Lightbulb className="w-10 h-10 text-yellow-500 fill-yellow-200" />
-              </button>
+            {showBulb && bulbVisible && (
+              <div className="absolute top-6 right-6 flex flex-col items-center gap-1">
+                <button
+                  onClick={handleBulbClick}
+                  className="animate-bounce"
+                  title={
+                    cameraPermissionLoading
+                      ? "Checking camera permissions..."
+                      : webcamEnabled
+                      ? "AI Hint Available (Camera Enabled)"
+                      : "Teacher Hints Available (Camera Disabled)"
+                  }
+                  disabled={cameraPermissionLoading}
+                >
+                  <Lightbulb
+                    className={`w-10 h-10 ${
+                      cameraPermissionLoading
+                        ? "text-gray-400 fill-gray-200"
+                        : "text-yellow-500 fill-yellow-200"
+                    }`}
+                  />
+                </button>
+                {/* Hint type indicator */}
+                <div
+                  className={`text-xs px-2 py-1 rounded-full font-medium ${
+                    cameraPermissionLoading
+                      ? "bg-gray-100 text-gray-600 border border-gray-300"
+                      : webcamEnabled
+                      ? "bg-blue-100 text-blue-700 border border-blue-300"
+                      : "bg-green-100 text-green-700 border border-green-300"
+                  }`}
+                >
+                  {cameraPermissionLoading
+                    ? "⏳ Loading"
+                    : webcamEnabled
+                    ? "🤖 AI"
+                    : "📚 Teacher"}
+                </div>
+              </div>
             )}
 
             <div className="flex items-start justify-between mb-6">
-              <div>
+              <div className="flex items-center gap-3">
                 <h2 className="text-xl font-semibold text-gray-800">
                   Question {question.id}
                 </h2>
-              </div>
-              <button
-                onClick={() => handleToggleFlag(currentQuestion)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors"
-                title={
-                  flaggedQuestions.includes(currentQuestion)
-                    ? "Unflag this question"
-                    : "Flag this question for review"
-                }
-              >
-                <Flag
-                  className={`w-5 h-5 transition-colors ${
-                    flaggedQuestions.includes(currentQuestion)
-                      ? "text-orange-500 fill-orange-500"
-                      : "text-gray-400 hover:text-orange-500"
+                <button
+                  onClick={toggleFlag}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all ${
+                    flaggedQuestions.has(currentQuestion)
+                      ? "bg-orange-100 text-orange-700 border border-orange-300"
+                      : "bg-gray-100 text-gray-500 border border-gray-300 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200"
                   }`}
-                />
-                <span
-                  className={`text-sm font-medium ${
-                    flaggedQuestions.includes(currentQuestion)
-                      ? "text-orange-600"
-                      : "text-gray-600"
-                  }`}
+                  title={
+                    flaggedQuestions.has(currentQuestion)
+                      ? "Remove flag"
+                      : "Flag for review"
+                  }
                 >
-                  {flaggedQuestions.includes(currentQuestion)
-                    ? "Flagged"
-                    : "Flag"}
-                </span>
-              </button>
+                  <Flag
+                    className={`w-4 h-4 ${
+                      flaggedQuestions.has(currentQuestion)
+                        ? "fill-orange-600"
+                        : ""
+                    }`}
+                  />
+                  <span className="text-sm font-medium">
+                    {flaggedQuestions.has(currentQuestion) ? "Flagged" : "Flag"}
+                  </span>
+                </button>
+              </div>
             </div>
             <p className="text-lg text-gray-700 mb-8">{question.text}</p>
 
@@ -1128,41 +1747,100 @@ const QuizPage = () => {
 
             {/* Hints Section */}
             {showHints && (
-              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-6 border-2 border-yellow-200 mb-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Lightbulb className="w-6 h-6 text-yellow-600" />
-                  <h3 className="font-semibold text-gray-800">Need a hint?</h3>
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border-2 border-blue-300 mb-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <Lightbulb className="w-6 h-6 text-blue-600" />
+                  <h3 className="font-bold text-lg text-gray-800">
+                    {aiHints[currentQuestion]
+                      ? `🤖 AI-Generated Hints (${
+                          (Array.isArray(aiHints[currentQuestion])
+                            ? aiHints[currentQuestion]
+                            : [aiHints[currentQuestion]]
+                          ).length
+                        })`
+                      : "📚 Teacher Hints"}
+                  </h3>
                 </div>
-                <p className="text-sm text-gray-600 mb-4">
-                  You have {question.hints.length} hints available. Each hint
-                  provides additional information.
-                </p>
 
-                <div className="space-y-3">
-                  {question.hints.map((hint, index) => (
-                    <div
-                      key={index}
-                      className="bg-white rounded-lg p-4 border border-gray-200"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold text-gray-700">
-                          Hint {index + 1}
-                        </span>
-                        {!revealedHints.includes(index) && (
-                          <button
-                            onClick={() => handleRevealHint(index)}
-                            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                          >
-                            Reveal
-                          </button>
-                        )}
+                {/* AI Hints (if available) */}
+                {aiHints[currentQuestion] ? (
+                  <div className="grid grid-cols-1 gap-4">
+                    {(Array.isArray(aiHints[currentQuestion])
+                      ? aiHints[currentQuestion]
+                      : [aiHints[currentQuestion]]
+                    ).map((hint, index) => (
+                      <div
+                        key={index}
+                        className="bg-white rounded-lg p-4 border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-shadow"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 mt-1">
+                            <div className="flex items-center justify-center h-6 w-6 rounded-full bg-blue-100">
+                              <span className="text-blue-700 font-bold text-sm">
+                                {index + 1}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-semibold text-blue-700 mb-1">
+                              Hint {index + 1}
+                            </p>
+                            <p className="text-gray-700 text-sm leading-relaxed">
+                              {hint}
+                            </p>
+                          </div>
+                          {index === 0 && (
+                            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-medium">
+                              -1 mark
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      {revealedHints.includes(index) && (
-                        <p className="text-gray-700">{hint}</p>
-                      )}
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-600 mb-4">
+                      You have{" "}
+                      {
+                        question.hints.filter(
+                          (hint) => hint && hint.trim() !== ""
+                        ).length
+                      }{" "}
+                      hints available. Each hint provides additional
+                      information.
+                    </p>
+
+                    <div className="space-y-3">
+                      {question.hints
+                        .map((hint, index) => ({ hint, index }))
+                        .filter(({ hint }) => hint && hint.trim() !== "")
+                        .map(({ hint, index }) => (
+                          <div
+                            key={index}
+                            className="bg-white rounded-lg p-4 border border-gray-200"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-semibold text-gray-700">
+                                Hint {index + 1}
+                              </span>
+                              {!revealedHints.includes(index) && (
+                                <button
+                                  onClick={() => handleRevealHint(index)}
+                                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                >
+                                  Reveal
+                                </button>
+                              )}
+                            </div>
+                            {revealedHints.includes(index) && (
+                              <p className="text-gray-700">{hint}</p>
+                            )}
+                          </div>
+                        ))}
                     </div>
-                  ))}
-                </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -1205,6 +1883,55 @@ const QuizPage = () => {
         </div>
       </div>
 
+      {/* Camera Permission Dialog */}
+      {showCameraPermissionDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
+            <h3 className="text-2xl font-bold text-center text-gray-800 mb-4">
+              📷 Camera Permission Required
+            </h3>
+            <p className="text-gray-600 text-center mb-6">
+              {cameraPermissionDenied
+                ? "Camera permission was denied. You can still take the quiz, but AI-powered hints won't be available."
+                : "To enable emotion-based AI hints, we need camera access. Your video stream will only be used to detect emotions - no recordings are stored."}
+            </p>
+            <div className="flex gap-4">
+              {!cameraPermissionDenied ? (
+                <>
+                  <button
+                    onClick={() => {
+                      console.log("⏭️  Skipping camera permission");
+                      setCameraPermissionLoading(false);
+                      setWebcamEnabled(false);
+                      setShowCameraPermissionDialog(false);
+                      console.log(
+                        "🎯 CAMERA PERMISSION FINAL: ❌ DENIED - Teacher hints only"
+                      );
+                    }}
+                    className="flex-1 px-4 py-3 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition-colors"
+                  >
+                    Skip for Now
+                  </button>
+                  <button
+                    onClick={() => requestCameraPermission()}
+                    className="flex-1 px-4 py-3 bg-teal-700 text-white rounded-lg font-semibold hover:bg-teal-800 transition-colors"
+                  >
+                    Allow Camera
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowCameraPermissionDialog(false)}
+                  className="w-full px-4 py-3 bg-teal-700 text-white rounded-lg font-semibold hover:bg-teal-800 transition-colors"
+                >
+                  Continue Without Camera
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Emoji Dialog */}
       {showEmojiDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1233,6 +1960,15 @@ const QuizPage = () => {
           </div>
         </div>
       )}
+
+      {/* Hidden webcam video for AI emotion tracking */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ display: "none" }}
+      />
     </div>
   );
 };

@@ -143,23 +143,23 @@ export const submitQuizAnswers = async (req, res) => {
       submittedAt: new Date()
     };
 
-    // Create submission confirmation notification for student
-    try {
-      await Notification.create({
-        recipientId: userId,
-        recipientRole: 'student',
-        type: 'quiz_assigned',
-        title: quiz.title || 'Quiz Submitted',
-        description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
-        quizId: quizId,
-        score: `${score}/100`,
-        status: 'graded',
-        isRead: false
-      });
-      console.log('✅ Submission notification created for student:', userId);
-    } catch (notifError) {
-      console.error('❌ Error creating submission notification:', notifError);
-    }
+// Create submission confirmation notification for student
+try {
+  await Notification.create({
+    recipientId: userId,
+    recipientRole: 'student',
+    type: 'quiz_assigned',
+    title: quiz.title || 'Quiz Submitted',
+    description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
+    quizId: quizId,
+    score: `${score}/100`,
+    status: 'graded',
+    isRead: false
+  });
+  console.log('✅ Submission notification created for student:', userId);
+} catch (notifError) {
+  console.error('❌ Error creating submission notification:', notifError);
+}
 
     res.json({
       success: true,

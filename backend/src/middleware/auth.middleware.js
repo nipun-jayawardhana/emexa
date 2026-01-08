@@ -4,11 +4,19 @@ import Teacher from '../models/teacher.js';
 import User from '../models/user.js';
 
 /**
- * authenticateToken - Main authentication middleware
- * Verifies JWT and attaches user to request
- * This is an alias for the protect middleware
+/**
+ * Protect middleware - Verifies JWT and finds user
+ * Sets req.user and req.userId for downstream use
  */
-export const authenticateToken = async (req, res, next) => {
+export const protect = async (req, res, next) => {
+  // middleware logic stays here
+};
+
+/**
+ * authenticateToken - Alias for protect middleware
+ */
+export const authenticateToken = protect;
+
   try {
     let token;
 
@@ -81,12 +89,15 @@ export const authenticateToken = async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error('❌ Authenticate token error:', error);
+console.error('❌ Authentication middleware error:', error);
+
     next(error);
   }
 };
 
 /**
+ * Authorize middleware - Ensures user has required role(s)
+ * Use after protect middleware
  * Protect middleware - Verifies JWT and finds user
  * Sets req.user and req.userId for downstream use
  * (Alias for authenticateToken for backward compatibility)

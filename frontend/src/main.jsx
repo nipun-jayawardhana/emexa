@@ -27,6 +27,7 @@ import RequireAuth from "./components/RequireAuth";
 import ProtectedRoute from "./components/ProtectedRoute";
 import HelpSupportCentre from './pages/HelpSupportCentre';
 
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>
@@ -181,9 +182,8 @@ createRoot(document.getElementById("root")).render(
 
         {/* 404 Catch-all - Redirect to landing page */}
         <Route path="*" element={<Navigate to="/" replace />} />
-
         <Route path="/help-support" element={<HelpSupportCentre />} />
-        
+
       </Routes>
     </BrowserRouter>
   </StrictMode>

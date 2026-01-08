@@ -160,6 +160,7 @@ userSchema.methods.generateAuthToken = function() {
 
 // Index for faster queries
 userSchema.index({ email: 1 });
+
 userSchema.index({ role: 1 });
 userSchema.index({ approvalStatus: 1 });
 

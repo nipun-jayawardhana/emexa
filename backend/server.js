@@ -1,8 +1,12 @@
 import dotenv from 'dotenv';
-dotenv.config(); // MUST BE FIRST!
+dotenv.config({ path: './.env' }); // MUST BE FIRST!
+console.log('🔍 .env loaded, MONGO_URI:', process.env.MONGO_URI ? 'SET' : 'NOT SET');
 
 // Auto-restart enabled with nodemon
 import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+
 import path from 'path';
 import fs from 'fs';
 import cors from 'cors';
@@ -22,6 +26,13 @@ import cameraRoutes from './src/routes/cameraRoutes.js';
 import teacherRoutes from './src/routes/teacherRoutes.js';
 import wellnessRoutes from './src/routes/wellnessRoutes.js';
 import teacherQuizRoutes from './src/routes/teacherQuizRoutes.js';
+// AI Feature Routes
+import emotionRoutes from './src/routes/emotionRoutes.js';
+import hintRoutes from './src/routes/hintRoutes.js';
+import feedbackRoutes from './src/routes/feedbackRoutes.js';
+// Socket handler
+import { initializeEmotionSocket } from './src/socket/emotionSocket.js'; 
+
 import notificationRoutes from './src/routes/notificationRoutes.js';
 import aiQuizRoutes from './src/routes/aiQuizRoutes.js';
 import wellnessAIRoutes from './src/routes/wellnessAIRoutes.js';
@@ -29,9 +40,22 @@ import moodRoutes from './src/routes/moodRoutes.js';
 import helpSupportRoutes from './src/routes/helpSupportRoutes.js';
 
 const app = express();
+const httpServer = createServer(app);
+
+// Initialize Socket.IO with CORS
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
 
 // Connect to DB
 connectDB();
+
+// Initialize emotion tracking socket
+initializeEmotionSocket(io);
 
 // Middleware
 app.use(cors({
@@ -68,11 +92,17 @@ app.use('/api/camera', cameraRoutes);
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/wellness', wellnessRoutes);
 app.use('/api/teacher-quizzes', teacherQuizRoutes);
+// AI Feature Routes
+app.use('/api/emotion', emotionRoutes);
+app.use('/api/hint', hintRoutes);
+app.use('/api/feedback', feedbackRoutes); 
+
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai-quiz', aiQuizRoutes);
 app.use('/api/wellness-ai', wellnessAIRoutes);
 app.use('/api/moods', moodRoutes);
 app.use('/api/help-support', helpSupportRoutes);
+
 
 // Health check
 app.get('/', (req, res) => {
@@ -128,14 +158,17 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
 
-app.listen(PORT, HOST, () => {
+httpServer.listen(PORT, HOST, () => {
   console.log('\n' + '='.repeat(50));
   console.log('🚀 EMEXA Server Started Successfully!');
   console.log('='.repeat(50));
   console.log(`📍 Server URL: http://${HOST}:${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`☁️  Cloudinary: ${process.env.CLOUDINARY_CLOUD_NAME ? '✅ ' + process.env.CLOUDINARY_CLOUD_NAME : '❌ Not configured'}`);
-  console.log(`🤖 AI Services:Gemini: ${process.env.GEMINI_API_KEY ? '✅ Configured' : '❌ Not configured'}`);
+console.log(`🤖 AI Features: ${process.env.HF_API_KEY ? '✅ Hugging Face API configured' : '⚠️  HF_API_KEY not set'}`);
+console.log(`🔌 WebSocket: ✅ Socket.IO running on /emotion namespace`);
+console.log(`🤖 AI Services: Gemini: ${process.env.GEMINI_API_KEY ? '✅ Configured' : '❌ Not configured'}`);
+
   console.log('='.repeat(50) + '\n');
 });
 
