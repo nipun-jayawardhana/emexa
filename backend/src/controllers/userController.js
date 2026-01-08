@@ -2,6 +2,9 @@ import userService from '../services/user.service.js';
 import User from '../models/user.js';
 import Student from '../models/student.js';
 import Teacher from '../models/teacher.js';
+import { QuizResult } from '../models/quiz.js';
+import TeacherQuiz from '../models/teacherQuiz.js';
+import Notification from '../models/notification.js';
 import bcrypt from 'bcrypt';
 
 // ============================================
@@ -67,36 +70,260 @@ export const createUser = async (req, res) => {
 };
 
 // ============================================
-// DASHBOARD DATA
+// HELPER FUNCTION TO CALCULATE DASHBOARD STATS
+// ============================================
+const calculateDashboardStats = async (userId) => {
+  console.log('📊 Calculating dashboard stats for userId:', userId);
+
+  // Get all quiz results for this user
+  const quizResults = await QuizResult.find({ userId: userId }).lean();
+  console.log('📝 Found quiz results:', quizResults.length);
+
+  // Calculate Total Quizzes (completed quizzes)
+  const totalQuizzes = quizResults.length;
+
+  // Calculate Average Score
+  let averageScore = 0;
+  if (quizResults.length > 0) {
+    const totalScore = quizResults.reduce((sum, result) => sum + result.score, 0);
+    averageScore = Math.round(totalScore / quizResults.length);
+  }
+
+  // Calculate Study Time (in hours)
+  let studyTime = 0;
+  if (quizResults.length > 0) {
+    const totalSeconds = quizResults.reduce((sum, result) => sum + (result.timeTaken || 0), 0);
+    studyTime = Math.round(totalSeconds / 3600); // Convert seconds to hours
+  }
+
+  // Get upcoming quizzes
+  const now = new Date();
+  
+  // Get quiz notifications for this student
+  const quizNotifications = await Notification.find({
+    recipientId: userId,
+    type: 'quiz_assigned',
+    recipientRole: 'student'
+  }).lean();
+
+  console.log('🔔 Found quiz notifications:', quizNotifications.length);
+
+  // Get the actual quiz details for each notification
+  const upcomingQuizzesPromises = quizNotifications.map(async (notification) => {
+    try {
+      const quizId = notification.quizId;
+      const quiz = await TeacherQuiz.findById(quizId).lean();
+      
+      if (!quiz || quiz.isDeleted) return null;
+      
+      // Check if already completed
+      const hasCompleted = await QuizResult.findOne({
+        userId: userId,
+        quizId: quizId
+      });
+      
+      if (hasCompleted) return null; // Don't show completed quizzes
+      
+      // Check time status
+      let timeStatus = 'active';
+      let isCurrentlyActive = true;
+      
+      if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+        const scheduleDate = new Date(quiz.scheduleDate);
+        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+        
+        const startDateTime = new Date(scheduleDate);
+        startDateTime.setHours(startHour, startMinute, 0, 0);
+        
+        const endDateTime = new Date(scheduleDate);
+        endDateTime.setHours(endHour, endMinute, 0, 0);
+        
+        if (now < startDateTime) {
+          timeStatus = 'upcoming';
+          isCurrentlyActive = false;
+        } else if (now >= startDateTime && now < endDateTime) {
+          timeStatus = 'active';
+          isCurrentlyActive = true;
+        } else {
+          timeStatus = 'expired';
+          isCurrentlyActive = false;
+        }
+      }
+      
+      return {
+        id: quiz._id,
+        title: quiz.title,
+        subject: quiz.subject,
+        description: `${quiz.questions?.length || 0} question${quiz.questions?.length !== 1 ? 's' : ''}`,
+        date: quiz.dueDate,
+        dueDate: quiz.dueDate,
+        scheduleDate: quiz.scheduleDate,
+        startTime: quiz.startTime,
+        endTime: quiz.endTime,
+        questions: quiz.questions,
+        timeStatus: timeStatus,
+        isCurrentlyActive: isCurrentlyActive
+      };
+    } catch (err) {
+      console.error('Error fetching quiz:', err);
+      return null;
+    }
+  });
+
+  const upcomingQuizzesResults = await Promise.all(upcomingQuizzesPromises);
+  const upcomingQuizzes = upcomingQuizzesResults.filter(q => q !== null);
+
+  console.log('📚 Upcoming quizzes processed:', upcomingQuizzes.length);
+
+  // Get recent activity
+  const recentResults = await QuizResult.find({ userId: userId })
+    .sort({ submittedAt: -1 })
+    .limit(5)
+    .lean();
+
+  const recentActivity = await Promise.all(
+    recentResults.map(async (result) => {
+      // Try to find the quiz details
+      let quizTitle = 'Quiz';
+      try {
+        const quiz = await TeacherQuiz.findById(result.quizId).lean();
+        if (quiz) quizTitle = quiz.title;
+      } catch (err) {
+        console.log('Could not find quiz:', result.quizId);
+      }
+
+      return {
+        type: 'Completed Quiz',
+        title: quizTitle,
+        date: result.submittedAt,
+        score: result.score,
+        status: 'completed'
+      };
+    })
+  );
+
+  return {
+    totalQuizzes,
+    averageScore,
+    studyTime,
+    upcomingQuizzes,
+    recentActivity
+  };
+};
+
+// ============================================
+// DASHBOARD DATA FOR LOGGED-IN USER
 // ============================================
 export const getDashboardData = async (req, res) => {
   try {
+    console.log('📊 Fetching dashboard data for userId:', req.userId);
+    
+    // Find the user
     let user = await User.findById(req.userId).select('-password');
+    let userCollection = 'User';
     
     if (!user) {
       user = await Student.findById(req.userId).select('-password');
+      userCollection = 'Student';
     }
     
     if (!user) {
       user = await Teacher.findById(req.userId).select('-password');
+      userCollection = 'Teacher';
     }
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    console.log(`✅ User found in ${userCollection}:`, user.email);
+
+    // Calculate stats
+    const stats = await calculateDashboardStats(req.userId);
+
+    // Update user model with calculated values
+    user.totalQuizzes = stats.totalQuizzes;
+    user.averageScore = stats.averageScore;
+    user.studyTime = stats.studyTime;
+    await user.save();
+
+    console.log('✅ Dashboard stats calculated:', stats);
+
+    // Return response
     res.status(200).json({
       name: user.name,
       email: user.email,
-      totalQuizzes: user.totalQuizzes || 0,
-      averageScore: user.averageScore || 0,
-      studyTime: user.studyTime || 0,
-      upcomingQuizzes: user.upcomingQuizzes || [],
-      recentActivity: user.recentActivity || [],
+      totalQuizzes: stats.totalQuizzes,
+      averageScore: stats.averageScore,
+      studyTime: stats.studyTime,
+      upcomingQuizzes: stats.upcomingQuizzes,
+      recentActivity: stats.recentActivity,
     });
   } catch (error) {
     console.error('❌ Get dashboard data error:', error);
-    res.status(500).json({ message: 'Error fetching dashboard data', error: error.message });
+    res.status(500).json({ 
+      message: 'Error fetching dashboard data', 
+      error: error.message 
+    });
+  }
+};
+
+// ============================================
+// NEW: GET DASHBOARD DATA FOR SPECIFIC USER (ADMIN USE)
+// ============================================
+export const getUserDashboardById = async (req, res) => {
+  try {
+    const targetUserId = req.params.userId;
+    console.log('📊 Admin fetching dashboard data for userId:', targetUserId);
+    
+    // Find the target user
+    let user = await User.findById(targetUserId).select('-password');
+    let userCollection = 'User';
+    
+    if (!user) {
+      user = await Student.findById(targetUserId).select('-password');
+      userCollection = 'Student';
+    }
+    
+    if (!user) {
+      user = await Teacher.findById(targetUserId).select('-password');
+      userCollection = 'Teacher';
+    }
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    console.log(`✅ User found in ${userCollection}:`, user.email);
+
+    // Calculate stats for this user
+    const stats = await calculateDashboardStats(targetUserId);
+
+    // Update user model with calculated values
+    user.totalQuizzes = stats.totalQuizzes;
+    user.averageScore = stats.averageScore;
+    user.studyTime = stats.studyTime;
+    await user.save();
+
+    console.log('✅ Dashboard stats calculated for user:', stats);
+
+    // Return response
+    res.status(200).json({
+      name: user.name,
+      email: user.email,
+      totalQuizzes: stats.totalQuizzes,
+      averageScore: stats.averageScore,
+      studyTime: stats.studyTime,
+      upcomingQuizzes: stats.upcomingQuizzes,
+      recentActivity: stats.recentActivity,
+    });
+  } catch (error) {
+    console.error('❌ Get user dashboard by ID error:', error);
+    res.status(500).json({ 
+      message: 'Error fetching user dashboard data', 
+      error: error.message 
+    });
   }
 };
 
