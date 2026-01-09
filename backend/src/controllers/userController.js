@@ -70,7 +70,7 @@ export const createUser = async (req, res) => {
 };
 
 // ============================================
-// HELPER FUNCTION TO CALCULATE DASHBOARD STATS
+// HELPER FUNCTION TO CALCULATE DASHBOARD STATS (FIXED)
 // ============================================
 const calculateDashboardStats = async (userId) => {
   console.log('📊 Calculating dashboard stats for userId:', userId);
@@ -89,11 +89,23 @@ const calculateDashboardStats = async (userId) => {
     averageScore = Math.round(totalScore / quizResults.length);
   }
 
-  // Calculate Study Time (in hours)
+  // ✅ FIXED: Calculate Study Time (in hours) - Better rounding
   let studyTime = 0;
   if (quizResults.length > 0) {
     const totalSeconds = quizResults.reduce((sum, result) => sum + (result.timeTaken || 0), 0);
-    studyTime = Math.round(totalSeconds / 3600); // Convert seconds to hours
+    
+    // Convert to hours with proper rounding
+    // This ensures that even small amounts of time are counted
+    studyTime = Math.max(1, Math.round(totalSeconds / 3600)); // Minimum 1 hour if any quizzes completed
+    
+    // Alternative: Show fractional hours (more accurate)
+    // studyTime = Math.round((totalSeconds / 3600) * 10) / 10; // e.g., 2.3 hours
+    
+    console.log('⏱️ Study time calculation:', {
+      totalSeconds,
+      totalMinutes: Math.round(totalSeconds / 60),
+      studyTimeHours: studyTime
+    });
   }
 
   // Get upcoming quizzes
@@ -202,6 +214,14 @@ const calculateDashboardStats = async (userId) => {
       };
     })
   );
+
+  console.log('✅ Final dashboard stats:', {
+    totalQuizzes,
+    averageScore,
+    studyTime,
+    upcomingQuizzesCount: upcomingQuizzes.length,
+    recentActivityCount: recentActivity.length
+  });
 
   return {
     totalQuizzes,
