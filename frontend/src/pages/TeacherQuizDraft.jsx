@@ -1087,7 +1087,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
 
       {/* Schedule Modal */}
       {showScheduleModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-100">
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
               Schedule Quiz
@@ -1171,7 +1171,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && quizToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-100">
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
             <h2 className="text-xl font-bold text-gray-900 mb-2">
               Confirm Delete
@@ -1212,7 +1212,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
 
       {/* Share Confirmation Modal */}
       {showShareModal && quizToShare && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-100">
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -1289,7 +1289,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
 
       {/* Due Date Modal */}
       {showDueDateModal && selectedQuizForDueDate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-100">
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
               {selectedQuizForDueDate.dueDate

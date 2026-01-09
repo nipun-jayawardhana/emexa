@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import {
@@ -13,6 +19,7 @@ import {
 } from "lucide-react";
 import { io } from "socket.io-client";
 import teacherQuizService from "../services/teacherQuizService";
+// cspell:disable-next-line headerlogo
 import headerLogo from "../assets/headerlogo.png";
 import DownloadIcon from "../assets/download.png";
 
@@ -42,7 +49,7 @@ const QuizPage = () => {
     try {
       const saved = localStorage.getItem("flaggedQuestions");
       return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch (err) {
+    } catch {
       return new Set();
     }
   });
@@ -58,7 +65,6 @@ const QuizPage = () => {
   const [cameraPermissionLoading, setCameraPermissionLoading] = useState(false);
   const [videoStream, setVideoStream] = useState(null);
   const videoRef = useRef(null);
-  const [hintsUsedCount, setHintsUsedCount] = useState(0);
   const [showCameraPermissionDialog, setShowCameraPermissionDialog] =
     useState(false);
   const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
@@ -67,6 +73,9 @@ const QuizPage = () => {
   // Load quiz data on component mount
   useEffect(() => {
     loadQuizData();
+
+    // Capture videoRef.current to avoid stale closure in cleanup
+    const currentVideoRef = videoRef.current;
 
     // Check camera permission from localStorage (set by Permission page)
     const cameraPermission = localStorage.getItem("cameraPermission");
@@ -99,14 +108,15 @@ const QuizPage = () => {
       if (emotionSocket) {
         emotionSocket.disconnect();
       }
-      if (videoRef.current && videoRef.current.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+      const videoElement = currentVideoRef;
+      if (videoElement && videoElement.srcObject) {
+        videoElement.srcObject.getTracks().forEach((track) => track.stop());
       }
       if (videoStream) {
         videoStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [quizId]);
+  }, [quizId, emotionSocket, initializeAI, loadQuizData, videoStream]);
 
   // Attach video stream to element when it becomes available
   useEffect(() => {
@@ -141,13 +151,11 @@ const QuizPage = () => {
   }, [cameraPermissionLoading, webcamEnabled]);
 
   // Initialize AI features (Socket.IO connection only - no webcam yet)
-  const initializeAI = async () => {
+  const initializeAI = useCallback(async () => {
     try {
       // Get user info from localStorage
       const userStr = localStorage.getItem("user");
       if (!userStr) return;
-
-      const user = JSON.parse(userStr);
 
       // Connect to emotion tracking socket
       const socket = io("http://localhost:5000/emotion", {
@@ -176,7 +184,7 @@ const QuizPage = () => {
     } catch (error) {
       console.error("AI initialization error:", error);
     }
-  };
+  }, [sessionId]);
 
   // Request webcam permission and start emotion tracking
   const requestCameraPermission = async () => {
@@ -289,9 +297,91 @@ const QuizPage = () => {
     const interval = setInterval(captureEmotion, 10000);
 
     return () => clearInterval(interval);
-  }, [webcamEnabled, emotionSocket, currentQuestion, quizSubmitted]);
+  }, [webcamEnabled, emotionSocket, currentQuestion, quizSubmitted, sessionId]);
 
-  const loadQuizData = async () => {
+  const sampleQuestions = useMemo(
+    () => [
+      {
+        id: 1,
+        text: "Which of the following is NOT a characteristic of living organisms?",
+        options: [
+          "Growth and development",
+          "Response to environment",
+          "Crystalline structure",
+          "Reproduction",
+        ],
+        correctAnswer: 2,
+        hints: [
+          "This process occurs in plants and some bacteria.",
+          "It involves the conversion of carbon dioxide and water into glucose and oxygen.",
+          "Chlorophyll is essential for this process.",
+          "The answer is related to photosynthesis characteristics.",
+        ],
+      },
+      {
+        id: 2,
+        text: "What is the powerhouse of the cell?",
+        options: [
+          "Nucleus",
+          "Mitochondria",
+          "Ribosome",
+          "Endoplasmic reticulum",
+        ],
+        correctAnswer: 1,
+        hints: [
+          "This organelle is responsible for energy production.",
+          "It produces ATP through cellular respiration.",
+          "It has its own DNA.",
+          "Often called the energy factory of the cell.",
+        ],
+      },
+      {
+        id: 3,
+        text: "Which of the following is NOT a nucleotide found in DNA?",
+        options: ["Adenine", "Guanine", "Uracil", "Cytosine"],
+        correctAnswer: 2,
+        hints: [
+          "DNA contains four bases.",
+          "This nucleotide is found in RNA, not DNA.",
+          "Thymine replaces this base in DNA.",
+          "The answer starts with 'U'.",
+        ],
+      },
+      {
+        id: 4,
+        text: "Which organelle is responsible for protein synthesis?",
+        // cspell:disable-next-line Lysosome Peroxisome
+        options: ["Golgi apparatus", "Lysosome", "Ribosome", "Peroxisome"],
+        correctAnswer: 2,
+        hints: [
+          "These are found on the rough endoplasmic reticulum.",
+          "They translate mRNA into proteins.",
+          "They can be free-floating or attached.",
+          "They read messenger RNA sequences.",
+        ],
+      },
+      {
+        id: 5,
+        text: "Which of the following is NOT a function of proteins in the human body?",
+        options: [
+          "Energy storage",
+          "Structural support",
+          "Transport of substances",
+          "Catalyzing biochemical reactions",
+        ],
+        correctAnswer: 0,
+        hints: [
+          "Proteins have many functions but one is primarily handled by other molecules.",
+          "Fats and carbohydrates are better suited for this function.",
+          "This is not a primary role of proteins.",
+          "Think about what lipids do better than proteins.",
+        ],
+      },
+    ],
+    []
+  );
+
+  const loadQuizData = useCallback(async () => {
     try {
       console.log("Quiz Page - Loading quiz with ID:", quizId);
       console.log("Quiz Page - URL:", window.location.href);
@@ -421,80 +511,7 @@ const QuizPage = () => {
       });
       setLoading(false);
     }
-  };
-
-  const sampleQuestions = [
-    {
-      id: 1,
-      text: "Which of the following is NOT a characteristic of living organisms?",
-      options: [
-        "Growth and development",
-        "Response to environment",
-        "Crystalline structure",
-        "Reproduction",
-      ],
-      correctAnswer: 2,
-      hints: [
-        "This process occurs in plants and some bacteria.",
-        "It involves the conversion of carbon dioxide and water into glucose and oxygen.",
-        "Chlorophyll is essential for this process.",
-        "The answer is related to photosynthesis characteristics.",
-      ],
-    },
-    {
-      id: 2,
-      text: "What is the powerhouse of the cell?",
-      options: ["Nucleus", "Mitochondria", "Ribosome", "Endoplasmic reticulum"],
-      correctAnswer: 1,
-      hints: [
-        "This organelle is responsible for energy production.",
-        "It produces ATP through cellular respiration.",
-        "It has its own DNA.",
-        "Often called the energy factory of the cell.",
-      ],
-    },
-    {
-      id: 3,
-      text: "Which of the following is NOT a nucleotide found in DNA?",
-      options: ["Adenine", "Guanine", "Uracil", "Cytosine"],
-      correctAnswer: 2,
-      hints: [
-        "DNA contains four bases.",
-        "This nucleotide is found in RNA, not DNA.",
-        "Thymine replaces this base in DNA.",
-        "The answer starts with 'U'.",
-      ],
-    },
-    {
-      id: 4,
-      text: "Which organelle is responsible for protein synthesis?",
-      options: ["Golgi apparatus", "Lysosome", "Ribosome", "Peroxisome"],
-      correctAnswer: 2,
-      hints: [
-        "These are found on the rough endoplasmic reticulum.",
-        "They translate mRNA into proteins.",
-        "They can be free-floating or attached.",
-        "They read messenger RNA sequences.",
-      ],
-    },
-    {
-      id: 5,
-      text: "Which of the following is NOT a function of proteins in the human body?",
-      options: [
-        "Energy storage",
-        "Structural support",
-        "Transport of substances",
-        "Catalyzing biochemical reactions",
-      ],
-      correctAnswer: 0,
-      hints: [
-        "Proteins have many functions but one is primarily handled by other molecules.",
-        "Fats and carbohydrates are better suited for this function.",
-        "This is not a primary role of proteins.",
-        "Think about what lipids do better than proteins.",
-      ],
-    },
-  ];
+  }, [quizId, sampleQuestions]);
 
   // Timer effect for current question
   useEffect(() => {
@@ -536,18 +553,6 @@ const QuizPage = () => {
 
   const handleAnswerSelect = (optionIndex) => {
     setAnswers({ ...answers, [currentQuestion]: optionIndex });
-  };
-
-  const handleToggleFlag = (index) => {
-    setFlaggedQuestions((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(index)) {
-        newSet.delete(index);
-      } else {
-        newSet.add(index);
-      }
-      return newSet;
-    });
   };
 
   const handleBulbClick = async () => {
@@ -643,14 +648,8 @@ const QuizPage = () => {
   const processHintRequest = async (request) => {
     if (!request) return;
 
-    const {
-      type,
-      questionIndex,
-      question,
-      hasTeacherHints,
-      cachedHints,
-      localStorageKey,
-    } = request;
+    const { type, questionIndex, question, hasTeacherHints, cachedHints } =
+      request;
 
     if (type === "existing") {
       console.log("✅ Showing existing hints from memory");
@@ -668,7 +667,7 @@ const QuizPage = () => {
             ? parsedHints
             : [cachedHints],
         });
-      } catch (e) {
+      } catch {
         setAiHints({
           ...aiHints,
           [questionIndex]: [cachedHints],
@@ -726,10 +725,6 @@ const QuizPage = () => {
             ...aiHints,
             [questionIndex]: hintsArray,
           });
-
-          if (!data.data.alreadyRequested) {
-            setHintsUsedCount((prev) => prev + 1);
-          }
 
           setShowHints(true);
         } else {
@@ -1187,7 +1182,7 @@ const QuizPage = () => {
   // Show loading state
   if (loading || !quizData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-linear-to-br from-green-50 to-teal-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-teal-700 mx-auto mb-4"></div>
           <p className="text-gray-600 text-lg">Loading quiz...</p>
@@ -1201,7 +1196,7 @@ const QuizPage = () => {
     const percentage = Math.round((score / quizData.questions.length) * 100);
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-linear-to-br from-green-50 to-teal-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-8">
           <div className="bg-teal-700 text-white px-6 py-4 rounded-t-xl -mx-8 -mt-8 mb-8">
             <h2 className="text-2xl font-bold">
@@ -1222,7 +1217,7 @@ const QuizPage = () => {
             </p>
           </div>
 
-          <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-xl p-6 mb-8">
+          <div className="bg-linear-to-r from-green-50 to-teal-50 rounded-xl p-6 mb-8">
             <div className="flex items-center justify-center mb-4">
               <svg
                 className="w-8 h-8 text-yellow-500 mr-2"
@@ -1307,7 +1302,7 @@ const QuizPage = () => {
 
           {/* AI Personalized Feedback */}
           {aiFeedback && (
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 p-6 mb-8 rounded-lg shadow-md">
+            <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 p-6 mb-8 rounded-lg shadow-md">
               <div className="flex items-center mb-4">
                 <svg
                   className="w-7 h-7 text-blue-600 mr-3"
@@ -1380,9 +1375,9 @@ const QuizPage = () => {
                   </h4>
                   {question.type === "mcq" &&
                     (isCorrect ? (
-                      <Check className="w-6 h-6 text-green-500 flex-shrink-0 ml-4" />
+                      <Check className="w-6 h-6 text-green-500 shrink-0 ml-4" />
                     ) : (
-                      <X className="w-6 h-6 text-red-500 flex-shrink-0 ml-4" />
+                      <X className="w-6 h-6 text-red-500 shrink-0 ml-4" />
                     ))}
                 </div>
 
@@ -1477,7 +1472,7 @@ const QuizPage = () => {
   const question = quizData.questions[currentQuestion];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-50 flex">
+    <div className="min-h-screen bg-linear-to-br from-green-50 to-teal-50 flex">
       {/* Left Sidebar */}
       <div className="w-64 bg-green-100 p-6 flex flex-col">
         <h2 className="text-xl font-bold text-gray-800 mb-6">Questions</h2>
@@ -1537,7 +1532,7 @@ const QuizPage = () => {
             onClick={() => handleFilterClick("current")}
             className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center shrink-0">
               {activeFilter === "current" && (
                 <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
               )}
@@ -1548,7 +1543,7 @@ const QuizPage = () => {
             onClick={() => handleFilterClick("answered")}
             className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center shrink-0">
               {activeFilter === "answered" && (
                 <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
               )}
@@ -1559,7 +1554,7 @@ const QuizPage = () => {
             onClick={() => handleFilterClick("unanswered")}
             className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center shrink-0">
               {activeFilter === "unanswered" && (
                 <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
               )}
@@ -1570,7 +1565,7 @@ const QuizPage = () => {
             onClick={() => handleFilterClick("flagged")}
             className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center shrink-0">
               {activeFilter === "flagged" && (
                 <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
               )}
@@ -1597,6 +1592,7 @@ const QuizPage = () => {
           <div className="flex items-center justify-center gap-2 mb-2">
             <img
               src={headerLogo}
+              // cspell:disable-next-line EMEXA
               alt="EMEXA Logo"
               className="w-50 h-50 object-contain"
             />
@@ -1728,7 +1724,7 @@ const QuizPage = () => {
                     <div className="flex items-center gap-4">
                       <div
                         className={`
-                        w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0
+                        w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0
                         ${
                           answers[currentQuestion] === index
                             ? "border-teal-600 bg-teal-600"
@@ -1764,7 +1760,7 @@ const QuizPage = () => {
 
             {/* Hints Section */}
             {showHints && (
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border-2 border-blue-300 mb-6">
+              <div className="bg-linear-to-r from-blue-50 to-purple-50 rounded-lg p-6 border-2 border-blue-300 mb-6">
                 <div className="flex items-center gap-2 mb-5">
                   <Lightbulb className="w-6 h-6 text-blue-600" />
                   <h3 className="font-bold text-lg text-gray-800">
@@ -1791,7 +1787,7 @@ const QuizPage = () => {
                         className="bg-white rounded-lg p-4 border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-shadow"
                       >
                         <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0 mt-1">
+                          <div className="shrink-0 mt-1">
                             <div className="flex items-center justify-center h-6 w-6 rounded-full bg-blue-100">
                               <span className="text-blue-700 font-bold text-sm">
                                 {index + 1}

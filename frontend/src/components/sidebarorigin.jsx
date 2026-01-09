@@ -5,7 +5,7 @@ const LogoutModal = ({ isOpen, onConfirm, onCancel }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-100 p-4">
       <div className="bg-white rounded-lg p-8 max-w-sm w-full text-center shadow-xl">
         {/* Checkmark Icon */}
         <div className="flex justify-center mb-6">
@@ -161,7 +161,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
 
   return (
     <>
-      <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-gradient-to-b from-green-50 via-green-50 to-white border-r border-gray-200 overflow-y-auto z-60">
+      <div className="fixed left-0 top-14 h-[calc(100vh-3.5rem)] w-52 bg-linear-to-b from-green-50 via-green-50 to-white border-r border-gray-200 overflow-y-auto z-60">
         {/* Menu Items */}
         <nav className="pt-6 px-3 space-y-2">
           {items.map((item) => (
@@ -169,7 +169,7 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
               key={item.id}
               type="button"
               onClick={() => handleMenuClick(item)}
-              className={`w-full block text-left flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition text-sm cursor-pointer ${
+              className={`w-full text-left flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition text-sm cursor-pointer ${
                 activeMenuItem === item.id
                   ? "bg-white text-green-600 shadow-sm font-medium"
                   : "text-gray-700 hover:bg-white/70"

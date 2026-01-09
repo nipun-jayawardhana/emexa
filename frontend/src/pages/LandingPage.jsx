@@ -3,7 +3,9 @@ import { Brain, Smile, TrendingUp, Zap, Shield, BarChart3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 // import assets (Vite-friendly)
+// cspell:disable-next-line headerlogo footerlogo
 import logo from "../assets/headerlogo.png";
+// cspell:disable-next-line footerlogo
 import footerLogo from "../assets/footerlogo.png";
 import heroImage from "../assets/2.png";
 import howImage from "../assets/1.jpg";
@@ -12,7 +14,7 @@ import howImage from "../assets/1.jpg";
    Navbar Component
    ------------------------- */
 function Navbar({ onGetStarted }) {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
 
   const scrollToSection = (sectionId) => {
     const element = document.getElementById(sectionId);
@@ -35,6 +37,7 @@ function Navbar({ onGetStarted }) {
           <div className="flex items-center gap-2">
             <img
               src={logo}
+              // cspell:disable-next-line EMEXA
               alt="EMEXA Logo"
               style={{ width: "180px", height: "auto" }}
               className="object-contain"
@@ -89,6 +92,7 @@ function Footer() {
           <div className="flex items-center gap-3 mb-4">
             <img
               src={footerLogo}
+              // cspell:disable-next-line EMEXA
               alt="EMEXA Logo"
               style={{
                 width: "107px",
@@ -222,7 +226,7 @@ function Footer() {
 
         <div className="pt-8 border-t border-slate-800">
           <p className="text-gray-400 text-sm">
-            © 2025 EMEXA. All rights reserved.
+            // cspell:disable-next-line EMEXA © 2025 EMEXA. All rights reserved.
           </p>
         </div>
       </div>
@@ -240,7 +244,6 @@ export default function LandingPage() {
   const handleContinue = () => {
     try {
       localStorage.setItem("seenLanding", "true");
-      // eslint-disable-next-line no-unused-vars
     } catch (e) {
       console.error("Failed to set seenLanding:", e);
     }
@@ -318,6 +321,7 @@ export default function LandingPage() {
       initial: "S",
       name: "Sarah Johnson",
       role: "High School Teacher",
+      // cspell:disable-next-line EMEXA
       text: "I've been amazed at what EMEXA does — it understands how my students are feeling and helps me support them.",
     },
     {
@@ -340,21 +344,21 @@ export default function LandingPage() {
 
       <main className="bg-white">
         {/* Hero Section */}
-        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 min-h-screen flex items-center">
+        <div className="bg-linear-to-br from-blue-50 via-indigo-50 to-purple-50 min-h-screen flex items-center">
           <div className="max-w-6xl mx-auto px-6 lg:px-8 py-20">
             <div className="max-w-2xl">
               <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight">
                 Quizzes that
                 <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-600">
+                <span className="text-transparent bg-clip-text bg-linear-to-r from-teal-600 to-emerald-600">
                   understand emotions
                 </span>
               </h1>
 
               <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-                EMEXA is the first quiz platform that adapts to your emotional
-                state in real-time, creating a more effective and personalized
-                learning experience.
+                // cspell:disable-next-line EMEXA EMEXA is the first quiz
+                platform that adapts to your emotional state in real-time,
+                creating a more effective and personalized learning experience.
               </p>
 
               <div className="flex flex-wrap gap-4">
@@ -392,7 +396,7 @@ export default function LandingPage() {
 
               <div className="mt-16 grid md:grid-cols-1 gap-6">
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center text-teal-600 font-semibold">
+                  <div className="shrink-0 w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center text-teal-600 font-semibold">
                     1
                   </div>
                   <div>
@@ -402,7 +406,7 @@ export default function LandingPage() {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center text-teal-600 font-semibold">
+                  <div className="shrink-0 w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center text-teal-600 font-semibold">
                     2
                   </div>
                   <div>
@@ -412,7 +416,7 @@ export default function LandingPage() {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center text-teal-600 font-semibold">
+                  <div className="shrink-0 w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center text-teal-600 font-semibold">
                     3
                   </div>
                   <div>
@@ -465,7 +469,7 @@ export default function LandingPage() {
           <div className="max-w-6xl mx-auto px-6 lg:px-8">
             <div className="text-center mb-16">
               <h2 className="text-4xl font-bold text-gray-900 mb-4">
-                How Emexa Works
+                // cspell:disable-next-line Emexa How Emexa Works
               </h2>
               <p className="text-lg text-gray-600 max-w-3xl mx-auto">
                 Our AI can detect emotions in images and videos during quizzes.
@@ -483,7 +487,7 @@ export default function LandingPage() {
             <div className="space-y-8">
               {howItWorks.map((step, index) => (
                 <div key={index} className="flex items-start gap-6">
-                  <div className="flex-shrink-0 w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center">
+                  <div className="shrink-0 w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center">
                     <span className="text-white font-bold text-lg">
                       {step.number}
                     </span>
@@ -521,7 +525,7 @@ export default function LandingPage() {
                   className="bg-white p-8 rounded-2xl border border-gray-100"
                 >
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-teal-400 to-emerald-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 bg-linear-to-br from-teal-400 to-emerald-500 rounded-full flex items-center justify-center shrink-0">
                       <span className="text-white font-semibold text-lg">
                         {testimonial.initial}
                       </span>
@@ -545,13 +549,13 @@ export default function LandingPage() {
         </section>
 
         {/* CTA */}
-        <section className="py-20 bg-gradient-to-r from-teal-600 to-emerald-600">
+        <section className="py-20 bg-linear-to-r from-teal-600 to-emerald-600">
           <div className="max-w-4xl mx-auto px-6 lg:px-8 text-center">
             <h2 className="text-4xl font-bold text-white mb-4">
               Ready to transform your learning?
             </h2>
             <p className="text-xl text-teal-50 mb-8">
-              Start using Emexa today.
+              // cspell:disable-next-line Emexa Start using Emexa today.
             </p>
             <div className="flex flex-wrap gap-4 justify-center">
               <button
