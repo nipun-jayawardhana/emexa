@@ -9,9 +9,8 @@ import {
   scheduleQuiz,
   deleteQuiz,
   permanentDeleteQuiz,
-getQuizStats,
-submitQuizAnswers
-
+  getQuizStats,
+  submitQuizAnswers
 } from '../controllers/teacherQuizController.js';
 import { protect } from '../middleware/auth.middleware.js';
 
@@ -22,10 +21,7 @@ router.get('/shared', async (req, res) => {
   try {
     const TeacherQuiz = (await import('../models/teacherQuiz.js')).default;
     const sharedQuizzes = await TeacherQuiz.find({ 
-      $or: [
-        { status: 'active', isScheduled: true },
-        { status: 'scheduled' }
-      ],
+      isScheduled: true,
       isDeleted: false 
     }).select('-__v');
     
@@ -62,7 +58,6 @@ router.get('/shared', async (req, res) => {
       success: true,
       count: quizzesWithStatus.length,
       quizzes: quizzesWithStatus
-
     });
   } catch (error) {
     res.status(500).json({

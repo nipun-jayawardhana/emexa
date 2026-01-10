@@ -6,39 +6,21 @@ const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
   const adminToken = localStorage.getItem('adminToken');
   
-  // If needed, return both tokens or build headers here
-  return {
-    Authorization: `Bearer ${token}`,
-    AdminAuthorization: `Bearer ${adminToken}`
-  };
-};
-
   const headers = {
     'Content-Type': 'application/json'
   };
   
-// Prioritize regular token over admin token
-const authToken = token || adminToken;
-
-if (authToken) {
-  headers['Authorization'] = `Bearer ${authToken}`;
-  console.log('🔑 Auth token attached to request');
-} else {
-  console.warn('⚠️ No auth token found');
-}
-
+  // Prioritize regular token over admin token
+  const authToken = token || adminToken;
+  
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+    console.log('🔑 Auth token attached to request');
+  } else {
+    console.warn('⚠️ No auth token found');
   }
   
   return headers;
-};
-
-const getAuthHeader = () => {
-  try {
-    const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  } catch (err) {
-    return {};
-  }
 };
 
 const apiClient = {
@@ -47,7 +29,7 @@ const apiClient = {
     
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        headers: getAuthHeader()  // Note: fixed to getAuthHeader (singular) since your function is named getAuthHeader
+        headers: getAuthHeaders()
       });
       
       const data = await response.json();
@@ -73,15 +55,11 @@ const apiClient = {
       console.error('❌ API Request failed:', error);
       throw error;
     }
-  }
-};
-
   },
 
   post: async (endpoint, body) => {
     console.log('🌐 API POST:', `${API_BASE_URL}${endpoint}`, body);
-const api = {
-  post: async (endpoint, body) => {
+    
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
@@ -183,6 +161,5 @@ const api = {
     }
   },
 };
-
 
 export default apiClient;

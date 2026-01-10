@@ -224,61 +224,45 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
     if (filterStatus === "all") return true;
     if (filterStatus === "draft")
       return quiz.status === "draft" && !quiz.isScheduled;
-if (filterStatus === "scheduled") {
-  // Only show quizzes that are scheduled but NOT currently active
-  if (
-    quiz.status === "scheduled" &&
-    quiz.isScheduled &&
-    quiz.scheduleDate &&
-    quiz.startTime &&
-    quiz.endTime
-  ) {
-    const now = new Date();
-    const scheduleDate = new Date(quiz.scheduleDate);
-    const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
-    const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-
-    const startDateTime = new Date(scheduleDate);
-    startDateTime.setHours(startHour, startMinute, 0, 0);
-
-    const endDateTime = new Date(scheduleDate);
-    endDateTime.setHours(endHour, endMinute, 0, 0);
-
-    // Exclude quizzes that are currently active
-    return !(now >= startDateTime && now < endDateTime);
-  }
-
-  return (quiz.status === "draft" && quiz.isScheduled) || quiz.status === "scheduled";
-}
-
-if (filterStatus === "active") {
-  // Show active quizzes OR scheduled quizzes currently in their active window
-  if (quiz.status === "active") return true;
-
-  if (
-    quiz.status === "scheduled" &&
-    quiz.isScheduled &&
-    quiz.scheduleDate &&
-    quiz.startTime &&
-    quiz.endTime
-  ) {
-    const now = new Date();
-    const scheduleDate = new Date(quiz.scheduleDate);
-    const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
-    const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-
-    const startDateTime = new Date(scheduleDate);
-    startDateTime.setHours(startHour, startMinute, 0, 0);
-
-    const endDateTime = new Date(scheduleDate);
-    endDateTime.setHours(endHour, endMinute, 0, 0);
-
-    return now >= startDateTime && now < endDateTime;
-  }
-
-  return false;
-}
-
+    if (filterStatus === "scheduled") {
+      // Only show quizzes that are scheduled but NOT currently active
+      if (quiz.status === "scheduled" && quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+        const now = new Date();
+        const scheduleDate = new Date(quiz.scheduleDate);
+        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+        
+        const startDateTime = new Date(scheduleDate);
+        startDateTime.setHours(startHour, startMinute, 0, 0);
+        
+        const endDateTime = new Date(scheduleDate);
+        endDateTime.setHours(endHour, endMinute, 0, 0);
+        
+        // Only include if NOT currently active
+        return !(now >= startDateTime && now < endDateTime);
+      }
+      return (quiz.status === "draft" && quiz.isScheduled) || quiz.status === "scheduled";
+    }
+    if (filterStatus === "active") {
+      // Show quizzes with active status OR scheduled quizzes that are currently in their active time window
+      if (quiz.status === "active") return true;
+      if (quiz.status === "scheduled" && quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+        // Check if quiz is currently in active time window
+        const now = new Date();
+        const scheduleDate = new Date(quiz.scheduleDate);
+        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+        
+        const startDateTime = new Date(scheduleDate);
+        startDateTime.setHours(startHour, startMinute, 0, 0);
+        
+        const endDateTime = new Date(scheduleDate);
+        endDateTime.setHours(endHour, endMinute, 0, 0);
+        
+        return now >= startDateTime && now < endDateTime;
+      }
+      return false;
+    }
     return true;
   });
 
@@ -381,35 +365,28 @@ if (filterStatus === "active") {
 
   const handleDeleteDraft = async (id) => {
     try {
-console.log("🗑️ Deleting quiz with ID:", id);
-const response = await teacherQuizService.deleteQuiz(id);
-console.log("✅ Delete response:", response);
-
+      console.log("🗑️ Deleting quiz with ID:", id);
+      const response = await teacherQuizService.deleteQuiz(id);
+      console.log("✅ Delete response:", response);
       // Reload drafts after deletion
       await loadDrafts();
       setShowDeleteModal(false);
       setQuizToDelete(null);
-alert("Quiz deleted successfully!");
-} catch (error) {
-  console.error("❌ Error deleting quiz:", error);
-  console.error("Error details:", error.response?.data || error.message);
-  alert(
-    "Failed to delete quiz: " +
-      (error.response?.data?.message || error.message)
-  );
-}
-
+      alert("Quiz deleted successfully!");
+    } catch (error) {
+      console.error("❌ Error deleting quiz:", error);
+      console.error("Error details:", error.response?.data || error.message);
+      alert("Failed to delete quiz: " + (error.response?.data?.message || error.message));
     }
   };
 
   const confirmDelete = (quiz) => {
-console.log("🗑️ Confirm delete called with quiz:", quiz);
-if (!quiz) {
-  console.error("❌ No quiz provided to confirmDelete");
-  alert("Error: Quiz not found");
-  return;
-}
-
+    console.log("🗑️ Confirm delete called with quiz:", quiz);
+    if (!quiz) {
+      console.error("❌ No quiz provided to confirmDelete");
+      alert("Error: Quiz not found");
+      return;
+    }
     setQuizToDelete(quiz);
     setShowDeleteModal(true);
   };
@@ -592,29 +569,28 @@ if (!quiz) {
         >
           Scheduled (
           {
-draftQuizzes.filter((q) => {
-  // Only count scheduled quizzes that are NOT currently active
-  if ((q.status === "draft" && q.isScheduled) || q.status === "scheduled") {
-    if (q.isScheduled && q.scheduleDate && q.startTime && q.endTime) {
-      const now = new Date();
-      const scheduleDate = new Date(q.scheduleDate);
-      const [startHour, startMinute] = q.startTime.split(':').map(Number);
-      const [endHour, endMinute] = q.endTime.split(':').map(Number);
-
-      const startDateTime = new Date(scheduleDate);
-      startDateTime.setHours(startHour, startMinute, 0, 0);
-
-      const endDateTime = new Date(scheduleDate);
-      endDateTime.setHours(endHour, endMinute, 0, 0);
-
-      // Exclude if currently active
-      return !(now >= startDateTime && now < endDateTime);
-    }
-    return true;
-  }
-  return false;
-}).length
-
+            draftQuizzes.filter((q) => {
+              // Only count scheduled quizzes that are NOT currently active
+              if ((q.status === "draft" && q.isScheduled) || q.status === "scheduled") {
+                if (q.isScheduled && q.scheduleDate && q.startTime && q.endTime) {
+                  const now = new Date();
+                  const scheduleDate = new Date(q.scheduleDate);
+                  const [startHour, startMinute] = q.startTime.split(':').map(Number);
+                  const [endHour, endMinute] = q.endTime.split(':').map(Number);
+                  
+                  const startDateTime = new Date(scheduleDate);
+                  startDateTime.setHours(startHour, startMinute, 0, 0);
+                  
+                  const endDateTime = new Date(scheduleDate);
+                  endDateTime.setHours(endHour, endMinute, 0, 0);
+                  
+                  // Exclude if currently active
+                  return !(now >= startDateTime && now < endDateTime);
+                }
+                return true;
+              }
+              return false;
+            }).length
           }
           )
         </button>
@@ -626,27 +602,26 @@ draftQuizzes.filter((q) => {
               : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
           }`}
         >
-Active ({
-  draftQuizzes.filter((q) => {
-    if (q.status === "active") return true;
-    if (q.status === "scheduled" && q.isScheduled && q.scheduleDate && q.startTime && q.endTime) {
-      const now = new Date();
-      const scheduleDate = new Date(q.scheduleDate);
-      const [startHour, startMinute] = q.startTime.split(':').map(Number);
-      const [endHour, endMinute] = q.endTime.split(':').map(Number);
-
-      const startDateTime = new Date(scheduleDate);
-      startDateTime.setHours(startHour, startMinute, 0, 0);
-
-      const endDateTime = new Date(scheduleDate);
-      endDateTime.setHours(endHour, endMinute, 0, 0);
-
-      return now >= startDateTime && now < endDateTime;
-    }
-    return false;
-  }).length
-})
-
+          Active ({
+            draftQuizzes.filter((q) => {
+              if (q.status === "active") return true;
+              if (q.status === "scheduled" && q.isScheduled && q.scheduleDate && q.startTime && q.endTime) {
+                const now = new Date();
+                const scheduleDate = new Date(q.scheduleDate);
+                const [startHour, startMinute] = q.startTime.split(':').map(Number);
+                const [endHour, endMinute] = q.endTime.split(':').map(Number);
+                
+                const startDateTime = new Date(scheduleDate);
+                startDateTime.setHours(startHour, startMinute, 0, 0);
+                
+                const endDateTime = new Date(scheduleDate);
+                endDateTime.setHours(endHour, endMinute, 0, 0);
+                
+                return now >= startDateTime && now < endDateTime;
+              }
+              return false;
+            }).length
+          })
         </button>
       </div>
 
@@ -1152,23 +1127,20 @@ Active ({
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && quizToDelete && (
-       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
-
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-100">
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
             <h2 className="text-xl font-bold text-gray-900 mb-2">
               Confirm Delete
             </h2>
             <p className="text-gray-600 mb-1">
               Are you sure you want to delete the quiz "{quizToDelete.title}"?
-
             </p>
             <p className="text-gray-600 mb-6">This action cannot be undone.</p>
 
             <div className="flex items-center gap-3">
               <button
                 onClick={() => {
-                console.log("❌ Cancel delete");
-
+                  console.log("❌ Cancel delete");
                   setShowDeleteModal(false);
                   setQuizToDelete(null);
                 }}
@@ -1177,11 +1149,10 @@ Active ({
                 Cancel
               </button>
               <button
-             onClick={() => {
-                console.log("✅ Confirming delete for quiz ID:", quizToDelete.id);
-                 handleDeleteDraft(quizToDelete.id);
-}}
-
+                onClick={() => {
+                  console.log("✅ Confirming delete for quiz ID:", quizToDelete.id);
+                  handleDeleteDraft(quizToDelete.id);
+                }}
                 className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm"
               >
                 Delete Quiz

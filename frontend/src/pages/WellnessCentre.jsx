@@ -1,56 +1,37 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
 import { Sparkles, RefreshCw, TrendingUp, MessageCircle, Brain, Heart, Target, Zap, Plus, Check, Trash2 } from 'lucide-react';
 import Header from "../components/headerorigin";
 import Sidebar from "../components/sidebarorigin";
 
 const WellnessCentre = () => {
-const navigate = useNavigate();
-const location = useLocation();
+  const [activeMenuItem, setActiveMenuItem] = useState("wellness");
+  const [selectedMood, setSelectedMood] = useState(null);
+  const [showMessage, setShowMessage] = useState(false);
+  const [userName, setUserName] = useState("Student");
+  const [aiAdvice, setAiAdvice] = useState(null);
+  const [loadingAI, setLoadingAI] = useState(false);
+  const [dailyTip, setDailyTip] = useState("Loading your daily wellness tip...");
+  const [moodHistory, setMoodHistory] = useState([]);
+  const [weeklyInsights, setWeeklyInsights] = useState(null);
+  const [showChatbot, setShowChatbot] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [loadingChat, setLoadingChat] = useState(false);
+  const [activeTab, setActiveTab] = useState("mood");
+  const [analyzingPattern, setAnalyzingPattern] = useState(false);
+  const [todayMood, setTodayMood] = useState(null);
 
-const [activeMenuItem, setActiveMenuItem] = useState("wellness");
-const [selectedMood, setSelectedMood] = useState(null);
-const [showMessage, setShowMessage] = useState(false);
-
-// Set userName to "Student" as in dev branch, or "" if you prefer
-const [userName, setUserName] = useState("Student");
-
-// All additional states from dev branch
-const [aiAdvice, setAiAdvice] = useState(null);
-const [loadingAI, setLoadingAI] = useState(false);
-const [dailyTip, setDailyTip] = useState("Loading your daily wellness tip...");
-const [moodHistory, setMoodHistory] = useState([]);
-const [weeklyInsights, setWeeklyInsights] = useState(null);
-const [showChatbot, setShowChatbot] = useState(false);
-const [chatMessages, setChatMessages] = useState([]);
-const [chatInput, setChatInput] = useState("");
-const [loadingChat, setLoadingChat] = useState(false);
-const [activeTab, setActiveTab] = useState("mood");
-const [analyzingPattern, setAnalyzingPattern] = useState(false);
-const [todayMood, setTodayMood] = useState(null);
-
-// Wellness Goals States
-const [goals, setGoals] = useState([]);
-const [showAddGoal, setShowAddGoal] = useState(false);
-const [newGoalTitle, setNewGoalTitle] = useState("");
-const [newGoalCategory, setNewGoalCategory] = useState("mental-health");
-const [generatingGoal, setGeneratingGoal] = useState(false);
-
+  // Wellness Goals States
+  const [goals, setGoals] = useState([]);
+  const [showAddGoal, setShowAddGoal] = useState(false);
+  const [newGoalTitle, setNewGoalTitle] = useState("");
+  const [newGoalCategory, setNewGoalCategory] = useState("mental-health");
+  const [generatingGoal, setGeneratingGoal] = useState(false);
 
   useEffect(() => {
     const storedUserName = localStorage.getItem("userName") || sessionStorage.getItem("userName");
     setUserName(storedUserName || "Student");
-}, []);
-
-  // Ensure activeMenuItem is always 'wellness' when on wellness page
-  useEffect(() => {
-    if (location.pathname === '/wellness-centre') {
-      setActiveMenuItem('wellness');
-    }
-  }, [location.pathname]);
-
-  // Load initial data
-  useEffect(() => {
+    
     fetchDailyTip();
     loadMoodHistory();
     loadTodayMood();
@@ -58,30 +39,30 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
   }, []);
 
   const loadTodayMood = async () => {
-    try {
-      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-      
-      if (!token) return;
+  try {
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+    
+    if (!token) return;
 
-      const response = await fetch('http://localhost:5000/api/moods/today', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const data = await response.json();
-      
-      if (data.success && data.data) {
-        setTodayMood(data.data);
-        console.log('📅 Today\'s mood loaded:', data.data.mood);
-      } else {
-        setTodayMood(null);
+    const response = await fetch('http://localhost:5000/api/moods/today', {
+      headers: {
+        'Authorization': `Bearer ${token}`
       }
-    } catch (error) {
-      console.error('❌ Error loading today\'s mood:', error);
+    });
+
+    const data = await response.json();
+    
+    if (data.success && data.data) {
+      setTodayMood(data.data);
+      console.log('📅 Today\'s mood loaded:', data.data.mood);
+    } else {
       setTodayMood(null);
     }
-  };
+  } catch (error) {
+    console.error('❌ Error loading today\'s mood:', error);
+    setTodayMood(null);
+  }
+};
 
   const loadGoals = () => {
     const savedGoals = localStorage.getItem('wellnessGoals');
@@ -198,51 +179,38 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
   };
 
   const loadMoodHistory = async () => {
-    try {
-      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-      
-      if (!token) {
-        console.warn('No token found, using demo data');
-        setMoodHistory([
-          { date: "Mon", mood: "Happy", emoji: "😊", value: 4 },
-          { date: "Tue", mood: "Neutral", emoji: "🙂", value: 3 },
-          { date: "Wed", mood: "Happy", emoji: "😊", value: 4 },
-          { date: "Thu", mood: "Very Happy", emoji: "😄", value: 5 },
-          { date: "Fri", mood: "Happy", emoji: "😊", value: 4 },
-          { date: "Sat", mood: "Sad", emoji: "😐", value: 2 },
-          { date: "Sun", mood: "Neutral", emoji: "🙂", value: 3 }
-        ]);
-        return;
-      }
+  try {
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+    
+    if (!token) {
+      console.warn('No token found, using demo data');
+      setMoodHistory([
+        { date: "Mon", mood: "Happy", emoji: "😊", value: 4 },
+        { date: "Tue", mood: "Neutral", emoji: "🙂", value: 3 },
+        { date: "Wed", mood: "Happy", emoji: "😊", value: 4 },
+        { date: "Thu", mood: "Very Happy", emoji: "😄", value: 5 },
+        { date: "Fri", mood: "Happy", emoji: "😊", value: 4 },
+        { date: "Sat", mood: "Sad", emoji: "😐", value: 2 },
+        { date: "Sun", mood: "Neutral", emoji: "🙂", value: 3 }
+      ]);
+      return;
+    }
 
-      const response = await fetch('http://localhost:5000/api/moods/history', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        // Show ALL 7 days including empty ones
-        setMoodHistory(data.data);
-        console.log('✅ Loaded mood history from database:', data.data.length, 'days');
-      } else {
-        // API returned no data, use demo
-        console.log('📊 No mood history, showing demo data');
-        setMoodHistory([
-          { date: "Mon", mood: "Happy", emoji: "😊", value: 4 },
-          { date: "Tue", mood: "Neutral", emoji: "🙂", value: 3 },
-          { date: "Wed", mood: "Happy", emoji: "😊", value: 4 },
-          { date: "Thu", mood: "Very Happy", emoji: "😄", value: 5 },
-          { date: "Fri", mood: "Happy", emoji: "😊", value: 4 },
-          { date: "Sat", mood: "Sad", emoji: "😐", value: 2 },
-          { date: "Sun", mood: "Neutral", emoji: "🙂", value: 3 }
-        ]);
+    const response = await fetch('http://localhost:5000/api/moods/history', {
+      headers: {
+        'Authorization': `Bearer ${token}`
       }
-    } catch (error) {
-      console.error('❌ Error loading mood history:', error);
-      // Use demo data on error
+    });
+
+    const data = await response.json();
+    
+    if (data.success) {
+      // CHANGED: Show ALL 7 days including empty ones
+      setMoodHistory(data.data); // This includes days with value: 0
+      console.log('✅ Loaded mood history from database:', data.data.length, 'days');
+    } else {
+      // API returned no data, use demo
+      console.log('📊 No mood history, showing demo data');
       setMoodHistory([
         { date: "Mon", mood: "Happy", emoji: "😊", value: 4 },
         { date: "Tue", mood: "Neutral", emoji: "🙂", value: 3 },
@@ -253,220 +221,157 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
         { date: "Sun", mood: "Neutral", emoji: "🙂", value: 3 }
       ]);
     }
-  };
+  } catch (error) {
+    console.error('❌ Error loading mood history:', error);
+    // Use demo data on error
+    setMoodHistory([
+      { date: "Mon", mood: "Happy", emoji: "😊", value: 4 },
+      { date: "Tue", mood: "Neutral", emoji: "🙂", value: 3 },
+      { date: "Wed", mood: "Happy", emoji: "😊", value: 4 },
+      { date: "Thu", mood: "Very Happy", emoji: "😄", value: 5 },
+      { date: "Fri", mood: "Happy", emoji: "😊", value: 4 },
+      { date: "Sat", mood: "Sad", emoji: "😐", value: 2 },
+      { date: "Sun", mood: "Neutral", emoji: "🙂", value: 3 }
+    ]);
+  }
+};
+
 
   const analyzeWeeklyPattern = async () => {
-    if (moodHistory.length === 0) {
-      alert("No mood history available to analyze");
-      return;
-    }
+  if (moodHistory.length === 0) {
+    alert("No mood history available to analyze");
+    return;
+  }
+  
+  setAnalyzingPattern(true);
+  setWeeklyInsights(null);
+  
+  try {
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
     
-    setAnalyzingPattern(true);
-    setWeeklyInsights(null);
-    
-    try {
-      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-      
-      if (token) {
-        // Get weekly summary from backend
-        const response = await fetch('http://localhost:5000/api/moods/weekly-summary', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        const data = await response.json();
-        
-        if (data.success && data.data.totalEntries > 0) {
-          const summary = data.data;
-          
-          setWeeklyInsights({
-            trend: summary.trend,
-            message: `You've logged ${summary.totalEntries} mood entries this week! Your average mood is ${summary.averageMood.toFixed(1)}/5.0. You had ${summary.positiveDays} positive days, ${summary.neutralDays} neutral days, and ${summary.negativeDays} challenging days.`,
-            suggestion: summary.trend === 'positive' 
-              ? "Keep up the good work! Your positive momentum is strong." 
-              : summary.trend === 'neutral'
-              ? "Your moods are balanced. Try incorporating more activities that bring you joy."
-              : "I notice you've had some challenging days. Remember, it's okay to ask for support.",
-            strength: summary.mostCommonMood 
-              ? `Your most common mood this week was "${summary.mostCommonMood}". ${summary.trend === 'positive' ? 'Your resilience is showing!' : 'Remember to be kind to yourself.'}`
-              : "Keep tracking your moods to identify patterns."
-          });
-        } else {
-          // Fallback to client-side analysis
-          const positiveMoods = moodHistory.filter(m => 
-            m.mood === "Happy" || m.mood === "Very Happy"
-          ).length;
-          
-          setWeeklyInsights({
-            trend: positiveMoods >= 4 ? "positive" : "neutral",
-            message: `You've had mostly ${positiveMoods >= 4 ? 'positive' : 'balanced'} moods this week! Your emotional wellbeing shows a ${positiveMoods >= 4 ? 'healthy' : 'steady'} pattern with ${positiveMoods} out of ${moodHistory.length} days being happy or very happy.`,
-            suggestion: "Keep up the good work! To maintain this positive trend, try to identify what made you happy on those days and do more of it.",
-            strength: "Your resilience is showing - even on tougher days, you bounced back quickly."
-          });
+    if (token) {
+      // Get weekly summary from backend
+      const response = await fetch('http://localhost:5000/api/moods/weekly-summary', {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-      }
-    } catch (error) {
-      console.error('❌ Error analyzing patterns:', error);
-      
-      // Fallback analysis
-      const positiveMoods = moodHistory.filter(m => 
-        m.mood === "Happy" || m.mood === "Very Happy"
-      ).length;
-      
-      setWeeklyInsights({
-        trend: positiveMoods >= 4 ? "positive" : "neutral",
-        message: `You've had mostly positive moods this week! Your emotional wellbeing shows a healthy pattern with ${positiveMoods} out of ${moodHistory.length} days being happy or very happy.`,
-        suggestion: "Keep up the good work! To maintain this positive trend, try to identify what made you happy on those days and do more of it.",
-        strength: "Your resilience is showing - even on tougher days, you bounced back quickly."
       });
-    } finally {
-      setAnalyzingPattern(false);
-    }
-  };
 
-  const menuItems = [
-    {
-      id: "dashboard",
-      label: "Dashboard",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-        </svg>
-      ),
-      onClick: () => navigate("/dashboard"),
-    },
-    {
-      id: "wellness",
-      label: "Wellness Centre",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-        </svg>
-      ),
-    },
-    {
-      id: "profile",
-      label: "Profile",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      ),
-      onClick: () => navigate("/profile"),
-    },
-  ];
+      const data = await response.json();
+      
+      if (data.success && data.data.totalEntries > 0) {
+        const summary = data.data;
+        
+        setWeeklyInsights({
+          trend: summary.trend,
+          message: `You've logged ${summary.totalEntries} mood entries this week! Your average mood is ${summary.averageMood.toFixed(1)}/5.0. You had ${summary.positiveDays} positive days, ${summary.neutralDays} neutral days, and ${summary.negativeDays} challenging days.`,
+          suggestion: summary.trend === 'positive' 
+            ? "Keep up the good work! Your positive momentum is strong." 
+            : summary.trend === 'neutral'
+            ? "Your moods are balanced. Try incorporating more activities that bring you joy."
+            : "I notice you've had some challenging days. Remember, it's okay to ask for support.",
+          strength: summary.mostCommonMood 
+            ? `Your most common mood this week was "${summary.mostCommonMood}". ${summary.trend === 'positive' ? 'Your resilience is showing!' : 'Remember to be kind to yourself.'}`
+            : "Keep tracking your moods to identify patterns."
+        });
+      } else {
+        // Fallback to client-side analysis
+        const positiveMoods = moodHistory.filter(m => 
+          m.mood === "Happy" || m.mood === "Very Happy"
+        ).length;
+        
+        setWeeklyInsights({
+          trend: positiveMoods >= 4 ? "positive" : "neutral",
+          message: `You've had mostly ${positiveMoods >= 4 ? 'positive' : 'balanced'} moods this week! Your emotional wellbeing shows a ${positiveMoods >= 4 ? 'healthy' : 'steady'} pattern with ${positiveMoods} out of ${moodHistory.length} days being happy or very happy.`,
+          suggestion: "Keep up the good work! To maintain this positive trend, try to identify what made you happy on those days and do more of it.",
+          strength: "Your resilience is showing - even on tougher days, you bounced back quickly."
+        });
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error analyzing patterns:', error);
+    
+    // Fallback analysis
+    const positiveMoods = moodHistory.filter(m => 
+      m.mood === "Happy" || m.mood === "Very Happy"
+    ).length;
+    
+    setWeeklyInsights({
+      trend: positiveMoods >= 4 ? "positive" : "neutral",
+      message: `You've had mostly positive moods this week! Your emotional wellbeing shows a healthy pattern with ${positiveMoods} out of ${moodHistory.length} days being happy or very happy.`,
+      suggestion: "Keep up the good work! To maintain this positive trend, try to identify what made you happy on those days and do more of it.",
+      strength: "Your resilience is showing - even on tougher days, you bounced back quickly."
+    });
+  } finally {
+    setAnalyzingPattern(false);
+  }
+};
 
   const moods = [
-    { 
-      emoji: "😢", 
-      label: "Very Sad", 
-      color: "hover:bg-blue-50",
-      bgColor: "bg-blue-50",
-      ringColor: "ring-blue-500",
-      message: "I'm sorry you're feeling this way. Remember, it's okay to have difficult days. Consider talking to someone you trust or taking a short break to breathe.",
-      messageColor: "bg-blue-100 text-blue-800 border-blue-300",
-      value: 1
-    },
-    { 
-      emoji: "😐", 
-      label: "Sad", 
-      color: "hover:bg-orange-50",
-      bgColor: "bg-orange-50",
-      ringColor: "ring-orange-500",
-      message: "Feeling down is normal. Try doing something small that usually makes you happy, or reach out to a friend for support. You're not alone.",
-      messageColor: "bg-orange-100 text-orange-800 border-orange-300",
-      value: 2
-    },
-    { 
-      emoji: "🙂", 
-      label: "Neutral", 
-      color: "hover:bg-blue-50",
-      bgColor: "bg-gray-50",
-      ringColor: "ring-gray-500",
-      message: "You're doing okay today. That's perfectly fine! Some days are just steady, and that's part of life's balance. Keep going!",
-      messageColor: "bg-gray-100 text-gray-800 border-gray-300",
-      value: 3
-    },
-    { 
-      emoji: "😊", 
-      label: "Happy", 
-      color: "hover:bg-green-50",
-      bgColor: "bg-green-50",
-      ringColor: "ring-green-500",
-      message: "That's wonderful! I'm glad you're feeling good today. Keep this positive energy and maybe share it with someone else!",
-      messageColor: "bg-green-100 text-green-800 border-green-300",
-      value: 4
-    },
-    { 
-      emoji: "😄", 
-      label: "Very Happy", 
-      color: "hover:bg-purple-50",
-      bgColor: "bg-purple-50",
-      ringColor: "ring-purple-500",
-      message: "Amazing! Your positive energy is contagious! Keep celebrating the good moments and remember this feeling. You're doing great!",
-      messageColor: "bg-purple-100 text-purple-800 border-purple-300",
-      value: 5
-    },
+    { emoji: "😢", label: "Very Sad", color: "hover:bg-blue-50", bgColor: "bg-blue-50", ringColor: "ring-blue-500", messageColor: "bg-blue-100 text-blue-800 border-blue-300", value: 1 },
+    { emoji: "😐", label: "Sad", color: "hover:bg-orange-50", bgColor: "bg-orange-50", ringColor: "ring-orange-500", messageColor: "bg-orange-100 text-orange-800 border-orange-300", value: 2 },
+    { emoji: "🙂", label: "Neutral", color: "hover:bg-blue-50", bgColor: "bg-gray-50", ringColor: "ring-gray-500", messageColor: "bg-gray-100 text-gray-800 border-gray-300", value: 3 },
+    { emoji: "😊", label: "Happy", color: "hover:bg-green-50", bgColor: "bg-green-50", ringColor: "ring-green-500", messageColor: "bg-green-100 text-green-800 border-green-300", value: 4 },
+    { emoji: "😄", label: "Very Happy", color: "hover:bg-purple-50", bgColor: "bg-purple-50", ringColor: "ring-purple-500", messageColor: "bg-purple-100 text-purple-800 border-purple-300", value: 5 },
   ];
 
   const handleMoodSelect = async (index) => {
-    setSelectedMood(index);
-    setShowMessage(true);
-    setLoadingAI(true);
-    setAiAdvice(null);
+  setSelectedMood(index);
+  setShowMessage(true);
+  setLoadingAI(true);
+  setAiAdvice(null);
 
-    const selectedMoodData = moods[index];
+  const selectedMoodData = moods[index];
 
-    // Save mood to database
-    try {
-      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+  // Save mood to database
+  try {
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+    
+    if (token) {
+      const response = await fetch('http://localhost:5000/api/moods', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          mood: selectedMoodData.label,
+          emoji: selectedMoodData.emoji,
+          value: selectedMoodData.value
+        })
+      });
+
+      const data = await response.json();
       
-      if (token) {
-        const response = await fetch('http://localhost:5000/api/moods', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            mood: selectedMoodData.label,
-            emoji: selectedMoodData.emoji,
-            value: selectedMoodData.value
-          })
-        });
-
-        const data = await response.json();
+      if (data.success) {
+        console.log('✅ Mood saved to database:', data.message);
         
-        if (data.success) {
-          console.log('✅ Mood saved to database:', data.message);
-          
-          // Reload mood history and today's mood to update chart
-          await loadMoodHistory();
-          await loadTodayMood();
-        } else {
-          console.error('❌ Failed to save mood:', data.message);
-        }
+        // Reload mood history and today's mood to update chart
+        await loadMoodHistory();
+        await loadTodayMood(); // ← THIS LINE IS NEW
       } else {
-        console.warn('⚠️ No authentication token found');
+        console.error('❌ Failed to save mood:', data.message);
       }
-    } catch (error) {
-      console.error('❌ Error saving mood:', error);
+    } else {
+      console.warn('⚠️ No authentication token found');
     }
+  } catch (error) {
+    console.error('❌ Error saving mood:', error);
+  }
 
-    // Generate AI advice
-    setTimeout(() => {
-      const responses = {
-        "Very Sad": "I'm here with you. Remember that difficult feelings pass, and it's brave to acknowledge them. Try taking a few deep breaths, and consider reaching out to someone you trust. You don't have to face this alone.",
-        "Sad": "It's okay to feel down sometimes. Be gentle with yourself today. Maybe try doing something small that usually brings you comfort, like listening to your favorite music or taking a short walk.",
-        "Neutral": "You're doing okay, and that's perfectly fine! Some days are just steady, and that's part of life's balance. Keep taking care of yourself with small acts of kindness.",
-        "Happy": "I'm glad you're feeling good today! This positive energy is wonderful. Keep it going by sharing a smile with someone or doing something you enjoy.",
-        "Very Happy": "Your positive energy is contagious! This is wonderful. Take a moment to appreciate what brought you this joy, and remember this feeling when things get tough."
-      };
-      setAiAdvice(responses[selectedMoodData.label]);
-      setLoadingAI(false);
-    }, 1500);
-  };
+  // Generate AI advice
+  setTimeout(() => {
+    const responses = {
+      "Very Sad": "I'm here with you. Remember that difficult feelings pass, and it's brave to acknowledge them. Try taking a few deep breaths, and consider reaching out to someone you trust. You don't have to face this alone.",
+      "Sad": "It's okay to feel down sometimes. Be gentle with yourself today. Maybe try doing something small that usually brings you comfort, like listening to your favorite music or taking a short walk.",
+      "Neutral": "You're doing okay, and that's perfectly fine! Some days are just steady, and that's part of life's balance. Keep taking care of yourself with small acts of kindness.",
+      "Happy": "I'm glad you're feeling good today! This positive energy is wonderful. Keep it going by sharing a smile with someone or doing something you enjoy.",
+      "Very Happy": "Your positive energy is contagious! This is wonderful. Take a moment to appreciate what brought you this joy, and remember this feeling when things get tough."
+    };
+    setAiAdvice(responses[selectedMoodData.label]);
+    setLoadingAI(false);
+  }, 1500);
+};
 
   const handleSendMessage = async () => {
     if (!chatInput.trim()) return;
@@ -524,12 +429,11 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
   return (
     <div className="min-h-screen bg-white">
       <Header userName={userName} />
-      <Sidebar
+      <Sidebar 
         activeMenuItem={activeMenuItem}
         setActiveMenuItem={setActiveMenuItem}
       />
 
-{/* Main Content */}
       <div className="ml-52 pt-14 p-8">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
@@ -572,27 +476,26 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-lg p-8">
               {todayMood && (
-                <div className="mb-6 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border-2 border-blue-200 flex items-center justify-between animate-fade-in">
-                  <div className="flex items-center gap-3">
-                    <div className="text-4xl">{todayMood.emoji}</div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Your mood today:</p>
-                      <p className="text-lg font-bold text-gray-800">{todayMood.mood}</p>
-                      <p className="text-xs text-gray-500">
-                        Logged at {new Date(todayMood.date).toLocaleTimeString('en-US', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-500 mb-1">Want to update?</p>
-                    <p className="text-xs text-teal-600 font-medium">Select a new mood below</p>
-                  </div>
-                </div>
-              )}
-              
+  <div className="mb-6 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 border-2 border-blue-200 flex items-center justify-between animate-fade-in">
+    <div className="flex items-center gap-3">
+      <div className="text-4xl">{todayMood.emoji}</div>
+      <div>
+        <p className="text-sm font-medium text-gray-600">Your mood today:</p>
+        <p className="text-lg font-bold text-gray-800">{todayMood.mood}</p>
+        <p className="text-xs text-gray-500">
+          Logged at {new Date(todayMood.date).toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          })}
+        </p>
+      </div>
+    </div>
+    <div className="text-right">
+      <p className="text-xs text-gray-500 mb-1">Want to update?</p>
+      <p className="text-xs text-teal-600 font-medium">Select a new mood below</p>
+    </div>
+  </div>
+)}
               <h2 className="text-2xl font-semibold text-gray-800 mb-6">
                 How are you feeling today?
               </h2>
@@ -606,7 +509,6 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
                         ? `${mood.bgColor} ring-4 ${mood.ringColor} scale-110 shadow-xl`
                         : mood.color + " shadow-md"
                     }`}
-                    title={`Click if you're feeling ${mood.label.toLowerCase()}`}
                   >
                     <span className="text-6xl mb-2">{mood.emoji}</span>
                     <span className="text-sm font-medium text-gray-700">{mood.label}</span>
@@ -638,7 +540,6 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
                     <button
                       onClick={() => setShowMessage(false)}
                       className="text-gray-500 hover:text-gray-700 transition"
-                      aria-label="Close message"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -649,9 +550,7 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
               )}
             </div>
 
-            {/* Wellness Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Stress Management */}
               <div className="bg-gradient-to-br from-rose-50 to-pink-50 rounded-2xl shadow-lg p-6 border border-rose-100">
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-md">
@@ -668,7 +567,6 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
                 </div>
               </div>
 
-              {/* Energy Boost */}
               <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl shadow-lg p-6 border border-amber-100">
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-md">
@@ -686,7 +584,6 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
               </div>
             </div>
 
-            {/* AI Wellness Tip */}
             <div className="bg-gradient-to-r from-teal-400 via-cyan-400 to-blue-400 rounded-2xl shadow-xl p-8 text-white relative overflow-hidden">
               <div className="absolute top-4 right-4">
                 <Sparkles className="text-white/30" size={40} />
@@ -735,24 +632,24 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
                 </button>
               </div>
 
-              <div className="flex justify-around items-end h-88 mb-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 pb-5 border border-gray-200">
+            <div className="flex justify-around items-end h-88 mb-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 pb-5 border border-gray-200">
                 {moodHistory.map((day, idx) => {
                   const barHeight = day.value > 0 ? 50 + (day.value * 35) : 30;
-                  const barColor = day.value > 0 
-                    ? "bg-gradient-to-t from-teal-300 to-cyan-400 hover:from-teal-400 hover:to-cyan-500" 
-                    : "bg-gray-200";
-                  
-                  return (
-                    <div key={idx} className="flex flex-col items-center gap-3">
-                      <div 
-                        className={`w-16 rounded-t-xl transition-all cursor-pointer shadow-md ${barColor}`}
-                        style={{ height: `${barHeight}px` }}
-                        title={day.value > 0 ? `${day.mood} - ${day.date}` : `No mood logged - ${day.date}`}
-                      />
-                      <span className="text-3xl">{day.emoji}</span>
-                      <span className="text-sm font-semibold text-gray-700">{day.date}</span>
-                    </div>
-                  );
+    const barColor = day.value > 0 
+      ? "bg-gradient-to-t from-teal-300 to-cyan-400 hover:from-teal-400 hover:to-cyan-500" 
+      : "bg-gray-200";
+    
+    return (
+      <div key={idx} className="flex flex-col items-center gap-3">
+        <div 
+          className={`w-16 rounded-t-xl transition-all cursor-pointer shadow-md ${barColor}`}
+          style={{ height: `${barHeight}px` }}
+          title={day.value > 0 ? `${day.mood} - ${day.date}` : `No mood logged - ${day.date}`}
+        />
+        <span className="text-3xl">{day.emoji}</span>
+        <span className="text-sm font-semibold text-gray-700">{day.date}</span>
+      </div>
+    );
                 })}
               </div>
 
@@ -1075,7 +972,6 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
         )}
       </div>
 
-      {/* Add custom animation style */}
       <style jsx>{`
         @keyframes fade-in {
           from {
@@ -1094,4 +990,5 @@ const [generatingGoal, setGeneratingGoal] = useState(false);
     </div>
   );
 };
+
 export default WellnessCentre;
