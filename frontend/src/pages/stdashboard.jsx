@@ -152,6 +152,54 @@ const StudentDashboard = () => {
     };
   }, [highlightedQuizId, loading, setSearchParams]);
 
+  const fetchSharedQuizzes = async () => {
+    try {
+      const response = await teacherQuizService.getSharedQuizzes();
+      console.log("ðŸ“š Fetched shared quizzes:", response);
+
+      if (response.quizzes && response.quizzes.length > 0) {
+        setSharedQuizzes(response.quizzes);
+      }
+    } catch (error) {
+      console.error("âŒ Error fetching shared quizzes:", error);
+    }
+  };
+
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        console.log("âŒ No token for dashboard fetch");
+        return;
+      }
+
+      console.log("ðŸ“Š Fetching dashboard data...");
+
+      const response = await axios.get(
+        "http://localhost:5000/api/users/dashboard",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      console.log("âœ… Dashboard data fetched:", response.data);
+      setDashboardData(response.data);
+    } catch (error) {
+      console.error("âŒ Error fetching dashboard data:", error);
+
+      if (error.response?.status === 401) {
+        console.log("âš ï¸ Unauthorized, clearing tokens");
+
+        localStorage.removeItem("token");
+        localStorage.removeItem("userName");
+        navigate("/login");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
+
   // ============================================
   // CRITICAL: Check if admin is viewing a specific student
   // ============================================
@@ -251,7 +299,7 @@ const StudentDashboard = () => {
     };
 
     initializeDashboard();
-  }, [fetchDashboardData, navigate]);
+  }, [navigate]);
 
   // Cleanup when leaving dashboard
   useEffect(() => {
@@ -274,54 +322,6 @@ const StudentDashboard = () => {
       }
     };
   }, []);
-
-  const fetchSharedQuizzes = async () => {
-    try {
-      const response = await teacherQuizService.getSharedQuizzes();
-      console.log("ðŸ“š Fetched shared quizzes:", response);
-
-      if (response.quizzes && response.quizzes.length > 0) {
-        setSharedQuizzes(response.quizzes);
-      }
-    } catch (error) {
-      console.error("âŒ Error fetching shared quizzes:", error);
-    }
-  };
-
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        console.log("âŒ No token for dashboard fetch");
-        return;
-      }
-
-      console.log("ðŸ“Š Fetching dashboard data...");
-
-      const response = await axios.get(
-        "http://localhost:5000/api/users/dashboard",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      console.log("âœ… Dashboard data fetched:", response.data);
-      setDashboardData(response.data);
-    } catch (error) {
-      console.error("âŒ Error fetching dashboard data:", error);
-
-      if (error.response?.status === 401) {
-        console.log("âš ï¸ Unauthorized, clearing tokens");
-
-        localStorage.removeItem("token");
-        localStorage.removeItem("userName");
-        navigate("/login");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [navigate]);
 
   if (loading) {
     return (
