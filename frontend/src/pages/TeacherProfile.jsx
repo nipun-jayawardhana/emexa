@@ -872,10 +872,6 @@ const TeacherProfile = () => {
     }
   };
 
-  const handleChangePassword = () => {
-    setShowChangePassword(true);
-  };
-
   const handleChangePwdInput = (e) => {
     const { name, value } = e.target;
     setChangePwdData((p) => ({ ...p, [name]: value }));
