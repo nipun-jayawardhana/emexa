@@ -26,7 +26,7 @@ export const generateHint = async (req, res) => {
     } = req.body;
 
     // Get userId from authenticated user or request body
-    const userId = req.user?.id || req.body.userId;
+    const userId = req.user?._id || req.user?.id || req.body.userId;
     console.log('✅ Using userId:', userId);
 
     if (!userId || !sessionId || !questionId || !questionText || !options) {
