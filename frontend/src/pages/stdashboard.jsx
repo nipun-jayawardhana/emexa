@@ -762,17 +762,7 @@ const StudentDashboard = () => {
                               return;
                             }
                             const targetId = quiz.id || `quiz-${index}`;
-                            try {
-                              if (
-                                camera &&
-                                camera.isActive &&
-                                !camera.isActive()
-                              ) {
-                                camera
-                                  .start({ capture: false })
-                                  .catch(() => {});
-                              }
-                            } catch (e) {}
+                            // Navigate to permission page - camera will start only after user clicks "Allow"
                             navigate(
                               `/permission?quizId=${encodeURIComponent(
                                 targetId

@@ -138,40 +138,20 @@ export default function Permission() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Cleanup effect: stop camera when component unmounts
   useEffect(() => {
-    let mounted = true;
-    const startCamera = async () => {
-      if (!mounted) return;
+    return () => {
       try {
-        // if the previewRef exists attach the already-started stream preview
-        if (previewRef.current && camera && camera.attachPreview) {
-          camera.attachPreview(previewRef.current);
-        } else {
-          // fallback: attempt to start preview directly
-          const ok = await camera.start({
-            previewElement: previewRef.current,
-            capture: false,
-          });
-          if (!ok) setWebcamPermission("denied");
+        // Only stop camera if it's active
+        if (camera && camera.isActive && camera.isActive()) {
+          camera.stop();
+          console.log("Camera streaming stopped");
         }
-      } catch (err) {
-        console.error("camera.start/attachPreview error", err);
-        setWebcamPermission("denied");
+      } catch (e) {
+        console.error("Error stopping camera on unmount", e);
       }
     };
-
-    if (webcamPermission === "allowed") {
-      // schedule after render to ensure previewRef is attached
-      setTimeout(startCamera, 0);
-    }
-
-    return () => {
-      mounted = false;
-      try {
-        camera.stop();
-      } catch (e) {}
-    };
-  }, [webcamPermission]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-8">
