@@ -314,29 +314,6 @@ const StudentDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="p-6">
         <div className="max-w-7xl">
-          {/* Back Button - Only show if there's history */}
-          {window.history.length > 1 && (
-            <button
-              onClick={() => navigate(-1)}
-              className="mb-4 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              <span className="text-sm font-medium">Back</span>
-            </button>
-          )}
-          
           {/* Show admin viewing banner */}
           {isAdminViewing && adminToken && (
             <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
