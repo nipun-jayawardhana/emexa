@@ -76,6 +76,18 @@ const userSchema = new mongoose.Schema({
     }
   },
   
+  // Academic information
+  year: { 
+    type: String, 
+    enum: ['1st year', '2nd year', '3rd year', '4th year', null],
+    default: null 
+  },
+  semester: { 
+    type: String, 
+    enum: ['1st semester', '2nd semester', null],
+    default: null 
+  },
+  
   // Dashboard statistics
   totalQuizzes: { type: Number, default: 24 },
   averageScore: { type: Number, default: 82 },

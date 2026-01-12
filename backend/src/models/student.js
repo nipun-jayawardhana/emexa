@@ -41,6 +41,18 @@ const studentSchema = new mongoose.Schema({
     emotionDataConsent: { type: Boolean, default: true }
   },
   
+  // Academic information
+  year: { 
+    type: String, 
+    enum: ['1st year', '2nd year', '3rd year', '4th year', null],
+    default: null 
+  },
+  semester: { 
+    type: String, 
+    enum: ['1st semester', '2nd semester', null],
+    default: null 
+  },
+  
   // Profile data fields
   recentActivity: { type: Array, default: [] },
   totalQuizzes: { type: Number, default: 0 },

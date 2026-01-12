@@ -10,6 +10,8 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [accountType, setAccountType] = useState("student");
+  const [year, setYear] = useState("");
+  const [semester, setSemester] = useState("");
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -72,10 +74,12 @@ export default function Register() {
         email,
         password: "***",
         accountType,
+        year,
+        semester,
       });
 
       api
-        .post("/auth/register", { fullName, email, password, accountType })
+        .post("/auth/register", { fullName, email, password, accountType, year, semester })
         .then((res) => {
           console.log("✅ Registration response:", res);
 
@@ -278,6 +282,56 @@ export default function Register() {
                   {errors.confirm && (
                     <div className="error-text">{errors.confirm}</div>
                   )}
+                </div>
+
+                <div style={{ display: "flex", gap: "16px", marginBottom: "20px" }}>
+                  <div className="field" style={{ flex: 1 }}>
+                    <label>Year</label>
+                    <select
+                      value={year}
+                      onChange={(e) => setYear(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        border: "1px solid #ddd",
+                        fontSize: "15px",
+                        color: year ? "#333" : "#999",
+                        backgroundColor: "#fff",
+                        cursor: "pointer",
+                        outline: "none",
+                      }}
+                    >
+                      <option value="" disabled>Select year</option>
+                      <option value="1st year">1st year</option>
+                      <option value="2nd year">2nd year</option>
+                      <option value="3rd year">3rd year</option>
+                      <option value="4th year">4th year</option>
+                    </select>
+                  </div>
+
+                  <div className="field" style={{ flex: 1 }}>
+                    <label>Semester</label>
+                    <select
+                      value={semester}
+                      onChange={(e) => setSemester(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        border: "1px solid #ddd",
+                        fontSize: "15px",
+                        color: semester ? "#333" : "#999",
+                        backgroundColor: "#fff",
+                        cursor: "pointer",
+                        outline: "none",
+                      }}
+                    >
+                      <option value="" disabled>Select semester</option>
+                      <option value="1st semester">1st semester</option>
+                      <option value="2nd semester">2nd semester</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="field">

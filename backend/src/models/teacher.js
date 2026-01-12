@@ -48,6 +48,18 @@ const teacherSchema = new mongoose.Schema({
     emotionDataConsent: { type: Boolean, default: true }
   },
   
+  // Academic information
+  year: { 
+    type: String, 
+    enum: ['1st year', '2nd year', '3rd year', '4th year', null],
+    default: null 
+  },
+  semester: { 
+    type: String, 
+    enum: ['1st semester', '2nd semester', null],
+    default: null 
+  },
+  
   // Optional teacher fields
   qualifications: { type: String, default: '' },
   subjects: [{ type: String }]

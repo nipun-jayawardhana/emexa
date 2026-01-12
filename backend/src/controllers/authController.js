@@ -9,7 +9,7 @@ import bcrypt from 'bcryptjs';
 // ============================================
 export const register = async (req, res) => {
   try {
-    const { fullName, name, email, password, accountType } = req.body;
+    const { fullName, name, email, password, accountType, year, semester } = req.body;
     const userName = fullName || name;
     
     if (!userName || !email || !password) {
@@ -19,7 +19,7 @@ export const register = async (req, res) => {
     const role = accountType || 'student';
     const normalizedEmail = email.toLowerCase().trim();
     
-    console.log('📝 Registration attempt:', { userName, email: normalizedEmail, role });
+    console.log('📝 Registration attempt:', { userName, email: normalizedEmail, role, year, semester });
 
     // Check if user already exists
     const existingUser = await User.findOne({ email: normalizedEmail });
@@ -42,7 +42,9 @@ export const register = async (req, res) => {
       role: role,
       approvalStatus: 'pending',
       status: 'Pending',
-      isActive: false
+      isActive: false,
+      year: year || null,
+      semester: semester || null
     });
 
     await newUser.save();
@@ -52,7 +54,9 @@ export const register = async (req, res) => {
       name: newUser.name,
       email: newUser.email,
       role: newUser.role,
-      approvalStatus: newUser.approvalStatus
+      approvalStatus: newUser.approvalStatus,
+      year: newUser.year,
+      semester: newUser.semester
     });
 
     res.status(201).json({
@@ -63,7 +67,9 @@ export const register = async (req, res) => {
         email: newUser.email,
         role: newUser.role,
         status: 'Pending',
-        approvalStatus: 'pending'
+        approvalStatus: 'pending',
+        year: newUser.year,
+        semester: newUser.semester
       },
       pendingApproval: true
     });
