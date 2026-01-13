@@ -801,10 +801,7 @@ const handleSaveAccountInfo = async () => {
                 <div class="setting-label">Email Notifications</div>
                 <div class="setting-value">${data.settings?.notifications?.emailNotifications ? '✓ Enabled' : '✗ Disabled'}</div>
               </div>
-              <div class="setting-item">
-                <div class="setting-label">SMS Notifications</div>
-                <div class="setting-value">${data.settings?.notifications?.smsNotifications ? '✓ Enabled' : '✗ Disabled'}</div>
-              </div>
+              
               <div class="setting-item">
                 <div class="setting-label">In-App Notifications</div>
                 <div class="setting-value">${data.settings?.notifications?.inAppNotifications ? '✓ Enabled' : '✗ Disabled'}</div>
@@ -1200,35 +1197,6 @@ const handleProfileImageChange = async (e) => {
                       notificationSettings.emailNotifications ? 'text-teal-600' : 'text-gray-500'
                     }`}>
                       {notificationSettings.emailNotifications ? 'ON' : 'OFF'}
-                    </span>
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-between py-4 border-b border-gray-100">
-                  <div>
-                    <h3 className="font-medium text-gray-900">SMS Notifications</h3>
-                    <p className="text-sm text-gray-600">Receive notifications via text message</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer ml-4">
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings.smsNotifications}
-                      onChange={() => handleNotificationToggle('smsNotifications')}
-                      className="sr-only peer"
-                    />
-                    <div className={`w-14 h-7 rounded-full peer-focus:ring-4 peer-focus:ring-teal-300 relative transition-all duration-300 ${
-                      notificationSettings.smsNotifications 
-                        ? 'bg-teal-600' 
-                        : 'bg-gray-300'
-                    }`}>
-                      <div className={`absolute top-1 bg-white w-5 h-5 rounded-full shadow-md transition-all duration-300 ${
-                        notificationSettings.smsNotifications ? 'translate-x-7 left-1' : 'left-1'
-                      }`}></div>
-                    </div>
-                    <span className={`ml-3 text-sm font-medium ${
-                      notificationSettings.smsNotifications ? 'text-teal-600' : 'text-gray-500'
-                    }`}>
-                      {notificationSettings.smsNotifications ? 'ON' : 'OFF'}
                     </span>
                   </label>
                 </div>
