@@ -53,6 +53,10 @@ const studentSchema = new mongoose.Schema({
     default: null 
   },
   
+  // Password reset fields
+  resetPasswordCode: { type: String, select: false },
+  resetPasswordExpiry: { type: Date, select: false },
+  
   // Profile data fields
   recentActivity: { type: Array, default: [] },
   totalQuizzes: { type: Number, default: 0 },
