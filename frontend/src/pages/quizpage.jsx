@@ -29,7 +29,7 @@ const QuizPage = () => {
   const [showBulb, setShowBulb] = useState(false);
   const [showEmojiDialog, setShowEmojiDialog] = useState(false);
   const [showHints, setShowHints] = useState(false);
-  const [revealedHints, setRevealedHints] = useState([]);
+  const [revealedHints, setRevealedHints] = useState({}); // Track revealed hints per question
   const [pendingHintRequest, setPendingHintRequest] = useState(null); // Store hint request details
   const [quizSubmitted, setQuizSubmitted] = useState(showResults);
   const [quizStartTime] = useState(Date.now());
@@ -495,7 +495,6 @@ const QuizPage = () => {
     setShowBulb(false);
     setShowEmojiDialog(false);
     setShowHints(false);
-    setRevealedHints([]);
   }, [currentQuestion]);
 
   const handleAnswerSelect = (optionIndex) => {
@@ -749,7 +748,15 @@ const QuizPage = () => {
   };
 
   const handleRevealHint = (index) => {
-    setRevealedHints([...revealedHints, index]);
+    const questionRevealedHints = revealedHints[currentQuestion] || [];
+    if (!questionRevealedHints.includes(index)) {
+      setRevealedHints({
+        ...revealedHints,
+        [currentQuestion]: [...questionRevealedHints, index],
+      });
+      // Increment hint count for each revealed hint (AI or Teacher)
+      setHintsUsedCount((prev) => prev + 1);
+    }
   };
 
   const handleNext = () => {
@@ -860,7 +867,25 @@ const QuizPage = () => {
         correct++;
       }
     });
-    return correct;
+
+    // Calculate score out of 100
+    const totalQuestions = quizData.questions.length;
+    const marksPerQuestion = 100 / totalQuestions;
+    const baseScore = correct * marksPerQuestion;
+
+    // Deduct 1 mark for each hint used
+    const finalScore = Math.max(0, baseScore - hintsUsedCount);
+
+    console.log("📊 Score Calculation:", {
+      correct,
+      totalQuestions,
+      marksPerQuestion,
+      baseScore,
+      hintsUsed: hintsUsedCount,
+      finalScore,
+    });
+
+    return finalScore;
   };
 
   const formatTime = (seconds) => {
@@ -906,7 +931,10 @@ const QuizPage = () => {
     // Create a printable version
     const printWindow = window.open("", "_blank");
     const score = calculateScore();
-    const percentage = Math.round((score / quizData.questions.length) * 100);
+    const percentage = Math.round(score); // Score is already out of 100
+    const correctAnswers = Object.values(answers).filter(
+      (ans, idx) => ans === quizData.questions[idx].correctAnswer
+    ).length;
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -1059,9 +1087,17 @@ const QuizPage = () => {
             <h3>Your Score</h3>
             <div class="score-percentage">${percentage}%</div>
           </div>
-          <p>You answered <strong>${score} out of ${
+          <p><strong>Correct Answers:</strong> ${correctAnswers} out of ${
       quizData.questions.length
-    }</strong> questions correctly</p>
+    }</p>
+          ${
+            hintsUsedCount > 0
+              ? `<p><strong>Hints Used Penalty:</strong> -${hintsUsedCount} mark${
+                  hintsUsedCount > 1 ? "s" : ""
+                }</p>`
+              : ""
+          }
+          <p><strong>Final Score:</strong> ${Math.round(score)} / 100</p>
         </div>
         
         ${quizData.questions
@@ -1179,7 +1215,7 @@ const QuizPage = () => {
 
   if (quizSubmitted) {
     const score = calculateScore();
-    const percentage = Math.round((score / quizData.questions.length) * 100);
+    const percentage = Math.round(score); // Score is already out of 100
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-50 flex items-center justify-center p-4">
@@ -1253,33 +1289,36 @@ const QuizPage = () => {
               <div className="flex justify-between items-center py-2 border-b border-red-200">
                 <span className="text-gray-700">Correct Answers:</span>
                 <span className="font-bold text-green-600">
-                  {score} / {quizData.questions.length}
+                  {
+                    Object.values(answers).filter(
+                      (ans, idx) =>
+                        ans === quizData.questions[idx].correctAnswer
+                    ).length
+                  }{" "}
+                  / {quizData.questions.length}
                 </span>
               </div>
 
-              {aiFeedback && aiFeedback.hintsUsed > 0 && (
+              {hintsUsedCount > 0 && (
                 <div className="flex justify-between items-center py-2 border-b border-red-200">
                   <span className="text-gray-700">Hints Used Penalty:</span>
                   <span className="font-bold text-orange-600">
-                    - {aiFeedback.hintsUsed} mark
-                    {aiFeedback.hintsUsed > 1 ? "s" : ""}
+                    - {hintsUsedCount} mark{hintsUsedCount > 1 ? "s" : ""}
                   </span>
                 </div>
               )}
 
-              {aiFeedback && aiFeedback.finalScore !== undefined && (
-                <div className="flex justify-between items-center py-3 bg-white px-3 rounded-lg">
-                  <span className="text-lg font-bold text-gray-800">
-                    Final Score:
-                  </span>
-                  <span className="text-2xl font-bold text-red-500">
-                    {aiFeedback.finalScore} / {quizData.questions.length}
-                  </span>
-                </div>
-              )}
+              <div className="flex justify-between items-center py-3 bg-white px-3 rounded-lg">
+                <span className="text-lg font-bold text-gray-800">
+                  Final Score:
+                </span>
+                <span className="text-2xl font-bold text-red-500">
+                  {Math.round(score)} / 100
+                </span>
+              </div>
             </div>
 
-            {aiFeedback && aiFeedback.hintsUsed > 0 && (
+            {hintsUsedCount > 0 && (
               <p className="text-sm text-gray-600 italic">
                 💡 Each hint used deducts 1 mark from your final score
               </p>
@@ -1762,40 +1801,59 @@ const QuizPage = () => {
 
                 {/* AI Hints (if available) */}
                 {aiHints[currentQuestion] ? (
-                  <div className="grid grid-cols-1 gap-4">
-                    {(Array.isArray(aiHints[currentQuestion])
-                      ? aiHints[currentQuestion]
-                      : [aiHints[currentQuestion]]
-                    ).map((hint, index) => (
-                      <div
-                        key={index}
-                        className="bg-white rounded-lg p-4 border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-shadow"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0 mt-1">
-                            <div className="flex items-center justify-center h-6 w-6 rounded-full bg-blue-100">
-                              <span className="text-blue-700 font-bold text-sm">
-                                {index + 1}
+                  <>
+                    <p className="text-sm text-gray-600 mb-4">
+                      You have{" "}
+                      {
+                        (Array.isArray(aiHints[currentQuestion])
+                          ? aiHints[currentQuestion]
+                          : [aiHints[currentQuestion]]
+                        ).length
+                      }{" "}
+                      hints available. Each hint provides additional
+                      information.
+                    </p>
+
+                    <div className="space-y-3">
+                      {(Array.isArray(aiHints[currentQuestion])
+                        ? aiHints[currentQuestion]
+                        : [aiHints[currentQuestion]]
+                      ).map((hint, index) => {
+                        const questionRevealedHints =
+                          revealedHints[currentQuestion] || [];
+                        return (
+                          <div
+                            key={index}
+                            className="bg-white rounded-lg p-4 border border-gray-200"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-semibold text-gray-700">
+                                Hint {index + 1}
                               </span>
+                              {!questionRevealedHints.includes(index) && (
+                                <button
+                                  onClick={() => handleRevealHint(index)}
+                                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                >
+                                  Reveal
+                                </button>
+                              )}
                             </div>
+                            {questionRevealedHints.includes(index) && (
+                              <div className="flex items-start gap-3">
+                                <p className="text-gray-700 flex-1">{hint}</p>
+                                {index === 0 && (
+                                  <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-medium flex-shrink-0">
+                                    -1 mark
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <div className="flex-1">
-                            <p className="font-semibold text-blue-700 mb-1">
-                              Hint {index + 1}
-                            </p>
-                            <p className="text-gray-700 text-sm leading-relaxed">
-                              {hint}
-                            </p>
-                          </div>
-                          {index === 0 && (
-                            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-medium">
-                              -1 mark
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 ) : (
                   <>
                     <p className="text-sm text-gray-600 mb-4">
@@ -1813,29 +1871,33 @@ const QuizPage = () => {
                       {question.hints
                         .map((hint, index) => ({ hint, index }))
                         .filter(({ hint }) => hint && hint.trim() !== "")
-                        .map(({ hint, index }) => (
-                          <div
-                            key={index}
-                            className="bg-white rounded-lg p-4 border border-gray-200"
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-semibold text-gray-700">
-                                Hint {index + 1}
-                              </span>
-                              {!revealedHints.includes(index) && (
-                                <button
-                                  onClick={() => handleRevealHint(index)}
-                                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                                >
-                                  Reveal
-                                </button>
+                        .map(({ hint, index }) => {
+                          const questionRevealedHints =
+                            revealedHints[currentQuestion] || [];
+                          return (
+                            <div
+                              key={index}
+                              className="bg-white rounded-lg p-4 border border-gray-200"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="font-semibold text-gray-700">
+                                  Hint {index + 1}
+                                </span>
+                                {!questionRevealedHints.includes(index) && (
+                                  <button
+                                    onClick={() => handleRevealHint(index)}
+                                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                  >
+                                    Reveal
+                                  </button>
+                                )}
+                              </div>
+                              {questionRevealedHints.includes(index) && (
+                                <p className="text-gray-700">{hint}</p>
                               )}
                             </div>
-                            {revealedHints.includes(index) && (
-                              <p className="text-gray-700">{hint}</p>
-                            )}
-                          </div>
-                        ))}
+                          );
+                        })}
                     </div>
                   </>
                 )}
