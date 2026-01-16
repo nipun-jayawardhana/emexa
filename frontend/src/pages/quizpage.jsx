@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import axios from "axios";
 import {
   Clock,
   Home,
@@ -138,8 +137,6 @@ const QuizPage = () => {
       // Get user info from localStorage
       const userStr = localStorage.getItem("user");
       if (!userStr) return;
-
-      const user = JSON.parse(userStr);
 
       // Connect to emotion tracking socket
       const socket = io("http://localhost:5000/emotion", {
@@ -599,14 +596,8 @@ const QuizPage = () => {
   const processHintRequest = async (request) => {
     if (!request) return;
 
-    const {
-      type,
-      questionIndex,
-      question,
-      hasTeacherHints,
-      cachedHints,
-      localStorageKey,
-    } = request;
+    const { type, questionIndex, question, hasTeacherHints, cachedHints } =
+      request;
 
     if (type === "existing") {
       // Show existing hints from memory
