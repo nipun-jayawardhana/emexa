@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import axios from "axios";
 import {
   Clock,
   Home,
@@ -11,6 +10,7 @@ import {
   X,
   Flag,
 } from "lucide-react";
+import { io } from "socket.io-client";
 import teacherQuizService from "../services/teacherQuizService";
 import headerLogo from "../assets/headerlogo.png";
 import DownloadIcon from "../assets/download.png";
@@ -24,14 +24,6 @@ const QuizPage = () => {
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
-  const [flaggedQuestions, setFlaggedQuestions] = useState(() => {
-    try {
-      const saved = localStorage.getItem("flaggedQuestions");
-      return saved ? JSON.parse(saved) : [];
-    } catch (err) {
-      return [];
-    }
-  });
   const [timeOnQuestion, setTimeOnQuestion] = useState(0);
   const [showBulb, setShowBulb] = useState(false);
   const [showEmojiDialog, setShowEmojiDialog] = useState(false);
@@ -44,10 +36,67 @@ const QuizPage = () => {
   const [activeFilter, setActiveFilter] = useState("all"); // Start with NO filter selected
   const [quizData, setQuizData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [flaggedQuestions, setFlaggedQuestions] = useState(new Set());
+
+  // AI Integration States
+  const [sessionId] = useState(
+    `quiz_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  );
+  const [aiHints, setAiHints] = useState({});
+  const [aiFeedback, setAiFeedback] = useState(null);
+  const [emotionSocket, setEmotionSocket] = useState(null);
+  const [webcamEnabled, setWebcamEnabled] = useState(false);
+  const [cameraPermissionLoading, setCameraPermissionLoading] = useState(false);
+  const [videoStream, setVideoStream] = useState(null);
+  const videoRef = useRef(null);
+  const [hintsUsedCount, setHintsUsedCount] = useState(0);
+  const [showCameraPermissionDialog, setShowCameraPermissionDialog] =
+    useState(false);
+  const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
+  const [bulbVisible, setBulbVisible] = useState(false);
 
   // Load quiz data on component mount
   useEffect(() => {
     loadQuizData();
+
+    // Check camera permission from localStorage (set by Permission page)
+    const cameraPermission = localStorage.getItem("cameraPermission");
+    console.log(
+      "📱 Retrieved camera permission from localStorage:",
+      cameraPermission
+    );
+
+    if (cameraPermission === "allowed") {
+      // Camera was allowed on permission page - enable AI hints
+      console.log("✅ Camera permission allowed - Enabling AI hints");
+      setWebcamEnabled(true);
+      setCameraPermissionDenied(false);
+      // Initialize AI socket for emotion tracking
+      initializeAI();
+    } else {
+      // Camera was denied or skipped - use teacher hints only
+      console.log("❌ Camera permission denied - Using teacher hints only");
+      setWebcamEnabled(false);
+      setCameraPermissionDenied(true);
+    }
+
+    // Don't show camera permission dialog on quiz page
+    // Camera permission is handled on the permission page before quiz starts
+    setCameraPermissionLoading(false);
+    setShowCameraPermissionDialog(false);
+
+    return () => {
+      // Cleanup on unmount
+      if (emotionSocket) {
+        emotionSocket.disconnect();
+      }
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+      }
+      if (videoStream) {
+        videoStream.getTracks().forEach((track) => track.stop());
+      }
+    };
   }, [quizId]);
 
   // Attach video stream to element when it becomes available
@@ -187,11 +236,17 @@ const QuizPage = () => {
         return;
       }
 
-            if (timeStatus === 'expired') {
-              alert('This quiz has expired. The deadline has passed.');
-              window.location.href = '/dashboard';
-              return;
-            }
+      const canvas = document.createElement("canvas");
+      canvas.width = 224;
+      canvas.height = 224;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(videoRef.current, 0, 0, 224, 224);
+      const base64Image = canvas.toDataURL("image/jpeg");
+
+      if (!base64Image || base64Image === "data:,") {
+        console.log("📸 AI: Invalid image data, skipping");
+        return;
+      }
 
       if (!user.id || !sessionId || currentQuestion === undefined) {
         console.log("📸 AI: Missing user/session data", {
@@ -297,20 +352,12 @@ const QuizPage = () => {
                 })
               );
 
-              console.log(
-                "Quiz Page - Formatted questions:",
-                formattedQuestions
-              );
-
               setQuizData({
                 title: teacherQuiz.title,
                 subject: teacherQuiz.subject,
                 questions: formattedQuestions,
               });
               setLoading(false);
-              console.log(
-                "Quiz Page - Successfully loaded teacher quiz from backend!"
-              );
               return;
             } else {
               console.warn("Quiz Page - Teacher quiz found but no questions!");
@@ -329,7 +376,6 @@ const QuizPage = () => {
       }
 
       // Fallback to default sample quiz
-      console.log("Quiz Page - Falling back to sample Biology quiz");
       setQuizData({
         title: "Introduction to Biology",
         questions: sampleQuestions,
@@ -423,7 +469,7 @@ const QuizPage = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeOnQuestion((prev) => prev + 1);
-      if (timeOnQuestion >= 60 && !showBulb && !answers[currentQuestion]) {
+      if (timeOnQuestion >= 10 && !showBulb && !answers[currentQuestion]) {
         setShowBulb(true);
       }
     }, 1000);
@@ -447,11 +493,6 @@ const QuizPage = () => {
     setShowEmojiDialog(false);
     setShowHints(false);
   }, [currentQuestion]);
-
-  // Persist flagged questions to localStorage
-  useEffect(() => {
-    localStorage.setItem("flaggedQuestions", JSON.stringify(flaggedQuestions));
-  }, [flaggedQuestions]);
 
   const handleAnswerSelect = (optionIndex) => {
     setAnswers({ ...answers, [currentQuestion]: optionIndex });
@@ -682,26 +723,19 @@ const QuizPage = () => {
 
   const handleEmojiClick = async (emoji) => {
     console.log(`😊 Emoji clicked: ${emoji}`);
-  const handleToggleFlag = (index) => {
-    if (flaggedQuestions.includes(index)) {
-      setFlaggedQuestions(flaggedQuestions.filter((q) => q !== index));
-    } else {
-      setFlaggedQuestions([...flaggedQuestions, index]);
-    }
-  };
-
-  const handleBulbClick = () => {
-    setShowEmojiDialog(true);
-  };
-
-  const handleEmojiClick = (emoji) => {
-    if (emoji === "confused" || emoji === "frustrated") {
-      setShowHints(true);
-    } else {
-      // For happy, neutral, excited - don't show hints
-      setShowHints(false);
-    }
     setShowEmojiDialog(false);
+
+    // Only proceed with hints for neutral, confused, frustrated
+    if (emoji === "neutral" || emoji === "confused" || emoji === "frustrated") {
+      console.log(`✅ Proceeding with hint request for emotion: ${emoji}`);
+      await processHintRequest(pendingHintRequest);
+    } else {
+      // For happy and excited - skip hints
+      console.log(`❌ Skipping hints for emotion: ${emoji}`);
+    }
+
+    // Clear pending request
+    setPendingHintRequest(null);
   };
 
   const handleRevealHint = (index) => {
@@ -804,9 +838,17 @@ const QuizPage = () => {
         }
       }
     } catch (error) {
-      console.error('❌ Error submitting quiz:', error);
-      alert('Failed to submit quiz. Please try again.');
+      console.error("Error generating AI feedback:", error);
+      console.error("Error details:", error.message, error.stack);
+      setAiFeedback({
+        feedback: "Unable to generate personalized feedback at this time.",
+        emotionalSummary: null,
+        hintsUsed: 0,
+        finalScore: 0,
+      });
     }
+
+    setQuizSubmitted(true);
   };
 
   const calculateScore = () => {
@@ -847,22 +889,33 @@ const QuizPage = () => {
   const matchesFilter = (index) => {
     const answered = answers[index] !== undefined;
     const isCurrent = index === currentQuestion;
-    const isFlagged = flaggedQuestions.includes(index);
+    const isFlagged = flaggedQuestions.has(index);
 
     if (activeFilter === "all") return true;
     if (activeFilter === "current") return isCurrent;
     if (activeFilter === "answered") return answered;
     if (activeFilter === "unanswered") return !answered;
+    if (activeFilter === "flagged") return isFlagged;
 
     return true;
   };
 
-  // Count flagged questions
-  const flaggedCount = flaggedQuestions.length;
-
   const handleFilterClick = (filter) => {
     // Always switch to the clicked filter (don't toggle off)
     setActiveFilter(filter);
+  };
+
+  // Toggle flag for current question
+  const toggleFlag = () => {
+    setFlaggedQuestions((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(currentQuestion)) {
+        newSet.delete(currentQuestion);
+      } else {
+        newSet.add(currentQuestion);
+      }
+      return newSet;
+    });
   };
 
   const handleDownloadPDF = () => {
@@ -1214,7 +1267,7 @@ const QuizPage = () => {
             </div>
           </div>
 
-          <div className="bg-red-50 border-l-4 border-red-400 p-6 mb-8">
+          <div className="bg-red-50 border-l-4 border-red-400 p-6 mb-8 rounded-lg">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-gray-800">Your Score</h3>
               <div className="text-5xl font-bold text-red-500">
@@ -1444,8 +1497,8 @@ const QuizPage = () => {
           {quizData.questions.map((_, index) => {
             const answered = answers[index] !== undefined;
             const isCurrent = index === currentQuestion;
-            const isFlagged = flaggedQuestions.includes(index);
             const highlightQuestion = matchesFilter(index);
+            const isFlagged = flaggedQuestions.has(index);
 
             return (
               <button
@@ -1472,18 +1525,17 @@ const QuizPage = () => {
                       ? "opacity-40"
                       : ""
                   }
-                  ${isFlagged ? "ring-2 ring-orange-400" : ""}
                 `}
               >
                 {index + 1}
-                {answered && !isCurrent && !isFlagged && (
+                {answered && !isCurrent && (
                   <div className="absolute -top-1 -right-1 bg-teal-700 rounded-full w-4 h-4 flex items-center justify-center">
                     <Check className="w-3 h-3 text-white" strokeWidth={3} />
                   </div>
                 )}
                 {isFlagged && (
-                  <div className="absolute -top-1 -right-1 bg-orange-500 rounded-full w-4 h-4 flex items-center justify-center">
-                    <Flag className="w-2.5 h-2.5 text-white fill-white" />
+                  <div className="absolute -top-1 -left-1">
+                    <Flag className="w-3 h-3 text-orange-500 fill-orange-500" />
                   </div>
                 )}
               </button>
@@ -1494,72 +1546,54 @@ const QuizPage = () => {
         <div className="space-y-3 mb-8">
           <button
             onClick={() => handleFilterClick("current")}
-            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "current" ? "bg-green-200" : "hover:bg-green-50"
-            }`}
+            className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "current"
-                  ? "bg-green-500"
-                  : "bg-white border-2 border-teal-700"
-              }`}
-            ></div>
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+              {activeFilter === "current" && (
+                <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
+              )}
+            </div>
             <span className="text-sm text-gray-700">Current question</span>
           </button>
           <button
             onClick={() => handleFilterClick("answered")}
-            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "answered" ? "bg-green-200" : "hover:bg-green-50"
-            }`}
+            className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "answered"
-                  ? "bg-green-500"
-                  : "bg-white border-2 border-teal-700"
-              }`}
-            ></div>
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+              {activeFilter === "answered" && (
+                <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
+              )}
+            </div>
             <span className="text-sm text-gray-700">Answered</span>
           </button>
           <button
             onClick={() => handleFilterClick("unanswered")}
-            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "unanswered"
-                ? "bg-green-200"
-                : "hover:bg-green-50"
-            }`}
+            className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "unanswered"
-                  ? "bg-green-500"
-                  : "bg-white border-2 border-teal-700"
-              }`}
-            ></div>
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+              {activeFilter === "unanswered" && (
+                <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
+              )}
+            </div>
             <span className="text-sm text-gray-700">Unanswered</span>
           </button>
           <button
             onClick={() => handleFilterClick("flagged")}
-            className={`w-full flex items-center gap-2 p-2 rounded transition-colors ${
-              activeFilter === "flagged"
-                ? "bg-orange-200"
-                : "hover:bg-orange-50"
-            }`}
+            className="w-full flex items-center gap-3 p-2 rounded transition-colors hover:bg-green-50"
           >
-            <div
-              className={`w-4 h-4 rounded ${
-                activeFilter === "flagged"
-                  ? "bg-orange-500"
-                  : "bg-white border-2 border-orange-500"
-              }`}
-            ></div>
-            <span className="text-sm text-gray-700">Flagged</span>
-            {flaggedCount > 0 && (
-              <span className="ml-auto text-xs font-bold bg-orange-500 text-white rounded-full px-2 py-0.5">
-                {flaggedCount}
-              </span>
-            )}
+            <div className="w-5 h-5 rounded border-2 border-teal-600 bg-white flex items-center justify-center flex-shrink-0">
+              {activeFilter === "flagged" && (
+                <Check className="w-3.5 h-3.5 text-teal-600" strokeWidth={3} />
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-sm text-gray-700">Flagged</span>
+              {flaggedQuestions.size > 0 && (
+                <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {flaggedQuestions.size}
+                </span>
+              )}
+            </div>
           </button>
         </div>
 
@@ -1612,49 +1646,77 @@ const QuizPage = () => {
 
           {/* Question Card */}
           <div className="bg-white rounded-lg shadow-md p-8 relative">
-            {showBulb && (
-              <button
-                onClick={handleBulbClick}
-                className="absolute top-6 right-6 animate-bounce"
-              >
-                <Lightbulb className="w-10 h-10 text-yellow-500 fill-yellow-200" />
-              </button>
+            {showBulb && bulbVisible && (
+              <div className="absolute top-6 right-6 flex flex-col items-center gap-1">
+                <button
+                  onClick={handleBulbClick}
+                  className="animate-bounce"
+                  title={
+                    cameraPermissionLoading
+                      ? "Checking camera permissions..."
+                      : webcamEnabled
+                      ? "AI Hint Available (Camera Enabled)"
+                      : "Teacher Hints Available (Camera Disabled)"
+                  }
+                  disabled={cameraPermissionLoading}
+                >
+                  <Lightbulb
+                    className={`w-10 h-10 ${
+                      cameraPermissionLoading
+                        ? "text-gray-400 fill-gray-200"
+                        : "text-yellow-500 fill-yellow-200"
+                    }`}
+                  />
+                </button>
+                {/* Hint type indicator */}
+                <div
+                  className={`text-xs px-2 py-1 rounded-full font-medium ${
+                    cameraPermissionLoading
+                      ? "bg-gray-100 text-gray-600 border border-gray-300"
+                      : webcamEnabled
+                      ? "bg-blue-100 text-blue-700 border border-blue-300"
+                      : "bg-green-100 text-green-700 border border-green-300"
+                  }`}
+                >
+                  {cameraPermissionLoading
+                    ? "⏳ Loading"
+                    : webcamEnabled
+                    ? "🤖 AI"
+                    : "📚 Teacher"}
+                </div>
+              </div>
             )}
 
             <div className="flex items-start justify-between mb-6">
-              <div>
+              <div className="flex items-center gap-3">
                 <h2 className="text-xl font-semibold text-gray-800">
                   Question {question.id}
                 </h2>
-              </div>
-              <button
-                onClick={() => handleToggleFlag(currentQuestion)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors"
-                title={
-                  flaggedQuestions.includes(currentQuestion)
-                    ? "Unflag this question"
-                    : "Flag this question for review"
-                }
-              >
-                <Flag
-                  className={`w-5 h-5 transition-colors ${
-                    flaggedQuestions.includes(currentQuestion)
-                      ? "text-orange-500 fill-orange-500"
-                      : "text-gray-400 hover:text-orange-500"
+                <button
+                  onClick={toggleFlag}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all ${
+                    flaggedQuestions.has(currentQuestion)
+                      ? "bg-orange-100 text-orange-700 border border-orange-300"
+                      : "bg-gray-100 text-gray-500 border border-gray-300 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200"
                   }`}
-                />
-                <span
-                  className={`text-sm font-medium ${
-                    flaggedQuestions.includes(currentQuestion)
-                      ? "text-orange-600"
-                      : "text-gray-600"
-                  }`}
+                  title={
+                    flaggedQuestions.has(currentQuestion)
+                      ? "Remove flag"
+                      : "Flag for review"
+                  }
                 >
-                  {flaggedQuestions.includes(currentQuestion)
-                    ? "Flagged"
-                    : "Flag"}
-                </span>
-              </button>
+                  <Flag
+                    className={`w-4 h-4 ${
+                      flaggedQuestions.has(currentQuestion)
+                        ? "fill-orange-600"
+                        : ""
+                    }`}
+                  />
+                  <span className="text-sm font-medium">
+                    {flaggedQuestions.has(currentQuestion) ? "Flagged" : "Flag"}
+                  </span>
+                </button>
+              </div>
             </div>
             <p className="text-lg text-gray-700 mb-8">{question.text}</p>
 
@@ -1713,10 +1775,19 @@ const QuizPage = () => {
 
             {/* Hints Section */}
             {showHints && (
-              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-6 border-2 border-yellow-200 mb-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Lightbulb className="w-6 h-6 text-yellow-600" />
-                  <h3 className="font-semibold text-gray-800">Need a hint?</h3>
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 border-2 border-blue-300 mb-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <Lightbulb className="w-6 h-6 text-blue-600" />
+                  <h3 className="font-bold text-lg text-gray-800">
+                    {aiHints[currentQuestion]
+                      ? `🤖 AI-Generated Hints (${
+                          (Array.isArray(aiHints[currentQuestion])
+                            ? aiHints[currentQuestion]
+                            : [aiHints[currentQuestion]]
+                          ).length
+                        })`
+                      : "📚 Teacher Hints"}
+                  </h3>
                 </div>
 
                 {/* AI Hints (if available) */}
@@ -1863,6 +1934,55 @@ const QuizPage = () => {
         </div>
       </div>
 
+      {/* Camera Permission Dialog */}
+      {showCameraPermissionDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
+            <h3 className="text-2xl font-bold text-center text-gray-800 mb-4">
+              📷 Camera Permission Required
+            </h3>
+            <p className="text-gray-600 text-center mb-6">
+              {cameraPermissionDenied
+                ? "Camera permission was denied. You can still take the quiz, but AI-powered hints won't be available."
+                : "To enable emotion-based AI hints, we need camera access. Your video stream will only be used to detect emotions - no recordings are stored."}
+            </p>
+            <div className="flex gap-4">
+              {!cameraPermissionDenied ? (
+                <>
+                  <button
+                    onClick={() => {
+                      console.log("⏭️  Skipping camera permission");
+                      setCameraPermissionLoading(false);
+                      setWebcamEnabled(false);
+                      setShowCameraPermissionDialog(false);
+                      console.log(
+                        "🎯 CAMERA PERMISSION FINAL: ❌ DENIED - Teacher hints only"
+                      );
+                    }}
+                    className="flex-1 px-4 py-3 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition-colors"
+                  >
+                    Skip for Now
+                  </button>
+                  <button
+                    onClick={() => requestCameraPermission()}
+                    className="flex-1 px-4 py-3 bg-teal-700 text-white rounded-lg font-semibold hover:bg-teal-800 transition-colors"
+                  >
+                    Allow Camera
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowCameraPermissionDialog(false)}
+                  className="w-full px-4 py-3 bg-teal-700 text-white rounded-lg font-semibold hover:bg-teal-800 transition-colors"
+                >
+                  Continue Without Camera
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Emoji Dialog */}
       {showEmojiDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1891,6 +2011,15 @@ const QuizPage = () => {
           </div>
         </div>
       )}
+
+      {/* Hidden webcam video for AI emotion tracking */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ display: "none" }}
+      />
     </div>
   );
 };

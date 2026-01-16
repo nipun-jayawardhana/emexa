@@ -107,6 +107,14 @@ export default function Permission() {
     // Allow starting quiz whether user allowed webcam or explicitly denied it
     if (webcamPermission === "allowed" || webcamPermission === "denied") {
       console.log("Starting quiz...", webcamPermission);
+
+      // Save camera permission state to localStorage for quiz page to use
+      localStorage.setItem("cameraPermission", webcamPermission);
+      console.log(
+        "📱 Saved camera permission to localStorage:",
+        webcamPermission
+      );
+
       // determine target quiz id from URL query param (set by dashboard when clicking Take Quiz)
       const params = new URLSearchParams(location.search);
       const quizId = params.get("quizId") || "active-quiz";

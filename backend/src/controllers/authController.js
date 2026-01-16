@@ -3,12 +3,6 @@ import Student from '../models/student.js';
 import Teacher from '../models/teacher.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { sendResetCodeEmail, sendPasswordChangeEmail, sendPasswordResetEmail } from '../config/email.config.js';
-
-const generateResetCode = () => {
-  // Generate a 6-digit numeric code
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
 
 // ============================================
 // REGISTER - Saves to User collection with pending status
@@ -554,60 +548,16 @@ export const rejectTeacher = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    
     if (!email) {
-      return res.status(400).json({ message: 'Email is required' });
+      return res.status(400).json({ message: 'Missing email' });
     }
-
-    const normalizedEmail = email.toLowerCase().trim();
-    console.log('📧 Password reset requested for:', normalizedEmail);
-    
-    // Find user in Student or Teacher collection
-    let user = await Student.findOne({ email: normalizedEmail });
-    
-    if (!user) {
-      user = await Teacher.findOne({ email: normalizedEmail });
-    }
-    
-    if (!user) {
-      // Don't reveal if email exists (security best practice)
-      console.log('⚠️ Email not found, but returning success message');
-      return res.status(200).json({ 
-        message: 'If your email exists in our system, you will receive a reset code shortly.' 
-      });
-    }
-    
-    // Generate reset code
-    const resetCode = generateResetCode();
-    const resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-    
-    // Save reset code to user
-    user.resetPasswordCode = resetCode;
-    user.resetPasswordExpiry = resetCodeExpiry;
-    await user.save();
-    
-    console.log('✅ Reset code generated:', resetCode);
-    console.log('⏰ Code expires at:', resetCodeExpiry);
-    
-    // Send email with reset code
-    try {
-      await sendResetCodeEmail(user.email, user.name, resetCode);
-      console.log('✅ Reset code email sent successfully');
-      
-      return res.status(200).json({ 
-        message: 'Password reset code has been sent to your email.',
-        success: true
-      });
-    } catch (emailError) {
-      console.error('❌ Failed to send reset code email:', emailError);
-      return res.status(500).json({ 
-        message: 'Failed to send reset code. Please try again later.' 
-      });
-    }
-    
+    console.log('📧 Password reset requested');
+    return res.status(200).json({ 
+      message: 'If the email exists, we will send a password reset link' 
+    });
   } catch (err) {
-    console.error('❌ Forgot password error:', err);
-    res.status(500).json({ message: 'Server error. Please try again later.' });
+    console.error('Error:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -616,70 +566,35 @@ export const resetPassword = async (req, res) => {
     const { email, resetCode, newPassword } = req.body;
     
     if (!email || !resetCode || !newPassword) {
-      return res.status(400).json({ message: 'All fields are required' });
+      return res.status(400).json({ message: 'Missing required fields' });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    console.log('🔐 Reset password attempt for:', normalizedEmail);
-    console.log('📝 Reset code provided:', resetCode);
     
-    // Find user
-    let user = await Student.findOne({ email: normalizedEmail }).select('+password +resetPasswordCode +resetPasswordExpiry');
+    let user = await Student.findOne({ email: normalizedEmail }).select('+password');
     
     if (!user) {
-      user = await Teacher.findOne({ email: normalizedEmail }).select('+password +resetPasswordCode +resetPasswordExpiry');
+      user = await Teacher.findOne({ email: normalizedEmail }).select('+password');
     }
     
     if (!user) {
-      return res.status(400).json({ message: 'Invalid email or reset code' });
+      return res.status(400).json({ message: 'Invalid email address' });
     }
     
-    // Check if reset code exists
-    if (!user.resetPasswordCode || !user.resetPasswordExpiry) {
-      return res.status(400).json({ message: 'No reset code found. Please request a new one.' });
-    }
-    
-    // Check if code expired
-    if (new Date() > user.resetPasswordExpiry) {
-      console.log('⏰ Reset code expired');
-      return res.status(400).json({ message: 'Reset code has expired. Please request a new one.' });
-    }
-    
-    // Verify reset code
-    if (user.resetPasswordCode !== resetCode.trim()) {
-      console.log('❌ Invalid reset code');
+    if (!resetCode || resetCode.trim().length === 0) {
       return res.status(400).json({ message: 'Invalid reset code' });
     }
     
-    console.log('✅ Reset code verified');
-    
-    // Hash new password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-    
-    // Update password and clear reset code
-    user.password = hashedPassword;
-    user.resetPasswordCode = undefined;
-    user.resetPasswordExpiry = undefined;
+    user.password = newPassword;
     await user.save();
     
     console.log('✅ Password reset successful');
-    
-    // Send confirmation email
-    try {
-      await sendPasswordResetEmail(user.email, user.name);
-      console.log('✅ Password reset confirmation email sent');
-    } catch (emailError) {
-      console.error('⚠️ Password reset successful but confirmation email failed:', emailError);
-    }
-    
     return res.status(200).json({ 
-      message: 'Password reset successful! You can now login with your new password.',
-      success: true
+      message: 'Password reset successful.' 
     });
   } catch (err) {
-    console.error('❌ Reset password error:', err);
-    res.status(500).json({ message: 'Server error. Please try again later.' });
+    console.error('Error:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -711,7 +626,7 @@ export const changePassword = async (req, res) => {
     
     const isSamePassword = await user.comparePassword(newPassword);
     if (isSamePassword) {
-      return res.status(400).json({ message: 'New password must be different from current password' });
+      return res.status(400).json({ message: 'New password must be different' });
     }
     
     const salt = await bcrypt.genSalt(10);
@@ -720,20 +635,12 @@ export const changePassword = async (req, res) => {
     user.password = hashedPassword;
     await user.save();
     
-    // Send email notification
-    try {
-      await sendPasswordChangeEmail(user.email, user.name);
-      console.log('✅ Password changed successfully - Email sent');
-    } catch (emailError) {
-      console.error('⚠️ Password changed but email failed:', emailError);
-      // Don't fail the request if email fails
-    }
-    
+    console.log('✅ Password changed');
     return res.status(200).json({ 
-      message: 'Password changed successfully. A confirmation email has been sent.' 
+      message: 'Password changed successfully' 
     });
   } catch (err) {
-    console.error('❌ Change password error:', err);
+    console.error('Error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
