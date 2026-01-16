@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import camera from "../lib/camera";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import teacherQuizService from "../services/teacherQuizService";
@@ -25,6 +27,8 @@ const StudentDashboard = () => {
   const [userEmail, setUserEmail] = useState("");
   const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
   const [sharedQuizzes, setSharedQuizzes] = useState([]);
+  const [highlightedQuizId, setHighlightedQuizId] = useState(null);
+  const [showAllQuizzes, setShowAllQuizzes] = useState(false);
   const [highlightedQuizId, setHighlightedQuizId] = useState(null);
   const [showAllQuizzes, setShowAllQuizzes] = useState(false);
   const navigate = useNavigate();
@@ -177,7 +181,10 @@ const StudentDashboard = () => {
           );
 
           const studentData = response.data;
-          console.log("✅ Fetched student data for admin view:", studentData);
+          console.log(
+            "✅ Fetched student dashboard data for admin view:",
+            studentData
+          );
 
           // Set the viewed student's information
           setUserName(studentData.name || viewingUserName || "Student");
@@ -187,19 +194,8 @@ const StudentDashboard = () => {
           localStorage.setItem("displayUserName", studentData.name);
           localStorage.setItem("displayUserEmail", studentData.email);
 
-          // Set dashboard data if available
-          if (studentData) {
-            setDashboardData({
-              name: studentData.name,
-              email: studentData.email,
-              totalQuizzes: studentData.totalQuizzes || 24,
-              averageScore: studentData.averageScore || 82,
-              studyTime: studentData.studyTime || 32,
-              upcomingQuizzes: studentData.upcomingQuizzes || [],
-              recentActivity: studentData.recentActivity || [],
-            });
-          }
-
+          // Set dashboard data
+          setDashboardData(studentData);
           setLoading(false);
         } catch (error) {
           console.error("❌ Error fetching student data for admin:", error);
@@ -422,6 +418,14 @@ const StudentDashboard = () => {
               </div>
             )}
 
+            <div className="mb-5">
+              <h1 className="text-2xl font-bold text-gray-900">
+                Student Dashboard
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Welcome back! Here's an overview of your academic progress.
+              </p>
+            </div>
             <div className="mb-5">
               <h1 className="text-2xl font-bold text-gray-900">
                 Student Dashboard

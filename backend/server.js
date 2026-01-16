@@ -55,9 +55,6 @@ const io = new Server(httpServer, {
 // Connect to DB
 connectDB();
 
-// Initialize emotion tracking socket
-initializeEmotionSocket(io);
-
 // Middleware
 app.use(
   cors({
