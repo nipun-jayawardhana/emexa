@@ -318,29 +318,6 @@ const StudentDashboard = () => {
       <div className="min-h-screen bg-gray-50">
         <div className="p-6">
           <div className="max-w-7xl">
-            {/* Back Button - Only show if there's history */}
-            {window.history.length > 1 && (
-              <button
-                onClick={() => navigate(-1)}
-                className="mb-4 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 19l-7-7 7-7"
-                  />
-                </svg>
-                <span className="text-sm font-medium">Back</span>
-              </button>
-            )}
-            
             {/* Show admin viewing banner */}
             {isAdminViewing && adminToken && (
               <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
@@ -522,8 +499,26 @@ const StudentDashboard = () => {
                     );
                   }
                   
+                  // Sort quizzes: active first, then upcoming, then expired at bottom
+                  const sortedQuizzes = [...allQuizzes].sort((a, b) => {
+                    const statusA = a.timeStatus || 'active';
+                    const statusB = b.timeStatus || 'active';
+                    const isActiveA = a.isCurrentlyActive !== undefined ? a.isCurrentlyActive : true;
+                    const isActiveB = b.isCurrentlyActive !== undefined ? b.isCurrentlyActive : true;
+                    
+                    // Priority: active (1) > upcoming (2) > expired (3)
+                    const getPriority = (status, isActive) => {
+                      if (status === 'active' && isActive) return 1;
+                      if (status === 'upcoming') return 2;
+                      if (status === 'expired') return 3;
+                      return 2; // default to upcoming priority
+                    };
+                    
+                    return getPriority(statusA, isActiveA) - getPriority(statusB, isActiveB);
+                  });
+                  
                   // Show only first 2 quizzes if not expanded
-                  const quizzesToShow = showAllQuizzes ? allQuizzes : allQuizzes.slice(0, 2);
+                  const quizzesToShow = showAllQuizzes ? sortedQuizzes : sortedQuizzes.slice(0, 2);
                   
                   return quizzesToShow.map((quiz, index) => {
                     const quizId = quiz.id || quiz._id || `quiz-${index}`;
