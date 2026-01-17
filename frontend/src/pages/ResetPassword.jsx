@@ -9,7 +9,7 @@ export default function ResetPassword() {
   const [searchParams] = useSearchParams();
 
   const [email] = useState(searchParams.get("email") || "");
-  const [resetCode, setResetCode] = useState(searchParams.get("code") || "");
+  const [resetCode, setResetCode] = useState(searchParams.get("token") || "");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

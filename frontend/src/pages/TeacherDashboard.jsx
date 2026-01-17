@@ -1,5 +1,8 @@
+// frontend/src/pages/TeacherDashboard.jsx
+// FIXED VERSION - With Actual Data from Database
+
 import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import AdminViewWrapper from "../components/AdminViewWrapper";
 import Header from "../components/headerorigin";
@@ -10,7 +13,6 @@ import TeacherQuizDraft from "./TeacherQuizDraft";
 
 const TeacherDashboard = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   
   const adminToken = localStorage.getItem("adminToken");
   const isAdminViewing = localStorage.getItem("adminViewingAs");
@@ -52,19 +54,6 @@ const TeacherDashboard = () => {
       setEditingDraftId(null);
     }
   }, [activeMenuItem, editingDraftId]);
-
-  // NEW: Handle query parameter for opening quizzes directly from admin sidebar
-useEffect(() => {
-  const searchParams = new URLSearchParams(location.search);
-  const view = searchParams.get('view');
-  
-  if (view === 'quizzes') {
-    console.log('📌 Opening quizzes from admin sidebar');
-    setActiveMenuItem('quizzes');
-    // Clean up the URL to remove query parameter
-    window.history.replaceState({}, '', '/teacher-dashboard');
-  }
-}, [location.search]);
 
   const teacherMenuItems = [
     {
