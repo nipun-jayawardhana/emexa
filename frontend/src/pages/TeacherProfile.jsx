@@ -1142,21 +1142,6 @@ const TeacherProfile = () => {
         console.error("Failed to create notification:", notifError);
       }
 
-      // Create notification for successful data export
-      const fileName = `Teacher_Data_Export_${
-        new Date().toISOString().split("T")[0]
-      }.pdf`;
-      try {
-        await axios.post(
-          `${API_BASE}/api/notifications/data-export`,
-          { fileName },
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        console.log("✅ Data export notification created");
-      } catch (notifError) {
-        console.error("Failed to create notification:", notifError);
-      }
-
       alert("Your data has been exported successfully as a PDF!");
     } catch (error) {
       console.error("Error exporting data:", error);
