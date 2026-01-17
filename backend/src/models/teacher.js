@@ -58,8 +58,11 @@ const teacherSchema = new mongoose.Schema(
     // Optional teacher fields
     qualifications: { type: String, default: "" },
     subjects: [{ type: String }],
+
+    resetPasswordCode: { type: String, select: false },
+    resetPasswordExpiry: { type: Date, select: false },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // ============================================

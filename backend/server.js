@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config({ path: "./.env" }); // MUST BE FIRST!
 console.log(
   "🔍 .env loaded, MONGO_URI:",
-  process.env.MONGO_URI ? "SET" : "NOT SET"
+  process.env.MONGO_URI ? "SET" : "NOT SET",
 );
 
 // Auto-restart enabled with nodemon
@@ -55,9 +55,6 @@ const io = new Server(httpServer, {
 // Connect to DB
 connectDB();
 
-// Initialize emotion tracking socket
-initializeEmotionSocket(io);
-
 // Middleware
 app.use(
   cors({
@@ -65,7 +62,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -170,14 +167,14 @@ httpServer.listen(PORT, HOST, () => {
       process.env.CLOUDINARY_CLOUD_NAME
         ? "✅ " + process.env.CLOUDINARY_CLOUD_NAME
         : "❌ Not configured"
-    }`
+    }`,
   );
   console.log(
     `🤖 AI Features: ${
       process.env.HF_API_KEY
         ? "✅ Hugging Face API configured"
         : "⚠️  HF_API_KEY not set"
-    }`
+    }`,
   );
   console.log(`🔌 WebSocket: ✅ Socket.IO running on /emotion namespace`);
   console.log("=".repeat(50) + "\n");

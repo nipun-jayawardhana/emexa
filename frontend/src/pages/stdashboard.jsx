@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import camera from "../lib/camera";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import teacherQuizService from "../services/teacherQuizService";
@@ -25,6 +27,8 @@ const StudentDashboard = () => {
   const [userEmail, setUserEmail] = useState("");
   const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
   const [sharedQuizzes, setSharedQuizzes] = useState([]);
+  const [highlightedQuizId, setHighlightedQuizId] = useState(null);
+  const [showAllQuizzes, setShowAllQuizzes] = useState(false);
   const [highlightedQuizId, setHighlightedQuizId] = useState(null);
   const [showAllQuizzes, setShowAllQuizzes] = useState(false);
   const navigate = useNavigate();
@@ -72,7 +76,7 @@ const StudentDashboard = () => {
       "🔔 Scroll effect running. highlightedQuizId:",
       highlightedQuizId,
       "loading:",
-      loading
+      loading,
     );
 
     if (!highlightedQuizId || loading) {
@@ -100,7 +104,7 @@ const StudentDashboard = () => {
             "🔄 Tried string conversion:",
             stringId,
             "Found:",
-            !!quizElement
+            !!quizElement,
           );
         }
 
@@ -117,7 +121,7 @@ const StudentDashboard = () => {
           console.log("❌ No element found for ID:", highlightedQuizId);
           console.log(
             "💡 Hint: Check if the quiz ID in notification matches any of these:",
-            allRefKeys
+            allRefKeys,
           );
         }
       });
@@ -173,11 +177,14 @@ const StudentDashboard = () => {
             `http://localhost:5000/api/users/${viewingUserId}/dashboard`,
             {
               headers: { Authorization: `Bearer ${adminToken}` },
-            }
+            },
           );
 
           const studentData = response.data;
-          console.log("✅ Fetched student data for admin view:", studentData);
+          console.log(
+            "✅ Fetched student dashboard data for admin view:",
+            studentData,
+          );
 
           // Set the viewed student's information
           setUserName(studentData.name || viewingUserName || "Student");
@@ -187,19 +194,8 @@ const StudentDashboard = () => {
           localStorage.setItem("displayUserName", studentData.name);
           localStorage.setItem("displayUserEmail", studentData.email);
 
-          // Set dashboard data if available
-          if (studentData) {
-            setDashboardData({
-              name: studentData.name,
-              email: studentData.email,
-              totalQuizzes: studentData.totalQuizzes || 24,
-              averageScore: studentData.averageScore || 82,
-              studyTime: studentData.studyTime || 32,
-              upcomingQuizzes: studentData.upcomingQuizzes || [],
-              recentActivity: studentData.recentActivity || [],
-            });
-          }
-
+          // Set dashboard data
+          setDashboardData(studentData);
           setLoading(false);
         } catch (error) {
           console.error("❌ Error fetching student data for admin:", error);
@@ -296,7 +292,7 @@ const StudentDashboard = () => {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       console.log("✅ Dashboard data fetched:", response.data);
@@ -343,7 +339,7 @@ const StudentDashboard = () => {
     const studyTimeTarget = 40;
     const studyTimePercentage = Math.min(
       Math.round((studyTime / studyTimeTarget) * 100),
-      100
+      100,
     );
 
     return (
@@ -422,6 +418,14 @@ const StudentDashboard = () => {
               </div>
             )}
 
+            <div className="mb-5">
+              <h1 className="text-2xl font-bold text-gray-900">
+                Student Dashboard
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Welcome back! Here's an overview of your academic progress.
+              </p>
+            </div>
             <div className="mb-5">
               <h1 className="text-2xl font-bold text-gray-900">
                 Student Dashboard
@@ -660,7 +664,7 @@ const StudentDashboard = () => {
                             console.log(
                               "🔗 Registered ref for quiz:",
                               quizId,
-                              quiz.title
+                              quiz.title,
                             );
                             if (isHighlighted) {
                               console.log("⭐ This is the HIGHLIGHTED quiz!");
@@ -671,8 +675,8 @@ const StudentDashboard = () => {
                           isHighlighted
                             ? "border-blue-500 bg-blue-50 animate-pulse"
                             : isExpired
-                            ? "border-gray-200 bg-gray-50 opacity-60"
-                            : "border-gray-200"
+                              ? "border-gray-200 bg-gray-50 opacity-60"
+                              : "border-gray-200"
                         }`}
                         style={
                           isHighlighted
@@ -718,7 +722,7 @@ const StudentDashboard = () => {
                                 if (!dateToShow) return "No date set";
                                 try {
                                   return new Date(
-                                    dateToShow
+                                    dateToShow,
                                   ).toLocaleDateString("en-US", {
                                     month: "short",
                                     day: "numeric",
@@ -751,13 +755,13 @@ const StudentDashboard = () => {
                           onClick={() => {
                             if (isExpired) {
                               alert(
-                                "This quiz has expired. The deadline has passed."
+                                "This quiz has expired. The deadline has passed.",
                               );
                               return;
                             }
                             if (!isActive && timeStatus === "upcoming") {
                               alert(
-                                "This quiz has not started yet. Please wait until the scheduled time."
+                                "This quiz has not started yet. Please wait until the scheduled time.",
                               );
                               return;
                             }
@@ -775,8 +779,8 @@ const StudentDashboard = () => {
                             } catch (e) {}
                             navigate(
                               `/permission?quizId=${encodeURIComponent(
-                                targetId
-                              )}`
+                                targetId,
+                              )}`,
                             );
                           }}
                           disabled={
@@ -790,15 +794,15 @@ const StudentDashboard = () => {
                             isExpired
                               ? "cursor-not-allowed"
                               : !isActive && timeStatus === "upcoming"
-                              ? "!bg-gray-300 !text-gray-500 cursor-not-allowed"
-                              : "bg-green-500 hover:bg-green-600"
+                                ? "!bg-gray-300 !text-gray-500 cursor-not-allowed"
+                                : "bg-green-500 hover:bg-green-600"
                           }`}
                         >
                           {isExpired
                             ? "Expired"
                             : timeStatus === "upcoming"
-                            ? "Not Started"
-                            : "Take Quiz"}
+                              ? "Not Started"
+                              : "Take Quiz"}
                         </button>
                       </div>
                     );
@@ -872,8 +876,8 @@ const StudentDashboard = () => {
                               activity.score >= 80
                                 ? "text-green-600"
                                 : activity.score >= 60
-                                ? "text-yellow-600"
-                                : "text-red-600"
+                                  ? "text-yellow-600"
+                                  : "text-red-600"
                             }`}
                           >
                             {activity.score}%

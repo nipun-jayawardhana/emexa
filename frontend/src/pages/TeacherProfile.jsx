@@ -318,7 +318,7 @@ const TeacherProfile = () => {
               `http://localhost:5000/api/users/${viewingUserId}`,
               {
                 headers: { Authorization: `Bearer ${adminToken}` },
-              }
+              },
             );
 
             const user = response.data;
@@ -364,7 +364,7 @@ const TeacherProfile = () => {
           } catch (error) {
             console.error("❌ Error fetching teacher for admin:", error);
             alert(
-              "Failed to load teacher profile. Returning to user management."
+              "Failed to load teacher profile. Returning to user management.",
             );
 
             // Clear admin viewing flags and return to user management
@@ -432,14 +432,14 @@ const TeacherProfile = () => {
 
               localStorage.setItem(
                 "profileSettings",
-                JSON.stringify(serverSettings)
+                JSON.stringify(serverSettings),
               );
             }
           }
         } catch (err) {
           console.warn(
             "Failed to fetch teacher profile:",
-            err?.response?.data || err.message
+            err?.response?.data || err.message,
           );
 
           // Load cached image if available
@@ -492,7 +492,7 @@ const TeacherProfile = () => {
         formDataToSend.append("userRole", "teacher");
         console.log(
           "📤 Admin uploading image for teacher:",
-          viewingUserData._id
+          viewingUserData._id,
         );
       } else {
         formDataToSend.append("userRole", "teacher");
@@ -531,7 +531,7 @@ const TeacherProfile = () => {
         if (!isAdminViewing) {
           localStorage.setItem("teacherProfileImage", fullUrl);
           window.dispatchEvent(
-            new CustomEvent("teacherProfileImageChanged", { detail: fullUrl })
+            new CustomEvent("teacherProfileImageChanged", { detail: fullUrl }),
           );
         }
 
@@ -561,7 +561,7 @@ const TeacherProfile = () => {
       setDisplayName(value);
       localStorage.setItem("userName", value);
       window.dispatchEvent(
-        new CustomEvent("userNameChanged", { detail: value })
+        new CustomEvent("userNameChanged", { detail: value }),
       );
     }
   };
@@ -605,7 +605,7 @@ const TeacherProfile = () => {
         "Admin viewing:",
         isAdminViewing,
         "User ID:",
-        viewingUserData?._id
+        viewingUserData?._id,
       );
 
       // If admin is viewing, update the specific user's profile
@@ -659,14 +659,14 @@ const TeacherProfile = () => {
           localStorage.setItem("userName", updatedName);
           setDisplayName(updatedName);
           window.dispatchEvent(
-            new CustomEvent("userNameChanged", { detail: updatedName })
+            new CustomEvent("userNameChanged", { detail: updatedName }),
           );
 
           if (avatarUrl) {
             window.dispatchEvent(
               new CustomEvent("teacherProfileImageChanged", {
                 detail: avatarUrl,
-              })
+              }),
             );
           }
 
@@ -677,7 +677,7 @@ const TeacherProfile = () => {
       console.error("Save changes error:", error);
       alert(
         error.response?.data?.message ||
-          "Failed to save changes. Please try again."
+          "Failed to save changes. Please try again.",
       );
     }
   };
@@ -726,7 +726,7 @@ const TeacherProfile = () => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       if (response.data?.success) {
@@ -737,7 +737,7 @@ const TeacherProfile = () => {
       console.error("Password change error:", error);
       alert(
         error.response?.data?.message ||
-          "Failed to change password. Please try again."
+          "Failed to change password. Please try again.",
       );
     }
   };
@@ -756,7 +756,7 @@ const TeacherProfile = () => {
         "Admin viewing:",
         isAdminViewing,
         "User ID:",
-        viewingUserData?._id
+        viewingUserData?._id,
       );
 
       let updateUrl = "http://localhost:5000/api/teacher/settings";
@@ -786,7 +786,7 @@ const TeacherProfile = () => {
         if (response.data?.success) {
           localStorage.setItem(
             "profileSettings",
-            JSON.stringify(notificationSettings)
+            JSON.stringify(notificationSettings),
           );
           alert("Notification settings saved successfully!");
         }
@@ -794,13 +794,13 @@ const TeacherProfile = () => {
     } catch (err) {
       console.error(
         "❌ Failed to save settings:",
-        err?.response?.data || err.message
+        err?.response?.data || err.message,
       );
 
       if (!isAdminViewing) {
         localStorage.setItem(
           "profileSettings",
-          JSON.stringify(notificationSettings)
+          JSON.stringify(notificationSettings),
         );
       }
 
@@ -824,7 +824,7 @@ const TeacherProfile = () => {
         "Admin viewing:",
         isAdminViewing,
         "User ID:",
-        viewingUserData?._id
+        viewingUserData?._id,
       );
 
       const payload = {
@@ -864,7 +864,7 @@ const TeacherProfile = () => {
     } catch (err) {
       console.error(
         "❌ Failed to save privacy settings:",
-        err?.response?.data || err.message
+        err?.response?.data || err.message,
       );
       alert("Error: " + (err?.response?.data?.message || err.message));
     } finally {
@@ -1130,6 +1130,19 @@ const TeacherProfile = () => {
       }, 250);
 
       // Create notification for successful data export
+      const fileName = `Teacher_Data_Export_${new Date().toISOString().split("T")[0]}.pdf`;
+      try {
+        await axios.post(
+          `${API_BASE}/api/notifications/data-export`,
+          { fileName },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        console.log("✅ Data export notification created");
+      } catch (notifError) {
+        console.error("Failed to create notification:", notifError);
+      }
+
+      // Create notification for successful data export
       const fileName = `Teacher_Data_Export_${
         new Date().toISOString().split("T")[0]
       }.pdf`;
@@ -1137,7 +1150,7 @@ const TeacherProfile = () => {
         await axios.post(
           `${API_BASE}/api/notifications/data-export`,
           { fileName },
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         console.log("✅ Data export notification created");
       } catch (notifError) {
