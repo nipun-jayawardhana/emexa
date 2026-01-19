@@ -35,21 +35,17 @@ const Header = ({ userName, userRole }) => {
   const fetchUnreadCount = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token || (userRole !== 'student' && userRole !== 'teacher')) {
-        console.log('🔔 Skipping notification count fetch - no token or wrong role:', userRole);
-        return;
-      }
+      if (!token || (userRole !== 'student' && userRole !== 'teacher')) return;
 
       const response = await axios.get(`${API_BASE}/api/notifications/unread-count`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (response.data.success) {
-        console.log('🔔 Unread notification count:', response.data.count);
         setUnreadCount(response.data.count);
       }
     } catch (error) {
-      console.error('❌ Error fetching unread count:', error);
+      console.error('Error fetching unread count:', error);
     }
   };
 
@@ -58,19 +54,7 @@ const Header = ({ userName, userRole }) => {
     if (userRole === 'student' || userRole === 'teacher') {
       fetchUnreadCount();
       const interval = setInterval(fetchUnreadCount, 1000);
-      
-      // Listen for custom event to refresh notification count immediately
-      const handleRefreshNotifications = () => {
-        console.log('🔔 Manual notification refresh triggered');
-        fetchUnreadCount();
-      };
-      
-      window.addEventListener('refreshNotifications', handleRefreshNotifications);
-      
-      return () => {
-        clearInterval(interval);
-        window.removeEventListener('refreshNotifications', handleRefreshNotifications);
-      };
+      return () => clearInterval(interval);
     }
   }, [userRole]);
 
