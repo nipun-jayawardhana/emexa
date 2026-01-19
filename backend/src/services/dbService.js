@@ -5,7 +5,11 @@ export const connectDB = async (uri) => {
   console.log('🔍 MONGO_URI from env:', process.env.MONGO_URI ? 'SET' : 'NOT SET');
   console.log('🔍 Using URI:', mongoUri ? 'SET' : 'NOT SET');
   if (!mongoUri) {
-    console.warn('⚠️  MONGO_URI not set in environment - skipping DB connect in dev');
+    console.log('⚠️  MongoDB connection skipped - No MONGO_URI configured');
+    console.log('💡 To connect MongoDB:');
+    console.log('   1. Create free account: https://www.mongodb.com/cloud/atlas/register');
+    console.log('   2. Get connection string and add to backend/.env file');
+    console.log('   3. Restart server\n');
     return;
   }
 
@@ -14,7 +18,8 @@ export const connectDB = async (uri) => {
     console.log('✅ MongoDB connected successfully');
   } catch (err) {
     console.error('❌ MongoDB connection error:', err.message);
-    throw err;
+    console.log('⚠️  Server will continue without database\n');
+    // Don't throw - let server continue without DB
   }
 };
 

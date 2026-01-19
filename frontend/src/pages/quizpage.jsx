@@ -282,8 +282,62 @@ const QuizPage = () => {
 
   const loadQuizData = async () => {
     try {
+      console.log("Quiz Page - Loading quiz with ID:", quizId);
+      console.log("Quiz Page - URL:", window.location.href);
+      console.log("Quiz Page - Show results:", showResults);
+
       // Get quiz ID from URL path parameter
       if (quizId) {
+        // If we should show results, fetch the saved submission
+        if (showResults) {
+          try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get(
+              `${API_BASE}/api/teacher-quizzes/${quizId}/submission`,
+              {
+                headers: { Authorization: `Bearer ${token}` }
+              }
+            );
+
+            console.log('✅ Loaded saved submission:', response.data);
+
+            if (response.data.success && response.data.submission && response.data.quiz) {
+              const { submission, quiz } = response.data;
+
+              // Format quiz data with saved answers
+              const formattedQuestions = quiz.questions.map((q, index) => ({
+                id: index + 1,
+                text: q.text,
+                options: q.options.map(opt => opt.text),
+                correctAnswer: q.options.findIndex(opt => opt.isCorrect),
+                type: 'mcq',
+                hints: q.hints || []
+              }));
+
+              setQuizData({
+                _id: quiz._id,
+                title: quiz.title,
+                subject: quiz.subject,
+                questions: formattedQuestions
+              });
+
+              // Set the answers from the submission
+              const savedAnswers = {};
+              submission.answers.forEach((ans, idx) => {
+                savedAnswers[idx] = ans.userAnswer;
+              });
+              setAnswers(savedAnswers);
+
+              setQuizSubmitted(true);
+              setLoading(false);
+              return;
+            }
+          } catch (submissionError) {
+            console.error('❌ Error loading saved submission:', submissionError);
+            // Fall through to load quiz normally if submission not found
+          }
+        }
+
         try {
           // Try to load from backend first
           const response = await teacherQuizService.getSharedQuizzes();
