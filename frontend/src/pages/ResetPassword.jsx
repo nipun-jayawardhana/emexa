@@ -141,6 +141,7 @@ export default function ResetPassword() {
                 onChange={(e) => setResetCode(e.target.value)}
                 placeholder="Enter reset code"
                 disabled={loading}
+                autoComplete="off"
               />
               {errors.resetCode && (
                 <div className="error-text">{errors.resetCode}</div>
