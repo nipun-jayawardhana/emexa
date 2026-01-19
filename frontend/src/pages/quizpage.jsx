@@ -41,7 +41,7 @@ const QuizPage = () => {
 
   // AI Integration States
   const [sessionId] = useState(
-    `quiz_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    `quiz_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
   );
   const [aiHints, setAiHints] = useState({});
   const [aiFeedback, setAiFeedback] = useState(null);
@@ -64,7 +64,7 @@ const QuizPage = () => {
     const cameraPermission = localStorage.getItem("cameraPermission");
     console.log(
       "📱 Retrieved camera permission from localStorage:",
-      cameraPermission
+      cameraPermission,
     );
 
     if (cameraPermission === "allowed") {
@@ -127,7 +127,7 @@ const QuizPage = () => {
           webcamEnabled
             ? "✅ ALLOWED - AI hints available"
             : "❌ DENIED - Teacher hints only"
-        }`
+        }`,
       );
     }
   }, [cameraPermissionLoading, webcamEnabled]);
@@ -154,7 +154,7 @@ const QuizPage = () => {
         console.log(
           "😊 AI: Emotion detected -",
           data.emotion,
-          `(${Math.round(data.confidence * 100)}%)`
+          `(${Math.round(data.confidence * 100)}%)`,
         );
       });
 
@@ -173,7 +173,7 @@ const QuizPage = () => {
     try {
       setCameraPermissionLoading(true);
       console.log(
-        "📷 AI: Requesting webcam permission for emotion tracking..."
+        "📷 AI: Requesting webcam permission for emotion tracking...",
       );
 
       // Initialize AI socket connection when user actually requests camera
@@ -189,7 +189,7 @@ const QuizPage = () => {
       setCameraPermissionDenied(false);
       setShowCameraPermissionDialog(false);
       console.log(
-        "✅ AI: Webcam permission granted - emotion tracking active - AI hints enabled"
+        "✅ AI: Webcam permission granted - emotion tracking active - AI hints enabled",
       );
 
       // Attach stream to video element if available
@@ -199,7 +199,7 @@ const QuizPage = () => {
       }
     } catch (err) {
       console.log(
-        "⚠️ AI: Webcam permission denied or device not found - falling back to manual mode - teacher hints only"
+        "⚠️ AI: Webcam permission denied or device not found - falling back to manual mode - teacher hints only",
       );
       console.error("📷 Camera error details:", err.name, err.message);
 
@@ -218,7 +218,7 @@ const QuizPage = () => {
     } finally {
       setCameraPermissionLoading(false);
       console.log(
-        `🎯 CAMERA PERMISSION CHECK: Permission request completed. State will update shortly.`
+        `🎯 CAMERA PERMISSION CHECK: Permission request completed. State will update shortly.`,
       );
     }
   };
@@ -292,34 +292,38 @@ const QuizPage = () => {
         // If we should show results, fetch the saved submission
         if (showResults) {
           try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem("token");
             const response = await axios.get(
               `${API_BASE}/api/teacher-quizzes/${quizId}/submission`,
               {
-                headers: { Authorization: `Bearer ${token}` }
-              }
+                headers: { Authorization: `Bearer ${token}` },
+              },
             );
 
-            console.log('✅ Loaded saved submission:', response.data);
+            console.log("✅ Loaded saved submission:", response.data);
 
-            if (response.data.success && response.data.submission && response.data.quiz) {
+            if (
+              response.data.success &&
+              response.data.submission &&
+              response.data.quiz
+            ) {
               const { submission, quiz } = response.data;
 
               // Format quiz data with saved answers
               const formattedQuestions = quiz.questions.map((q, index) => ({
                 id: index + 1,
                 text: q.text,
-                options: q.options.map(opt => opt.text),
-                correctAnswer: q.options.findIndex(opt => opt.isCorrect),
-                type: 'mcq',
-                hints: q.hints || []
+                options: q.options.map((opt) => opt.text),
+                correctAnswer: q.options.findIndex((opt) => opt.isCorrect),
+                type: "mcq",
+                hints: q.hints || [],
               }));
 
               setQuizData({
                 _id: quiz._id,
                 title: quiz.title,
                 subject: quiz.subject,
-                questions: formattedQuestions
+                questions: formattedQuestions,
               });
 
               // Set the answers from the submission
@@ -334,7 +338,10 @@ const QuizPage = () => {
               return;
             }
           } catch (submissionError) {
-            console.error('❌ Error loading saved submission:', submissionError);
+            console.error(
+              "❌ Error loading saved submission:",
+              submissionError,
+            );
             // Fall through to load quiz normally if submission not found
           }
         }
@@ -350,7 +357,7 @@ const QuizPage = () => {
           if (teacherQuiz) {
             console.log(
               "Quiz Page - Teacher quiz questions:",
-              teacherQuiz.questions
+              teacherQuiz.questions,
             );
 
             // Check if quiz is currently active
@@ -364,7 +371,7 @@ const QuizPage = () => {
               "Quiz Page - Time status:",
               timeStatus,
               "Is active:",
-              isActive
+              isActive,
             );
 
             if (
@@ -377,7 +384,7 @@ const QuizPage = () => {
                     ? new Date(teacherQuiz.scheduleDate).toLocaleDateString()
                     : "TBA") +
                   " at " +
-                  (teacherQuiz.startTime || "TBA")
+                  (teacherQuiz.startTime || "TBA"),
               );
               window.location.href = "/dashboard";
               return;
@@ -404,7 +411,7 @@ const QuizPage = () => {
                       : null,
                   hints: q.hints || ["", "", "", ""],
                   shortAnswer: q.shortAnswer || "",
-                })
+                }),
               );
 
               setQuizData({
@@ -420,7 +427,7 @@ const QuizPage = () => {
           } else {
             console.warn(
               "Quiz Page - No matching teacher quiz found for ID:",
-              quizId
+              quizId,
             );
           }
         } catch (apiError) {
@@ -524,7 +531,7 @@ const QuizPage = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeOnQuestion((prev) => prev + 1);
-      if (timeOnQuestion >= 10 && !showBulb && !answers[currentQuestion]) {
+      if (timeOnQuestion >= 10 && !showBulb) {
         setShowBulb(true);
       }
     }, 1000);
@@ -570,7 +577,7 @@ const QuizPage = () => {
     // First, check if AI hint already generated for this question (in memory)
     if (aiHints[currentQuestion]) {
       console.log(
-        "✅ AI hint already exists in memory, showing emoji dialog first"
+        "✅ AI hint already exists in memory, showing emoji dialog first",
       );
       // Store that we should show existing hints after emoji selection
       setPendingHintRequest({
@@ -587,7 +594,7 @@ const QuizPage = () => {
 
     if (cachedHints && webcamEnabled) {
       console.log(
-        "💾 Found cached AI hints in local storage, showing emoji dialog first"
+        "💾 Found cached AI hints in local storage, showing emoji dialog first",
       );
       // Store pending request to load from cache after emoji selection
       setPendingHintRequest({
@@ -614,7 +621,7 @@ const QuizPage = () => {
     console.log(
       `🎯 HINT LOGIC: Camera ${webcamEnabled ? "ALLOWED" : "DENIED"} → ${
         webcamEnabled ? "AI hints with teacher fallback" : "Teacher hints only"
-      }`
+      }`,
     );
 
     if (webcamEnabled) {
@@ -631,7 +638,7 @@ const QuizPage = () => {
     } else {
       // 🚫 CAMERA DENIED: Show emoji dialog first, then show teacher hints
       console.log(
-        "🚫 Camera denied - showing emoji dialog before teacher hints..."
+        "🚫 Camera denied - showing emoji dialog before teacher hints...",
       );
       if (hasTeacherHints) {
         setPendingHintRequest({
@@ -642,7 +649,7 @@ const QuizPage = () => {
         setShowEmojiDialog(true);
       } else {
         alert(
-          "No hints available for this question. Please ask your teacher to add hints."
+          "No hints available for this question. Please ask your teacher to add hints.",
         );
       }
     }
@@ -759,7 +766,7 @@ const QuizPage = () => {
             setShowHints(true);
           } else {
             alert(
-              data.message || "Unable to generate hint. No hints available."
+              data.message || "Unable to generate hint. No hints available.",
             );
           }
         }
@@ -821,32 +828,34 @@ const QuizPage = () => {
     try {
       // First, submit quiz answers to backend
       const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
-      const answersArray = Object.entries(answers).map(([index, answer]) => answer);
-      
+      const answersArray = Object.entries(answers).map(
+        ([index, answer]) => answer,
+      );
+
       const token = localStorage.getItem("token");
       console.log("📤 Submitting quiz answers to backend:", quizId);
-      
+
       const submitResponse = await axios.post(
         `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
         {
           answers: answersArray,
-          timeTaken
+          timeTaken,
         },
         {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
-      
+
       if (submitResponse.data.success) {
         console.log("✅ Quiz submitted successfully:", submitResponse.data);
-        
+
         // Trigger notification count refresh
-        window.dispatchEvent(new Event('refreshNotifications'));
+        window.dispatchEvent(new Event("refreshNotifications"));
       }
     } catch (submitError) {
       console.error("❌ Error submitting quiz:", submitError);
     }
-    
+
     // Then generate AI feedback
     try {
       const userStr = localStorage.getItem("user");
@@ -904,7 +913,7 @@ const QuizPage = () => {
             "📊 Final Score:",
             data.data.finalScore,
             "/",
-            quizData.questions.length
+            quizData.questions.length,
           );
           console.log("💡 Hints Used:", data.data.hintsUsed);
           console.log("✅ Full feedback data:", data.data);
@@ -1008,7 +1017,7 @@ const QuizPage = () => {
     const score = calculateScore();
     const percentage = Math.round(score); // Score is already out of 100
     const correctAnswers = Object.values(answers).filter(
-      (ans, idx) => ans === quizData.questions[idx].correctAnswer
+      (ans, idx) => ans === quizData.questions[idx].correctAnswer,
     ).length;
 
     const htmlContent = `
@@ -1151,8 +1160,8 @@ const QuizPage = () => {
             <div class="summary-item">
               <label>Questions Answered:</label>
               <value>${Object.keys(answers).length} of ${
-      quizData.questions.length
-    }</value>
+                quizData.questions.length
+              }</value>
             </div>
           </div>
         </div>
@@ -1163,8 +1172,8 @@ const QuizPage = () => {
             <div class="score-percentage">${percentage}%</div>
           </div>
           <p><strong>Correct Answers:</strong> ${correctAnswers} out of ${
-      quizData.questions.length
-    }</p>
+            quizData.questions.length
+          }</p>
           ${
             hintsUsedCount > 0
               ? `<p><strong>Hints Used Penalty:</strong> -${hintsUsedCount} mark${
@@ -1367,7 +1376,7 @@ const QuizPage = () => {
                   {
                     Object.values(answers).filter(
                       (ans, idx) =>
-                        ans === quizData.questions[idx].correctAnswer
+                        ans === quizData.questions[idx].correctAnswer,
                     ).length
                   }{" "}
                   / {quizData.questions.length}
@@ -1594,10 +1603,10 @@ const QuizPage = () => {
                     isCurrent && activeFilter === "all"
                       ? "bg-teal-700 text-white ring-4 ring-teal-300"
                       : isCurrent && activeFilter !== "all"
-                      ? "bg-teal-700 text-white"
-                      : answered
-                      ? "bg-white text-teal-700 border-2 border-teal-700"
-                      : "bg-white text-gray-400 border-2 border-gray-200"
+                        ? "bg-teal-700 text-white"
+                        : answered
+                          ? "bg-white text-teal-700 border-2 border-teal-700"
+                          : "bg-white text-gray-400 border-2 border-gray-200"
                   }
                   ${
                     highlightQuestion && !isCurrent && activeFilter !== "all"
@@ -1739,8 +1748,8 @@ const QuizPage = () => {
                     cameraPermissionLoading
                       ? "Checking camera permissions..."
                       : webcamEnabled
-                      ? "AI Hint Available (Camera Enabled)"
-                      : "Teacher Hints Available (Camera Disabled)"
+                        ? "AI Hint Available (Camera Enabled)"
+                        : "Teacher Hints Available (Camera Disabled)"
                   }
                   disabled={cameraPermissionLoading}
                 >
@@ -1758,15 +1767,15 @@ const QuizPage = () => {
                     cameraPermissionLoading
                       ? "bg-gray-100 text-gray-600 border border-gray-300"
                       : webcamEnabled
-                      ? "bg-blue-100 text-blue-700 border border-blue-300"
-                      : "bg-green-100 text-green-700 border border-green-300"
+                        ? "bg-blue-100 text-blue-700 border border-blue-300"
+                        : "bg-green-100 text-green-700 border border-green-300"
                   }`}
                 >
                   {cameraPermissionLoading
                     ? "⏳ Loading"
                     : webcamEnabled
-                    ? "🤖 AI"
-                    : "📚 Teacher"}
+                      ? "🤖 AI"
+                      : "📚 Teacher"}
                 </div>
               </div>
             )}
@@ -1935,7 +1944,7 @@ const QuizPage = () => {
                       You have{" "}
                       {
                         question.hints.filter(
-                          (hint) => hint && hint.trim() !== ""
+                          (hint) => hint && hint.trim() !== "",
                         ).length
                       }{" "}
                       hints available. Each hint provides additional
@@ -2040,7 +2049,7 @@ const QuizPage = () => {
                       setWebcamEnabled(false);
                       setShowCameraPermissionDialog(false);
                       console.log(
-                        "🎯 CAMERA PERMISSION FINAL: ❌ DENIED - Teacher hints only"
+                        "🎯 CAMERA PERMISSION FINAL: ❌ DENIED - Teacher hints only",
                       );
                     }}
                     className="flex-1 px-4 py-3 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition-colors"
