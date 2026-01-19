@@ -9,7 +9,7 @@ export default function ResetPassword() {
   const [searchParams] = useSearchParams();
 
   const [email] = useState(searchParams.get("email") || "");
-  const [resetCode, setResetCode] = useState(searchParams.get("token") || "");
+  const [resetCode, setResetCode] = useState(searchParams.get("code") || "");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -141,6 +141,7 @@ export default function ResetPassword() {
                 onChange={(e) => setResetCode(e.target.value)}
                 placeholder="Enter reset code"
                 disabled={loading}
+                autoComplete="off"
               />
               {errors.resetCode && (
                 <div className="error-text">{errors.resetCode}</div>
