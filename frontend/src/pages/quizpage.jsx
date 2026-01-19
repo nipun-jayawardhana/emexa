@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import axios from "axios";
 import {
   Clock,
   Home,
@@ -817,7 +818,36 @@ const QuizPage = () => {
   };
 
   const handleSubmit = async () => {
-    // Generate AI feedback
+    try {
+      // First, submit quiz answers to backend
+      const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
+      const answersArray = Object.entries(answers).map(([index, answer]) => answer);
+      
+      const token = localStorage.getItem("token");
+      console.log("📤 Submitting quiz answers to backend:", quizId);
+      
+      const submitResponse = await axios.post(
+        `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
+        {
+          answers: answersArray,
+          timeTaken
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      if (submitResponse.data.success) {
+        console.log("✅ Quiz submitted successfully:", submitResponse.data);
+        
+        // Trigger notification count refresh
+        window.dispatchEvent(new Event('refreshNotifications'));
+      }
+    } catch (submitError) {
+      console.error("❌ Error submitting quiz:", submitError);
+    }
+    
+    // Then generate AI feedback
     try {
       const userStr = localStorage.getItem("user");
       if (userStr) {
