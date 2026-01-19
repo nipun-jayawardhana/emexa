@@ -801,7 +801,6 @@ const handleSaveAccountInfo = async () => {
                 <div class="setting-label">Email Notifications</div>
                 <div class="setting-value">${data.settings?.notifications?.emailNotifications ? '✓ Enabled' : '✗ Disabled'}</div>
               </div>
-              
               <div class="setting-item">
                 <div class="setting-label">In-App Notifications</div>
                 <div class="setting-value">${data.settings?.notifications?.inAppNotifications ? '✓ Enabled' : '✗ Disabled'}</div>
@@ -1201,6 +1200,7 @@ const handleProfileImageChange = async (e) => {
                   </label>
                 </div>
 
+              
                 <div className="flex items-center justify-between py-4 border-b border-gray-100">
                   <div>
                     <h3 className="font-medium text-gray-900">In-App Notifications</h3>

@@ -10,7 +10,8 @@ import {
   deleteQuiz,
   permanentDeleteQuiz,
   getQuizStats,
-  submitQuizAnswers
+  submitQuizAnswers,
+  getQuizSubmission
 } from '../controllers/teacherQuizController.js';
 import { protect } from '../middleware/auth.middleware.js';
 
@@ -87,5 +88,6 @@ router.post('/:id/schedule', scheduleQuiz);            // Schedule a quiz
 
 // Student submission
 router.post('/:id/submit', submitQuizAnswers);         // Submit quiz answers (students)
+router.get('/:id/submission', getQuizSubmission);      // Get saved submission results (students)
 
 export default router;

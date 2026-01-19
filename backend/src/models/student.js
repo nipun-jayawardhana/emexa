@@ -41,9 +41,22 @@ const studentSchema = new mongoose.Schema({
     emotionDataConsent: { type: Boolean, default: true }
   },
   
-   resetPasswordCode: { type: String, select: false },
-   resetPasswordExpiry: { type: Date, select: false },
-
+  // Academic information
+  year: { 
+    type: String, 
+    enum: ['1st year', '2nd year', '3rd year', '4th year', null],
+    default: null 
+  },
+  semester: { 
+    type: String, 
+    enum: ['1st semester', '2nd semester', null],
+    default: null 
+  },
+  
+  // Password reset fields
+  resetPasswordCode: { type: String, select: false },
+  resetPasswordExpiry: { type: Date, select: false },
+  
   // Profile data fields
   recentActivity: { type: Array, default: [] },
   totalQuizzes: { type: Number, default: 0 },

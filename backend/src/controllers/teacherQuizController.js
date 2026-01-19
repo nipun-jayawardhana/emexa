@@ -2,6 +2,7 @@ import TeacherQuiz from '../models/teacherQuiz.js';
 import Teacher from '../models/teacher.js';
 import Notification from '../models/notification.js';
 import { createQuizNotification } from './notificationController.js';
+import { QuizResult } from '../models/quiz.js';
 
 // Create a new quiz (draft)
 export const createQuiz = async (req, res) => {
@@ -496,13 +497,16 @@ export const submitQuizAnswers = async (req, res) => {
     let correctAnswers = 0;
     const results = quiz.questions.map((question, index) => {
       const userAnswer = answers[index];
-      const isCorrect = userAnswer === question.correctAnswer;
+      // Find the index of the correct answer (where isCorrect is true)
+      const correctAnswerIndex = question.options?.findIndex(opt => opt.isCorrect);
+      const correctAnswer = correctAnswerIndex !== -1 ? correctAnswerIndex : null;
+      const isCorrect = userAnswer === correctAnswer;
       if (isCorrect) correctAnswers++;
 
       return {
-        questionId: question._id,
-        userAnswer,
-        correctAnswer: question.correctAnswer,
+        questionId: index + 1,  // Use question number instead of ObjectId
+        userAnswer: userAnswer !== undefined ? userAnswer : -1,
+        correctAnswer: correctAnswer !== null ? correctAnswer : -1,
         isCorrect
       };
     });
@@ -510,6 +514,20 @@ export const submitQuizAnswers = async (req, res) => {
     const score = Math.round((correctAnswers / quiz.questions.length) * 100);
 
     console.log(`✅ Quiz graded: ${correctAnswers}/${quiz.questions.length} correct (${score}%)`);
+
+    // Save submission to database
+    const quizResult = await QuizResult.create({
+      userId,
+      quizId: id,
+      score,
+      correctAnswers,
+      totalQuestions: quiz.questions.length,
+      timeTaken,
+      answers: results,
+      submittedAt: new Date()
+    });
+
+    console.log('✅ Quiz result saved to database:', quizResult._id);
 
     // Create submission confirmation notification for student
     try {
@@ -529,28 +547,87 @@ export const submitQuizAnswers = async (req, res) => {
       console.error('❌ Error creating submission notification:', notifError);
     }
 
-    // TODO: Save submission to database
-    const quizResult = {
-      userId,
-      quizId: id,
-      score,
-      correctAnswers,
-      totalQuestions: quiz.questions.length,
-      timeTaken,
-      answers: results,
-      submittedAt: new Date()
-    };
-
     res.json({
       success: true,
       message: 'Quiz submitted successfully',
-      result: quizResult
+      result: {
+        userId,
+        quizId: id,
+        score,
+        correctAnswers,
+        totalQuestions: quiz.questions.length,
+        timeTaken,
+        answers: results,
+        submittedAt: quizResult.submittedAt
+      }
     });
   } catch (error) {
     console.error('Error submitting quiz:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to submit quiz',
+      error: error.message
+    });
+  }
+};
+
+// Get quiz submission results for a student
+export const getQuizSubmission = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    console.log('📊 Fetching quiz submission:', id, 'for user:', userId);
+
+    // Find the quiz submission
+    const submission = await QuizResult.findOne({
+      quizId: id,
+      userId: userId
+    }).sort({ submittedAt: -1 }); // Get the most recent submission
+
+    if (!submission) {
+      return res.status(404).json({
+        success: false,
+        message: 'No submission found for this quiz'
+      });
+    }
+
+    // Also get the quiz details
+    const quiz = await TeacherQuiz.findById(id);
+
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        message: 'Quiz not found'
+      });
+    }
+
+    console.log('✅ Found submission:', submission._id);
+
+    res.json({
+      success: true,
+      submission: {
+        userId: submission.userId,
+        quizId: submission.quizId,
+        score: submission.score,
+        correctAnswers: submission.correctAnswers,
+        totalQuestions: submission.totalQuestions,
+        timeTaken: submission.timeTaken,
+        answers: submission.answers,
+        submittedAt: submission.submittedAt
+      },
+      quiz: {
+        _id: quiz._id,
+        title: quiz.title,
+        subject: quiz.subject,
+        questions: quiz.questions
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching quiz submission:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch quiz submission',
       error: error.message
     });
   }
@@ -567,5 +644,6 @@ export default {
   deleteQuiz,
   permanentDeleteQuiz,
   getQuizStats,
-  submitQuizAnswers
+  submitQuizAnswers,
+  getQuizSubmission
 };
