@@ -5,6 +5,11 @@ import Teacher from '../models/teacher.js';
 import { QuizResult } from '../models/quiz.js';
 import TeacherQuiz from '../models/teacherQuiz.js';
 import Notification from '../models/notification.js';
+import { 
+  sendEmailNotification, 
+  sendProfileUpdateEmail,
+  sendSettingsChangeEmail 
+} from '../services/notificationEmail.service.js';
 import bcrypt from 'bcrypt';
 
 // ============================================
@@ -419,6 +424,19 @@ export const updateProfile = async (req, res) => {
     
     await user.save();
 
+    // Send email notification if enabled
+    try {
+      const emailHtml = await sendProfileUpdateEmail(user.email, user.name || 'User');
+      await sendEmailNotification(
+        req.userId,
+        user.email,
+        '✏️ Profile Updated - EMEXA',
+        emailHtml
+      );
+    } catch (emailError) {
+      console.error('❌ Error sending profile update email:', emailError.message);
+    }
+
     res.json({ 
       message: 'Profile updated successfully',
       user: {
@@ -504,6 +522,9 @@ export const updateNotificationSettings = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Store previous settings for comparison
+    const previousSettings = { ...user.notificationSettings };
+
     user.notificationSettings = {
       emailNotifications: emailNotifications !== undefined ? emailNotifications : user.notificationSettings?.emailNotifications ?? true,
       smsNotifications: smsNotifications !== undefined ? smsNotifications : user.notificationSettings?.smsNotifications ?? false,
@@ -511,6 +532,37 @@ export const updateNotificationSettings = async (req, res) => {
     };
     
     await user.save();
+
+    // Prepare changed settings for email
+    const changedSettings = {};
+    if (emailNotifications !== undefined && emailNotifications !== previousSettings.emailNotifications) {
+      changedSettings.emailNotifications = emailNotifications;
+    }
+    if (smsNotifications !== undefined && smsNotifications !== previousSettings.smsNotifications) {
+      changedSettings.smsNotifications = smsNotifications;
+    }
+    if (inAppNotifications !== undefined && inAppNotifications !== previousSettings.inAppNotifications) {
+      changedSettings.inAppNotifications = inAppNotifications;
+    }
+
+    // Send email notification if settings were changed (only if email notifications are still enabled)
+    if (Object.keys(changedSettings).length > 0 && user.notificationSettings.emailNotifications) {
+      try {
+        const emailHtml = await sendSettingsChangeEmail(
+          user.email,
+          user.name || 'User',
+          changedSettings
+        );
+        await sendEmailNotification(
+          req.userId,
+          user.email,
+          '⚙️ Settings Updated - EMEXA',
+          emailHtml
+        );
+      } catch (emailError) {
+        console.error('❌ Error sending settings change email:', emailError.message);
+      }
+    }
 
     res.json({ 
       message: 'Notification settings updated successfully',

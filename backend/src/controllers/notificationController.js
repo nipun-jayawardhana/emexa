@@ -1,5 +1,9 @@
 import Notification from '../models/notification.js';
 import Student from '../models/student.js';
+import { 
+  sendEmailNotification, 
+  sendQuizAssignmentEmail 
+} from '../services/notificationEmail.service.js';
 
 // Get all notifications for a user
 export const getNotifications = async (req, res) => {
@@ -130,8 +134,8 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
     console.log('Quiz Data:', quizData);
     console.log('Teacher Name:', teacherName);
 
-    // Get all students
-    const students = await Student.find({}, { _id: 1 });
+    // Get all students with their email and notification settings
+    const students = await Student.find({}, { _id: 1, email: 1, name: 1, notificationSettings: 1 });
     console.log(`📧 Found ${students.length} students to notify`);
 
     if (students.length === 0) {
@@ -156,6 +160,34 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
 
     const result = await Notification.insertMany(notifications);
     console.log(`✅ Successfully created ${result.length} notifications`);
+
+    // Send email notifications to students who have email notifications enabled
+    console.log('📧 Sending email notifications...');
+    for (const student of students) {
+      const emailNotificationsEnabled = student.notificationSettings?.emailNotifications ?? true;
+      
+      if (emailNotificationsEnabled && student.email) {
+        try {
+          const emailHtml = await sendQuizAssignmentEmail(
+            student.email,
+            student.name || 'Student',
+            quizData.title,
+            quizData.subject || 'General',
+            teacherName
+          );
+          
+          await sendEmailNotification(
+            student._id,
+            student.email,
+            `📋 New Quiz Assigned: ${quizData.title}`,
+            emailHtml
+          );
+        } catch (emailError) {
+          console.error(`❌ Failed to send email to student ${student._id}:`, emailError.message);
+          // Continue with other students even if one email fails
+        }
+      }
+    }
 
     return { success: true, count: result.length };
   } catch (error) {

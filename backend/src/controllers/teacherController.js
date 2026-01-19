@@ -3,6 +3,11 @@ import Teacher from '../models/teacher.js';
 import User from '../models/user.js';
 import TeacherQuiz from '../models/teacherQuiz.js';
 import Notification from '../models/notification.js';
+import { 
+  sendEmailNotification, 
+  sendProfileUpdateEmail,
+  sendSettingsChangeEmail 
+} from '../services/notificationEmail.service.js';
 
 // Import QuizResult - adjust path based on your project structure
 // If you have a separate quiz.js model file with QuizResult export
@@ -530,6 +535,19 @@ const updateProfile = async (req, res) => {
       });
     }
 
+    // Send email notification if enabled
+    try {
+      const emailHtml = await sendProfileUpdateEmail(teacher.email, teacher.name || 'Teacher');
+      await sendEmailNotification(
+        teacherId,
+        teacher.email,
+        '✏️ Profile Updated - EMEXA',
+        emailHtml
+      );
+    } catch (emailError) {
+      console.error('❌ Error sending profile update email:', emailError.message);
+    }
+
     res.json({
       success: true,
       data: {
@@ -723,7 +741,7 @@ const updateSettings = async (req, res) => {
     console.log('Received settings:', req.body);
 
     // Get current settings first to preserve existing values
-    const teacher = await Teacher.findById(teacherId).select('settings');
+    const teacher = await Teacher.findById(teacherId).select('settings email name');
     
     if (!teacher) {
       return res.status(404).json({
@@ -731,6 +749,9 @@ const updateSettings = async (req, res) => {
         message: 'Teacher not found'
       });
     }
+
+    // Store previous settings for comparison
+    const previousSettings = { ...teacher.settings } || {};
 
     // Merge with existing settings - only update provided fields
     const currentSettings = teacher.settings || {};
@@ -748,6 +769,40 @@ const updateSettings = async (req, res) => {
     ).select('-password');
 
     console.log('✅ Settings saved to database:', updatedTeacher.settings);
+
+    // Prepare changed settings for email
+    const changedSettings = {};
+    if (emailNotifications !== undefined && emailNotifications !== previousSettings.emailNotifications) {
+      changedSettings.emailNotifications = emailNotifications;
+    }
+    if (smsNotifications !== undefined && smsNotifications !== previousSettings.smsNotifications) {
+      changedSettings.smsNotifications = smsNotifications;
+    }
+    if (inAppNotifications !== undefined && inAppNotifications !== previousSettings.inAppNotifications) {
+      changedSettings.inAppNotifications = inAppNotifications;
+    }
+    if (emotionConsent !== undefined && emotionConsent !== previousSettings.emotionConsent) {
+      changedSettings.emotionConsent = emotionConsent;
+    }
+
+    // Send email notification if settings were changed (only if email notifications are still enabled)
+    if (Object.keys(changedSettings).length > 0 && settings.emailNotifications) {
+      try {
+        const emailHtml = await sendSettingsChangeEmail(
+          teacher.email,
+          teacher.name || 'Teacher',
+          changedSettings
+        );
+        await sendEmailNotification(
+          teacherId,
+          teacher.email,
+          '⚙️ Settings Updated - EMEXA',
+          emailHtml
+        );
+      } catch (emailError) {
+        console.error('❌ Error sending settings change email:', emailError.message);
+      }
+    }
 
     res.json({
       success: true,

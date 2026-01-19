@@ -3,6 +3,11 @@ import Teacher from '../models/teacher.js';
 import Notification from '../models/notification.js';
 import { createQuizNotification } from './notificationController.js';
 import { QuizResult } from '../models/quiz.js';
+import { 
+  sendEmailNotification, 
+  sendQuizSubmissionEmail 
+} from '../services/notificationEmail.service.js';
+import Student from '../models/student.js';
 
 // Create a new quiz (draft)
 export const createQuiz = async (req, res) => {
@@ -543,6 +548,28 @@ export const submitQuizAnswers = async (req, res) => {
         isRead: false
       });
       console.log('✅ Submission notification created for student:', userId);
+
+      // Send email notification if enabled
+      try {
+        const student = await Student.findById(userId);
+        if (student && student.email) {
+          const emailHtml = await sendQuizSubmissionEmail(
+            student.email,
+            student.name || 'Student',
+            quiz.title,
+            `${score}%`
+          );
+
+          await sendEmailNotification(
+            userId,
+            student.email,
+            `✅ Quiz Submitted: ${quiz.title}`,
+            emailHtml
+          );
+        }
+      } catch (emailError) {
+        console.error('❌ Error sending submission email:', emailError.message);
+      }
     } catch (notifError) {
       console.error('❌ Error creating submission notification:', notifError);
     }

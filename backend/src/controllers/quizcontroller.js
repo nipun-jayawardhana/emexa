@@ -1,5 +1,11 @@
 // Sample quiz data (replace with database queries later)
 import Notification from '../models/notification.js';
+import { 
+  sendEmailNotification, 
+  sendQuizSubmissionEmail 
+} from '../services/notificationEmail.service.js';
+import User from '../models/user.js';
+import Student from '../models/student.js';
 
 const sampleQuizzes = {
   'matrix-quiz': {
@@ -157,6 +163,28 @@ export const submitQuizAnswers = async (req, res) => {
         isRead: false
       });
       console.log('✅ Submission notification created for student:', userId);
+
+      // Send email notification if enabled
+      try {
+        const student = await Student.findById(userId);
+        if (student && student.email) {
+          const emailHtml = await sendQuizSubmissionEmail(
+            student.email,
+            student.name || 'Student',
+            quiz.title || 'Quiz',
+            `${score}%`
+          );
+
+          await sendEmailNotification(
+            userId,
+            student.email,
+            `✅ Quiz Submitted: ${quiz.title || 'Quiz'}`,
+            emailHtml
+          );
+        }
+      } catch (emailError) {
+        console.error('❌ Error sending submission email:', emailError.message);
+      }
     } catch (notifError) {
       console.error('❌ Error creating submission notification:', notifError);
     }
