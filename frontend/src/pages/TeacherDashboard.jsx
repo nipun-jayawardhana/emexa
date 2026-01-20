@@ -241,13 +241,56 @@ const DashboardContent = () => {
     : 0;
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">
-        Teacher Dashboard
-      </h1>
-      <p className="text-gray-600 mb-6">
-        Monitor and manage your classes and student performance
-      </p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-6">
+        {/* Admin Viewing Banner */}
+        {localStorage.getItem("adminViewingAs") === "teacher" && localStorage.getItem("adminToken") && (
+          <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <svg
+                  className="w-5 h-5 text-yellow-600 mr-2"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-yellow-800">
+                    Admin View Mode - Viewing: Teacher
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-0.5">
+                    You are viewing this teacher's dashboard as an
+                    administrator
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  // Clear all viewing flags
+                  localStorage.removeItem("adminViewingAs");
+                  localStorage.removeItem("adminViewingUser");
+
+                  // Navigate back to user management
+                  window.location.href = "/admin/user-management";
+                }}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition text-sm font-medium"
+              >
+                ← Back to User Management
+              </button>
+            </div>
+          </div>
+        )}
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          Teacher Dashboard
+        </h1>
+        <p className="text-gray-600 mb-6">
+          Monitor and manage your classes and student performance
+        </p>
 
       {/* Stats Cards with ACTUAL DATA */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -687,6 +730,7 @@ const DashboardContent = () => {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 };
