@@ -272,7 +272,34 @@ const StudentDashboard = () => {
       console.log("📚 Fetched shared quizzes:", response);
 
       if (response.quizzes && response.quizzes.length > 0) {
-        setSharedQuizzes(response.quizzes);
+        const now = new Date();
+        
+        // Filter out expired quizzes (older than 24 hours)
+        const activeQuizzes = response.quizzes.filter((quiz) => {
+          // Check if quiz has schedule info
+          if (quiz.scheduleDate && quiz.endTime) {
+            try {
+              const scheduleDate = new Date(quiz.scheduleDate);
+              const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+              const endDateTime = new Date(scheduleDate);
+              endDateTime.setHours(endHour, endMinute, 0, 0);
+              
+              const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
+              
+              // Remove quizzes that ended more than 24 hours ago
+              if (hoursSinceEnd > 24) {
+                console.log(`🗑️ Hiding expired quiz from student: "${quiz.title}" - expired ${hoursSinceEnd.toFixed(2)} hours ago`);
+                return false;
+              }
+            } catch (error) {
+              console.error(`Error checking expiry for quiz "${quiz.title}":`, error);
+            }
+          }
+          return true;
+        });
+        
+        console.log(`✅ Showing ${activeQuizzes.length} of ${response.quizzes.length} quizzes (${response.quizzes.length - activeQuizzes.length} expired hidden)`);
+        setSharedQuizzes(activeQuizzes);
       }
     } catch (error) {
       console.error("❌ Error fetching shared quizzes:", error);
@@ -551,9 +578,27 @@ const StudentDashboard = () => {
                 {(() => {
                   const upcomingQuizzes = dashboardData?.upcomingQuizzes || [];
                   const allQuizzes = [...sharedQuizzes, ...upcomingQuizzes];
+                  
+                  // Filter out expired quizzes for the count
+                  const now = new Date();
+                  const activeQuizzes = allQuizzes.filter((quiz) => {
+                    if (quiz.scheduleDate && quiz.endTime) {
+                      try {
+                        const scheduleDate = new Date(quiz.scheduleDate);
+                        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+                        const endDateTime = new Date(scheduleDate);
+                        endDateTime.setHours(endHour, endMinute, 0, 0);
+                        const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
+                        return hoursSinceEnd <= 24; // Only include if not expired
+                      } catch (error) {
+                        return true;
+                      }
+                    }
+                    return true;
+                  });
 
                   // Only show View All button if there are more than 2 quizzes
-                  if (allQuizzes.length > 2) {
+                  if (activeQuizzes.length > 2) {
                     return (
                       <button
                         onClick={() => setShowAllQuizzes(!showAllQuizzes)}
@@ -561,7 +606,7 @@ const StudentDashboard = () => {
                       >
                         {showAllQuizzes
                           ? "Show Less"
-                          : `View All (${allQuizzes.length})`}
+                          : `View All (${activeQuizzes.length})`}
                       </button>
                     );
                   }
@@ -572,8 +617,33 @@ const StudentDashboard = () => {
                 {(() => {
                   const upcomingQuizzes = dashboardData?.upcomingQuizzes || [];
                   const allQuizzes = [...sharedQuizzes, ...upcomingQuizzes];
+                  
+                  // Filter out expired quizzes (older than 24 hours)
+                  const now = new Date();
+                  const activeQuizzes = allQuizzes.filter((quiz) => {
+                    // Check if quiz has schedule info and is expired
+                    if (quiz.scheduleDate && quiz.endTime) {
+                      try {
+                        const scheduleDate = new Date(quiz.scheduleDate);
+                        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+                        const endDateTime = new Date(scheduleDate);
+                        endDateTime.setHours(endHour, endMinute, 0, 0);
+                        
+                        const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
+                        
+                        // Hide quizzes that ended more than 24 hours ago
+                        if (hoursSinceEnd > 24) {
+                          console.log(`🗑️ Hiding expired quiz: "${quiz.title}" - expired ${hoursSinceEnd.toFixed(2)} hours ago`);
+                          return false;
+                        }
+                      } catch (error) {
+                        console.error(`Error checking quiz "${quiz.title}":`, error);
+                      }
+                    }
+                    return true;
+                  });
 
-                  if (allQuizzes.length === 0) {
+                  if (activeQuizzes.length === 0) {
                     return (
                       <div className="text-center py-8">
                         <svg
@@ -597,7 +667,7 @@ const StudentDashboard = () => {
                   }
                   
                   // Sort quizzes: active first, then upcoming, then expired at bottom
-                  const sortedQuizzes = [...allQuizzes].sort((a, b) => {
+                  const sortedQuizzes = [...activeQuizzes].sort((a, b) => {
                     const statusA = a.timeStatus || 'active';
                     const statusB = b.timeStatus || 'active';
                     const isActiveA = a.isCurrentlyActive !== undefined ? a.isCurrentlyActive : true;

@@ -221,48 +221,118 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
 
   // Filter quizzes based on selected status
   const filteredQuizzes = draftQuizzes.filter((quiz) => {
-    if (filterStatus === "all") return true;
-    if (filterStatus === "draft")
-      return quiz.status === "draft" && !quiz.isScheduled;
-    if (filterStatus === "scheduled") {
-      // Only show quizzes that are scheduled but NOT currently active
-      if (quiz.status === "scheduled" && quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
-        const now = new Date();
+    const now = new Date();
+
+    // FIRST: Remove ALL quizzes older than 24 hours from ANY view
+    if (quiz.scheduleDate && quiz.endTime) {
+      try {
         const scheduleDate = new Date(quiz.scheduleDate);
-        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
         const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-        
-        const startDateTime = new Date(scheduleDate);
-        startDateTime.setHours(startHour, startMinute, 0, 0);
-        
         const endDateTime = new Date(scheduleDate);
         endDateTime.setHours(endHour, endMinute, 0, 0);
         
-        // Only include if NOT currently active
-        return !(now >= startDateTime && now < endDateTime);
+        const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
+        
+        if (hoursSinceEnd > 24) {
+          console.log(`🗑️ PERMANENTLY REMOVING: "${quiz.title}" - expired ${hoursSinceEnd.toFixed(2)} hours ago`);
+          return false; // Remove from ALL views
+        }
+      } catch (error) {
+        console.error(`Error in 24h check for "${quiz.title}":`, error);
       }
-      return (quiz.status === "draft" && quiz.isScheduled) || quiz.status === "scheduled";
     }
+
+    // SECOND: For scheduled/upcoming view - REMOVE ALL EXPIRED QUIZZES
+    if (filterStatus === "scheduled") {
+      console.log(`\n🔍 Examining: "${quiz.title}"`);
+      console.log(`   scheduleDate: ${quiz.scheduleDate}`);
+      console.log(`   startTime: ${quiz.startTime}`);
+      console.log(`   endTime: ${quiz.endTime}`);
+      console.log(`   isScheduled: ${quiz.isScheduled}`);
+      console.log(`   status: ${quiz.status}`);
+      
+      // Check ALL quizzes with ANY schedule date
+      if (quiz.scheduleDate) {
+        try {
+          const scheduleDate = new Date(quiz.scheduleDate);
+          
+          // If has end time, use precise check
+          if (quiz.endTime) {
+            const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+            const endDateTime = new Date(scheduleDate);
+            endDateTime.setHours(endHour, endMinute, 0, 0);
+            
+            if (now >= endDateTime) {
+              console.log(`   ❌ EXCLUDING - Quiz ended at ${endDateTime.toLocaleString()}`);
+              return false;
+            }
+            
+            // Check if currently active
+            if (quiz.startTime) {
+              const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+              const startDateTime = new Date(scheduleDate);
+              startDateTime.setHours(startHour, startMinute, 0, 0);
+              
+              if (now >= startDateTime && now < endDateTime) {
+                console.log(`   ❌ EXCLUDING - Quiz is currently active`);
+                return false;
+              }
+            }
+          } else {
+            // No end time - check if the schedule date is in the past
+            const endOfDay = new Date(scheduleDate);
+            endOfDay.setHours(23, 59, 59, 999);
+            
+            if (now > endOfDay) {
+              console.log(`   ❌ EXCLUDING - Schedule date ${scheduleDate.toLocaleDateString()} has passed`);
+              return false;
+            }
+          }
+          
+          console.log(`   ✅ KEEPING - Quiz is upcoming`);
+          return true;
+          
+        } catch (error) {
+          console.error(`   ⚠️ Date parse error for "${quiz.title}":`, error);
+          return false; // Exclude on error
+        }
+      }
+      
+      // No schedule date - exclude from scheduled view
+      console.log(`   ❌ EXCLUDING - No schedule date`);
+      return false;
+    }
+
+    // Apply status-based filtering for other views
+    if (filterStatus === "all") return true;
+    
+    if (filterStatus === "draft") {
+      return quiz.status === "draft" && !quiz.isScheduled;
+    }
+    
     if (filterStatus === "active") {
       // Show quizzes with active status OR scheduled quizzes that are currently in their active time window
       if (quiz.status === "active") return true;
-      if (quiz.status === "scheduled" && quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
-        // Check if quiz is currently in active time window
-        const now = new Date();
-        const scheduleDate = new Date(quiz.scheduleDate);
-        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
-        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-        
-        const startDateTime = new Date(scheduleDate);
-        startDateTime.setHours(startHour, startMinute, 0, 0);
-        
-        const endDateTime = new Date(scheduleDate);
-        endDateTime.setHours(endHour, endMinute, 0, 0);
-        
-        return now >= startDateTime && now < endDateTime;
+      if (quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+        try {
+          const scheduleDate = new Date(quiz.scheduleDate);
+          const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+          const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+          
+          const startDateTime = new Date(scheduleDate);
+          startDateTime.setHours(startHour, startMinute, 0, 0);
+          
+          const endDateTime = new Date(scheduleDate);
+          endDateTime.setHours(endHour, endMinute, 0, 0);
+          
+          return now >= startDateTime && now < endDateTime;
+        } catch (error) {
+          return false;
+        }
       }
       return false;
     }
+    
     return true;
   });
 
@@ -345,8 +415,14 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
         },
       }));
 
-      console.log("✨ Transformed drafts:", transformedDrafts);
-      setDraftQuizzes(transformedDrafts);
+      // Remove duplicates based on quiz ID
+      const uniqueDrafts = transformedDrafts.filter((quiz, index, self) =>
+        index === self.findIndex((q) => q.id === quiz.id)
+      );
+
+      console.log("✨ Transformed drafts:", transformedDrafts.length);
+      console.log("✅ Unique drafts after deduplication:", uniqueDrafts.length);
+      setDraftQuizzes(uniqueDrafts);
     } catch (error) {
       console.error("❌ Error loading drafts:", error);
       console.error("Error name:", error.name);
