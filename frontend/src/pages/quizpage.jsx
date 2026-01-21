@@ -132,6 +132,48 @@ const QuizPage = () => {
     }
   }, [cameraPermissionLoading, webcamEnabled]);
 
+  // Stop camera when quiz is submitted or results are shown
+  useEffect(() => {
+    if (quizSubmitted || showResults) {
+      console.log("🛑 IMMEDIATELY STOPPING camera and all tracks...");
+
+      // ⚡ IMMEDIATE STOP - Don't wait for state updates
+      // Stop videoRef tracks FIRST
+      if (videoRef.current) {
+        console.log("Stopping tracks from videoRef...");
+        if (videoRef.current.srcObject) {
+          videoRef.current.srcObject.getTracks().forEach((track) => {
+            console.log("🛑 Stopping track:", track.kind);
+            track.stop();
+          });
+        }
+        videoRef.current.srcObject = null;
+        videoRef.current.pause();
+      }
+
+      // Stop videoStream state SECOND
+      if (videoStream) {
+        console.log("Stopping tracks from videoStream state...");
+        videoStream.getTracks().forEach((track) => {
+          console.log("🛑 Stopping track:", track.kind);
+          track.stop();
+        });
+      }
+
+      // Then update states
+      setWebcamEnabled(false);
+      setVideoStream(null);
+
+      // Disconnect emotion socket
+      if (emotionSocket) {
+        console.log("🔌 Disconnecting emotion socket...");
+        emotionSocket.disconnect();
+      }
+
+      console.log("✅ Camera, microphone, and sockets fully stopped!");
+    }
+  }, [quizSubmitted, showResults]);
+
   // Initialize AI features (Socket.IO connection only - no webcam yet)
   const initializeAI = async () => {
     try {
@@ -2106,13 +2148,15 @@ const QuizPage = () => {
       )}
 
       {/* Hidden webcam video for AI emotion tracking */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        style={{ display: "none" }}
-      />
+      {!quizSubmitted && !showResults && webcamEnabled && (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          style={{ display: "none" }}
+        />
+      )}
     </div>
   );
 };
