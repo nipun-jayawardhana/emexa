@@ -960,14 +960,14 @@ const QuizPage = () => {
     // Deduct 1 mark for each hint used
     const finalScore = Math.max(0, baseScore - hintsUsedCount);
 
-    console.log("📊 Score Calculation:", {
-      correct,
-      totalQuestions,
-      marksPerQuestion,
-      baseScore,
-      hintsUsed: hintsUsedCount,
-      finalScore,
-    });
+    // console.log("📊 Score Calculation:", {
+    //   correct,
+    //   totalQuestions,
+    //   marksPerQuestion,
+    //   baseScore,
+    //   hintsUsed: hintsUsedCount,
+    //   finalScore,
+    // });
 
     return finalScore;
   };
