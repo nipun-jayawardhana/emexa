@@ -1041,6 +1041,11 @@ const handleProfileImageChange = async (e) => {
             <div>
               <h1 className="text-xl font-bold text-gray-900">{userData?.name || 'Student'}</h1>
               <p className="text-gray-600 text-sm">{userData?.email || ''}</p>
+              <div className="mt-2 pt-2 border-t border-gray-200">
+                <p className="text-gray-700 text-sm font-medium">
+                  {userData?.year ? `${userData.year}` : 'Year: N/A'}{userData?.semester ? ` • ${userData.semester}` : ' • Semester: N/A'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
