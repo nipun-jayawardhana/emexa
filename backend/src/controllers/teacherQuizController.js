@@ -423,24 +423,49 @@ export const getQuizStats = async (req, res) => {
       closed: 0
     };
     
+    const now = new Date();
+    
     allQuizzes.forEach(quiz => {
-      // Check if scheduled quiz is currently active
-      const isCurrentlyActive = quiz.isScheduled && quiz.isCurrentlyActive && quiz.isCurrentlyActive();
+      // Check time windows if quiz has schedule information
+      let isCurrentlyActive = false;
+      let hasEnded = false;
       
-      // Scheduled = has schedule info but not currently in active time window
-      if ((quiz.status === 'draft' || quiz.status === 'scheduled') && quiz.isScheduled && !isCurrentlyActive) {
-        formattedStats.scheduled++;
+      if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+        try {
+          const scheduleDate = new Date(quiz.scheduleDate);
+          const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+          const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+          
+          const startDateTime = new Date(scheduleDate);
+          startDateTime.setHours(startHour, startMinute, 0, 0);
+          
+          const endDateTime = new Date(scheduleDate);
+          endDateTime.setHours(endHour, endMinute, 0, 0);
+          
+          // Check if quiz is currently active (between start and end time)
+          isCurrentlyActive = now >= startDateTime && now < endDateTime;
+          
+          // Check if quiz has ended
+          hasEnded = now >= endDateTime;
+        } catch (error) {
+          console.error('Error parsing quiz schedule:', error);
+        }
       }
-      // Active = active status OR scheduled quiz that is currently in its time window
-      else if (quiz.status === 'active' || (quiz.status === 'scheduled' && isCurrentlyActive)) {
+      
+      // Active = scheduled quiz that is currently in its time window
+      if (isCurrentlyActive) {
         formattedStats.active++;
+      }
+      // Scheduled = has schedule info, not currently active, and has NOT ended
+      else if ((quiz.status === 'draft' || quiz.status === 'scheduled') && quiz.isScheduled && !hasEnded) {
+        formattedStats.scheduled++;
       }
       // Draft = draft status and no schedule info
       else if (quiz.status === 'draft' && !quiz.isScheduled) {
         formattedStats.drafts++;
       }
-      // Closed
-      else if (quiz.status === 'closed') {
+      // Closed or ended quizzes
+      else if (quiz.status === 'closed' || hasEnded) {
         formattedStats.closed++;
       }
     });

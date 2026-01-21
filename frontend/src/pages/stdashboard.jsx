@@ -298,8 +298,19 @@ const StudentDashboard = () => {
           return true;
         });
         
-        console.log(`✅ Showing ${activeQuizzes.length} of ${response.quizzes.length} quizzes (${response.quizzes.length - activeQuizzes.length} expired hidden)`);
-        setSharedQuizzes(activeQuizzes);
+        // Remove duplicate quizzes based on quiz ID
+        const uniqueQuizzes = activeQuizzes.reduce((acc, quiz) => {
+          const existingQuiz = acc.find(q => q._id === quiz._id);
+          if (!existingQuiz) {
+            acc.push(quiz);
+          } else {
+            console.log(`🔄 Skipping duplicate quiz: "${quiz.title}" (ID: ${quiz._id})`);
+          }
+          return acc;
+        }, []);
+        
+        console.log(`✅ Showing ${uniqueQuizzes.length} unique quizzes (filtered from ${response.quizzes.length} total, ${response.quizzes.length - activeQuizzes.length} expired hidden)`);
+        setSharedQuizzes(uniqueQuizzes);
       }
     } catch (error) {
       console.error("❌ Error fetching shared quizzes:", error);

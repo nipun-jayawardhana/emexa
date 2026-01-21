@@ -333,6 +333,24 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
       return false;
     }
     
+    if (filterStatus === "recent") {
+      // Show quizzes that ended within the last 7 days (168 hours)
+      if (!quiz.scheduleDate || !quiz.endTime) return false;
+      try {
+        const scheduleDate = new Date(quiz.scheduleDate);
+        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+        const endDateTime = new Date(scheduleDate);
+        endDateTime.setHours(endHour, endMinute, 0, 0);
+        
+        const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
+        
+        // Show quizzes that ended between 0-168 hours ago (last 7 days)
+        return hoursSinceEnd > 0 && hoursSinceEnd <= 168;
+      } catch (error) {
+        return false;
+      }
+    }
+    
     return true;
   });
 
@@ -624,7 +642,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
           onClick={() => setFilterStatus("draft")}
           className={`px-6 py-2.5 rounded-lg font-medium text-sm transition ${
             filterStatus === "draft"
-              ? "bg-orange-600 text-white shadow-md"
+              ? "bg-purple-600 text-white shadow-md"
               : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
           }`}
         >
@@ -646,7 +664,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
           Scheduled (
           {
             draftQuizzes.filter((q) => {
-              // Only count scheduled quizzes that are NOT currently active
+              // Only count scheduled quizzes that have NOT ended yet
               if ((q.status === "draft" && q.isScheduled) || q.status === "scheduled") {
                 if (q.isScheduled && q.scheduleDate && q.startTime && q.endTime) {
                   const now = new Date();
@@ -660,7 +678,12 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                   const endDateTime = new Date(scheduleDate);
                   endDateTime.setHours(endHour, endMinute, 0, 0);
                   
-                  // Exclude if currently active
+                  // Exclude if quiz has ended (should be in Recent Activity instead)
+                  if (now >= endDateTime) {
+                    return false;
+                  }
+                  
+                  // Exclude if currently active (counted in Active button)
                   return !(now >= startDateTime && now < endDateTime);
                 }
                 return true;
@@ -696,6 +719,27 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                 return now >= startDateTime && now < endDateTime;
               }
               return false;
+            }).length
+          })
+        </button>
+        <button
+          onClick={() => setFilterStatus("recent")}
+          className={`px-6 py-2.5 rounded-lg font-medium text-sm transition ${
+            filterStatus === "recent"
+              ? "bg-red-600 text-white shadow-md"
+              : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          Recent Activity ({
+            draftQuizzes.filter((q) => {
+              if (!q.scheduleDate || !q.endTime) return false;
+              const now = new Date();
+              const scheduleDate = new Date(q.scheduleDate);
+              const [endHour, endMinute] = q.endTime.split(':').map(Number);
+              const endDateTime = new Date(scheduleDate);
+              endDateTime.setHours(endHour, endMinute, 0, 0);
+              const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
+              return hoursSinceEnd > 0 && hoursSinceEnd <= 168;
             }).length
           })
         </button>
