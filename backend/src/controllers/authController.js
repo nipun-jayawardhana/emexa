@@ -308,7 +308,9 @@ export const approveStudent = async (req, res) => {
       isActive: true,
       profileImage: userRecord.profileImage,
       notificationSettings: userRecord.notificationSettings,
-      privacySettings: userRecord.privacySettings
+      privacySettings: userRecord.privacySettings,
+      year: userRecord.year,
+      semester: userRecord.semester
     });
     
     await newStudent.save();

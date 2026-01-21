@@ -365,6 +365,8 @@ export const getProfile = async (req, res) => {
       email: user.email || '',
       role: user.role || 'student',
       profileImage: user.profileImage || null,
+      year: user.year || null,
+      semester: user.semester || null,
       notificationSettings: {
         emailNotifications: user.notificationSettings?.emailNotifications ?? true,
         smsNotifications: user.notificationSettings?.smsNotifications ?? false,
