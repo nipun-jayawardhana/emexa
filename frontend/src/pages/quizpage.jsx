@@ -1804,21 +1804,6 @@ const QuizPage = () => {
                   />
                 </button>
                 {/* Hint type indicator */}
-                <div
-                  className={`text-xs px-2 py-1 rounded-full font-medium ${
-                    cameraPermissionLoading
-                      ? "bg-gray-100 text-gray-600 border border-gray-300"
-                      : webcamEnabled
-                        ? "bg-blue-100 text-blue-700 border border-blue-300"
-                        : "bg-green-100 text-green-700 border border-green-300"
-                  }`}
-                >
-                  {cameraPermissionLoading
-                    ? "⏳ Loading"
-                    : webcamEnabled
-                      ? "🤖 AI"
-                      : "📚 Teacher"}
-                </div>
               </div>
             )}
 
