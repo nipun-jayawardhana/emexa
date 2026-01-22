@@ -324,7 +324,6 @@ export default function Login() {
                     justifyContent: "center",
                     transition: "color 0.2s ease",
                   }}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#666" }}>
