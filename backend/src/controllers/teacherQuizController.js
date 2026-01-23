@@ -442,6 +442,11 @@ export const getQuizStats = async (req, res) => {
           const endDateTime = new Date(scheduleDate);
           endDateTime.setHours(endHour, endMinute, 0, 0);
           
+          // Handle cross-midnight quizzes: if end time is before start time, add 1 day to end date
+          if (endDateTime <= startDateTime) {
+            endDateTime.setDate(endDateTime.getDate() + 1);
+          }
+          
           // Check if quiz is currently active (between start and end time)
           isCurrentlyActive = now >= startDateTime && now < endDateTime;
           
@@ -561,18 +566,34 @@ export const submitQuizAnswers = async (req, res) => {
 
     // Create submission confirmation notification for student
     try {
-      await Notification.create({
+      // Check if a submission notification already exists for this user and quiz
+      const existingNotification = await Notification.findOne({
         recipientId: userId,
-        recipientRole: 'student',
-        type: 'quiz_graded',
-        title: quiz.title,
-        description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
         quizId: id,
-        score: `${score}/100`,
-        status: 'graded',
-        isRead: false
-      });
-      console.log('✅ Submission notification created for student:', userId);
+        type: 'quiz_graded'
+      }).sort({ createdAt: -1 }); // Get the most recent notification
+
+      // Only create new notification if:
+      // 1. No existing notification, OR
+      // 2. The score is different from the previous submission
+      const shouldCreateNotification = !existingNotification || existingNotification.score !== `${score}/100`;
+
+      if (shouldCreateNotification) {
+        await Notification.create({
+          recipientId: userId,
+          recipientRole: 'student',
+          type: 'quiz_graded',
+          title: quiz.title,
+          description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
+          quizId: id,
+          score: `${score}/100`,
+          status: 'graded',
+          isRead: false
+        });
+        console.log('✅ Submission notification created for student:', userId, `(Score: ${score}%)`);
+      } else {
+        console.log('ℹ️ Submission notification already exists with same score, skipping duplicate');
+      }
 
       // Send email notification if enabled
       try {

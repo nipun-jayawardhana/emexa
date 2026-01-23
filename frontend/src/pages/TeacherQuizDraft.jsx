@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import teacherQuizService from "../services/teacherQuizService";
 
 // Helper function to convert 24-hour time to 12-hour AM/PM format
@@ -207,9 +207,20 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
     const savedFilter = localStorage.getItem("quizFilter");
     return savedFilter || "all";
   });
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     loadDrafts();
+  }, []);
+
+  // Auto-refresh every 30 seconds to update quiz statuses in real-time
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('🔄 Auto-refreshing quiz statuses...');
+      setRefreshTrigger(prev => prev + 1);
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
   }, []);
 
   // Clear the filter from localStorage when component unmounts or filter changes manually
@@ -219,101 +230,79 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
     };
   }, []);
 
-  // Filter quizzes based on selected status
-  const filteredQuizzes = draftQuizzes.filter((quiz) => {
-    const now = new Date();
+  // Filter quizzes based on selected status (matching the count logic in buttons)
+  // refreshTrigger forces re-evaluation when it changes
+  const filteredQuizzes = useMemo(() => {
+    return draftQuizzes.filter((quiz) => {
+      const now = new Date();
 
-    // FIRST: Remove ALL quizzes older than 24 hours from ANY view
-    if (quiz.scheduleDate && quiz.endTime) {
-      try {
-        const scheduleDate = new Date(quiz.scheduleDate);
-        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-        const endDateTime = new Date(scheduleDate);
-        endDateTime.setHours(endHour, endMinute, 0, 0);
-        
-        const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
-        
-        if (hoursSinceEnd > 24) {
-          console.log(`🗑️ PERMANENTLY REMOVING: "${quiz.title}" - expired ${hoursSinceEnd.toFixed(2)} hours ago`);
-          return false; // Remove from ALL views
-        }
-      } catch (error) {
-        console.error(`Error in 24h check for "${quiz.title}":`, error);
+      // Apply status-based filtering
+      if (filterStatus === "all") {
+        return true;
       }
-    }
-
-    // SECOND: For scheduled/upcoming view - REMOVE ALL EXPIRED QUIZZES
-    if (filterStatus === "scheduled") {
-      console.log(`\n🔍 Examining: "${quiz.title}"`);
-      console.log(`   scheduleDate: ${quiz.scheduleDate}`);
-      console.log(`   startTime: ${quiz.startTime}`);
-      console.log(`   endTime: ${quiz.endTime}`);
-      console.log(`   isScheduled: ${quiz.isScheduled}`);
-      console.log(`   status: ${quiz.status}`);
       
-      // Check ALL quizzes with ANY schedule date
-      if (quiz.scheduleDate) {
-        try {
-          const scheduleDate = new Date(quiz.scheduleDate);
-          
-          // If has end time, use precise check
-          if (quiz.endTime) {
+      if (filterStatus === "draft") {
+        return quiz.status === "draft" && !quiz.isScheduled;
+      }
+      
+      if (filterStatus === "scheduled") {
+        // Show scheduled quizzes that have NOT started yet and have NOT ended
+        if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+          try {
+            const scheduleDate = new Date(quiz.scheduleDate);
+            const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+            
+            const startDateTime = new Date(scheduleDate);
+            startDateTime.setHours(startHour, startMinute, 0, 0);
+            
+            // Only show if quiz hasn't started yet (upcoming)
+            const isUpcoming = now < startDateTime;
+            console.log(`Scheduled check: "${quiz.title}" - now: ${now.toLocaleString()}, start: ${startDateTime.toLocaleString()}, isUpcoming: ${isUpcoming}`);
+            return isUpcoming;
+          } catch (error) {
+            console.error('Error in scheduled filter:', error);
+            return false;
+          }
+        }
+        return false;
+      }
+      
+      if (filterStatus === "active") {
+        // Show quizzes that are currently in their active time window
+        // Check ANY quiz with schedule info, regardless of status field
+        if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+          try {
+            const scheduleDate = new Date(quiz.scheduleDate);
+            const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
             const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+            
+            const startDateTime = new Date(scheduleDate);
+            startDateTime.setHours(startHour, startMinute, 0, 0);
+            
             const endDateTime = new Date(scheduleDate);
             endDateTime.setHours(endHour, endMinute, 0, 0);
             
-            if (now >= endDateTime) {
-              console.log(`   ❌ EXCLUDING - Quiz ended at ${endDateTime.toLocaleString()}`);
-              return false;
+            // Handle cross-midnight quizzes: if end time is before start time, add 1 day to end date
+            if (endDateTime <= startDateTime) {
+              endDateTime.setDate(endDateTime.getDate() + 1);
             }
             
-            // Check if currently active
-            if (quiz.startTime) {
-              const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
-              const startDateTime = new Date(scheduleDate);
-              startDateTime.setHours(startHour, startMinute, 0, 0);
-              
-              if (now >= startDateTime && now < endDateTime) {
-                console.log(`   ❌ EXCLUDING - Quiz is currently active`);
-                return false;
-              }
-            }
-          } else {
-            // No end time - check if the schedule date is in the past
-            const endOfDay = new Date(scheduleDate);
-            endOfDay.setHours(23, 59, 59, 999);
-            
-            if (now > endOfDay) {
-              console.log(`   ❌ EXCLUDING - Schedule date ${scheduleDate.toLocaleDateString()} has passed`);
-              return false;
-            }
+            // Quiz is active if current time is between start and end
+            const isActive = now >= startDateTime && now < endDateTime;
+            console.log(`Active check: "${quiz.title}" - now: ${now.toLocaleString()}, start: ${startDateTime.toLocaleString()}, end: ${endDateTime.toLocaleString()}, isActive: ${isActive}`);
+            return isActive;
+          } catch (error) {
+            console.error('Error in active filter:', error);
+            return false;
           }
-          
-          console.log(`   ✅ KEEPING - Quiz is upcoming`);
-          return true;
-          
-        } catch (error) {
-          console.error(`   ⚠️ Date parse error for "${quiz.title}":`, error);
-          return false; // Exclude on error
         }
+        return false;
       }
       
-      // No schedule date - exclude from scheduled view
-      console.log(`   ❌ EXCLUDING - No schedule date`);
-      return false;
-    }
-
-    // Apply status-based filtering for other views
-    if (filterStatus === "all") return true;
-    
-    if (filterStatus === "draft") {
-      return quiz.status === "draft" && !quiz.isScheduled;
-    }
-    
-    if (filterStatus === "active") {
-      // Show quizzes with active status OR scheduled quizzes that are currently in their active time window
-      if (quiz.status === "active") return true;
-      if (quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+      if (filterStatus === "recent") {
+        // Show ONLY quizzes that have ENDED within the last 7 days (168 hours)
+        // Must have schedule info and must be past end time
+        if (!quiz.isScheduled || !quiz.scheduleDate || !quiz.startTime || !quiz.endTime) return false;
         try {
           const scheduleDate = new Date(quiz.scheduleDate);
           const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
@@ -325,34 +314,32 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
           const endDateTime = new Date(scheduleDate);
           endDateTime.setHours(endHour, endMinute, 0, 0);
           
-          return now >= startDateTime && now < endDateTime;
+          // Handle cross-midnight quizzes: if end time is before start time, add 1 day to end date
+          if (endDateTime <= startDateTime) {
+            endDateTime.setDate(endDateTime.getDate() + 1);
+          }
+          
+          // Must be past end time
+          const hasEnded = now >= endDateTime;
+          if (!hasEnded) {
+            return false; // Quiz hasn't ended yet
+          }
+          
+          const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
+          
+          // Only show quizzes that ENDED within last 7 days
+          const inRange = hoursSinceEnd > 0 && hoursSinceEnd <= 168;
+          console.log(`Recent check: "${quiz.title}" - now: ${now.toLocaleString()}, end: ${endDateTime.toLocaleString()}, hasEnded: ${hasEnded}, hoursSinceEnd: ${hoursSinceEnd.toFixed(2)}, inRange: ${inRange}`);
+          return inRange;
         } catch (error) {
+          console.error('Error in recent filter:', error);
           return false;
         }
       }
-      return false;
-    }
-    
-    if (filterStatus === "recent") {
-      // Show quizzes that ended within the last 7 days (168 hours)
-      if (!quiz.scheduleDate || !quiz.endTime) return false;
-      try {
-        const scheduleDate = new Date(quiz.scheduleDate);
-        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-        const endDateTime = new Date(scheduleDate);
-        endDateTime.setHours(endHour, endMinute, 0, 0);
-        
-        const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
-        
-        // Show quizzes that ended between 0-168 hours ago (last 7 days)
-        return hoursSinceEnd > 0 && hoursSinceEnd <= 168;
-      } catch (error) {
-        return false;
-      }
-    }
-    
-    return true;
-  });
+      
+      return true;
+    });
+  }, [draftQuizzes, filterStatus, refreshTrigger]);
 
   const loadDrafts = async () => {
     try {
@@ -532,8 +519,15 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
       return;
     }
 
-    if (startTime >= endTime) {
-      alert("End time must be after start time");
+    // Convert times to minutes for proper comparison
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const [endHour, endMinute] = endTime.split(':').map(Number);
+    const startMinutes = startHour * 60 + startMinute;
+    const endMinutes = endHour * 60 + endMinute;
+
+    // Allow cross-midnight quizzes, but prevent same time
+    if (startMinutes === endMinutes) {
+      alert("End time must be different from start time");
       return;
     }
 
@@ -664,9 +658,9 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
           Scheduled (
           {
             draftQuizzes.filter((q) => {
-              // Only count scheduled quizzes that have NOT ended yet
-              if ((q.status === "draft" && q.isScheduled) || q.status === "scheduled") {
-                if (q.isScheduled && q.scheduleDate && q.startTime && q.endTime) {
+              // Count scheduled quizzes that have NOT started yet
+              if (q.isScheduled && q.scheduleDate && q.startTime && q.endTime) {
+                try {
                   const now = new Date();
                   const scheduleDate = new Date(q.scheduleDate);
                   const [startHour, startMinute] = q.startTime.split(':').map(Number);
@@ -678,15 +672,11 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                   const endDateTime = new Date(scheduleDate);
                   endDateTime.setHours(endHour, endMinute, 0, 0);
                   
-                  // Exclude if quiz has ended (should be in Recent Activity instead)
-                  if (now >= endDateTime) {
-                    return false;
-                  }
-                  
-                  // Exclude if currently active (counted in Active button)
-                  return !(now >= startDateTime && now < endDateTime);
+                  // Only count if quiz hasn't started yet (upcoming)
+                  return now < startDateTime;
+                } catch (error) {
+                  return false;
                 }
-                return true;
               }
               return false;
             }).length
@@ -703,20 +693,28 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
         >
           Active ({
             draftQuizzes.filter((q) => {
-              if (q.status === "active") return true;
-              if (q.status === "scheduled" && q.isScheduled && q.scheduleDate && q.startTime && q.endTime) {
-                const now = new Date();
-                const scheduleDate = new Date(q.scheduleDate);
-                const [startHour, startMinute] = q.startTime.split(':').map(Number);
-                const [endHour, endMinute] = q.endTime.split(':').map(Number);
-                
-                const startDateTime = new Date(scheduleDate);
-                startDateTime.setHours(startHour, startMinute, 0, 0);
-                
-                const endDateTime = new Date(scheduleDate);
-                endDateTime.setHours(endHour, endMinute, 0, 0);
-                
-                return now >= startDateTime && now < endDateTime;
+              if (q.isScheduled && q.scheduleDate && q.startTime && q.endTime) {
+                try {
+                  const now = new Date();
+                  const scheduleDate = new Date(q.scheduleDate);
+                  const [startHour, startMinute] = q.startTime.split(':').map(Number);
+                  const [endHour, endMinute] = q.endTime.split(':').map(Number);
+                  
+                  const startDateTime = new Date(scheduleDate);
+                  startDateTime.setHours(startHour, startMinute, 0, 0);
+                  
+                  const endDateTime = new Date(scheduleDate);
+                  endDateTime.setHours(endHour, endMinute, 0, 0);
+                  
+                  // Handle cross-midnight quizzes
+                  if (endDateTime <= startDateTime) {
+                    endDateTime.setDate(endDateTime.getDate() + 1);
+                  }
+                  
+                  return now >= startDateTime && now < endDateTime;
+                } catch (error) {
+                  return false;
+                }
               }
               return false;
             }).length
@@ -732,14 +730,37 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
         >
           Recent Activity ({
             draftQuizzes.filter((q) => {
-              if (!q.scheduleDate || !q.endTime) return false;
-              const now = new Date();
-              const scheduleDate = new Date(q.scheduleDate);
-              const [endHour, endMinute] = q.endTime.split(':').map(Number);
-              const endDateTime = new Date(scheduleDate);
-              endDateTime.setHours(endHour, endMinute, 0, 0);
-              const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
-              return hoursSinceEnd > 0 && hoursSinceEnd <= 168;
+              // Only count quizzes that have ENDED within last 7 days
+              if (!q.isScheduled || !q.scheduleDate || !q.startTime || !q.endTime) return false;
+              try {
+                const now = new Date();
+                const scheduleDate = new Date(q.scheduleDate);
+                const [startHour, startMinute] = q.startTime.split(':').map(Number);
+                const [endHour, endMinute] = q.endTime.split(':').map(Number);
+                
+                const startDateTime = new Date(scheduleDate);
+                startDateTime.setHours(startHour, startMinute, 0, 0);
+                
+                const endDateTime = new Date(scheduleDate);
+                endDateTime.setHours(endHour, endMinute, 0, 0);
+                
+                // Handle cross-midnight quizzes
+                if (endDateTime <= startDateTime) {
+                  endDateTime.setDate(endDateTime.getDate() + 1);
+                }
+                
+                // Must be past end time
+                if (now < endDateTime) {
+                  return false; // Quiz hasn't ended yet
+                }
+                
+                const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
+                // Only include if quiz has ended (positive hours) within last 7 days
+                return hoursSinceEnd > 0 && hoursSinceEnd <= 168;
+              } catch (error) {
+                console.error('Error counting recent activity:', error);
+                return false;
+              }
             }).length
           })
         </button>
@@ -1283,60 +1304,100 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
       )}
 
       {/* Share Confirmation Modal */}
-      {showShareModal && quizToShare && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-blue-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-                  />
-                </svg>
+      {showShareModal && quizToShare && (() => {
+        // Check if quiz is currently active
+        const now = new Date();
+        const scheduleDate = new Date(quizToShare.scheduleDate);
+        const [startHour, startMinute] = quizToShare.startTime.split(':').map(Number);
+        const [endHour, endMinute] = quizToShare.endTime.split(':').map(Number);
+        
+        const startDateTime = new Date(scheduleDate);
+        startDateTime.setHours(startHour, startMinute, 0, 0);
+        
+        const endDateTime = new Date(scheduleDate);
+        endDateTime.setHours(endHour, endMinute, 0, 0);
+        
+        const isActive = now >= startDateTime && now < endDateTime;
+        const isFuture = now < startDateTime;
+        
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  isActive ? "bg-green-100" : "bg-blue-100"
+                }`}>
+                  <svg
+                    className={`w-6 h-6 ${isActive ? "text-green-600" : "text-blue-600"}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Share Quiz with Students
+                  </h2>
+                </div>
               </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Share Quiz with Students
-                </h2>
-              </div>
-            </div>
 
-            <div className="mb-6">
-              <p className="text-gray-700 font-medium mb-2">
-                "{quizToShare.title}"
-              </p>
-              <p className="text-gray-600 text-sm mb-3">
-                This quiz will become visible to students immediately.
-              </p>
-              <div className="bg-teal-50 border border-teal-200 rounded-lg p-3">
-                <div className="text-sm text-teal-900">
-                  <div className="font-semibold mb-1">Schedule:</div>
-                  <div>
-                    📅{" "}
-                    {new Date(quizToShare.scheduleDate).toLocaleDateString(
-                      "en-US",
-                      {
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
-                      }
+              <div className="mb-6">
+                <p className="text-gray-700 font-medium mb-2">
+                  "{quizToShare.title}"
+                </p>
+                <p className="text-gray-600 text-sm mb-3">
+                  {isActive 
+                    ? "🎯 This quiz is currently active and students can take it now!"
+                    : isFuture
+                    ? "📅 This quiz will become visible to students at the scheduled time."
+                    : "This quiz will be shared with students."
+                  }
+                </p>
+                <div className={`rounded-lg p-3 border ${
+                  isActive 
+                    ? "bg-green-50 border-green-200" 
+                    : "bg-teal-50 border-teal-200"
+                }`}>
+                  <div className={`text-sm ${isActive ? "text-green-900" : "text-teal-900"}`}>
+                    <div className="font-semibold mb-1">Schedule:</div>
+                    <div>
+                      📅{" "}
+                      {new Date(quizToShare.scheduleDate).toLocaleDateString(
+                        "en-US",
+                        {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        }
+                      )}
+                    </div>
+                    <div>
+                      ⏰ {formatTime12Hour(quizToShare.startTime)} -{" "}
+                      {formatTime12Hour(quizToShare.endTime)}
+                    </div>
+                    {isActive && (
+                      <div className="mt-2 font-semibold text-green-700">
+                        ✅ Active Now
+                      </div>
                     )}
-                  </div>
-                  <div>
-                    ⏰ {formatTime12Hour(quizToShare.startTime)} -{" "}
-                    {formatTime12Hour(quizToShare.endTime)}
+                    {isFuture && (
+                      <div className="mt-2 font-medium text-teal-700">
+                        ⏳ Starts {startDateTime.toLocaleDateString("en-US", { 
+                          month: "short", 
+                          day: "numeric" 
+                        })} at {formatTime12Hour(quizToShare.startTime)}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
 
             <div className="flex items-center gap-3">
               <button
@@ -1357,7 +1418,8 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Due Date Modal */}
       {showDueDateModal && selectedQuizForDueDate && (

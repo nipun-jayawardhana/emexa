@@ -8,23 +8,50 @@ import {
 // Get all notifications for a user
 export const getNotifications = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.id || req.user._id;
+    const userRole = req.user.role; // Get user role from token
     const { filter } = req.query; // 'all', 'unread'
 
+    console.log('🔍 Fetching notifications for user:', userId, 'Role:', userRole);
+
+    // Build query - if role is available, use it for more specific matching
     let query = { recipientId: userId };
+    
+    // Only add recipientRole filter if it exists
+    if (userRole) {
+      query.recipientRole = userRole;
+    }
     
     if (filter === 'unread') {
       query.isRead = false;
     }
 
+    console.log('📋 Query:', JSON.stringify(query));
+
     const notifications = await Notification.find(query)
       .sort({ createdAt: -1 })
       .limit(50);
 
-    const unreadCount = await Notification.countDocuments({ 
-      recipientId: userId, 
+    console.log(`✅ Found ${notifications.length} notifications for user`);
+    if (notifications.length > 0) {
+      console.log('📄 Sample notification:', {
+        id: notifications[0]._id,
+        type: notifications[0].type,
+        recipientRole: notifications[0].recipientRole,
+        title: notifications[0].title
+      });
+    }
+
+    // Build unreadCount query similarly
+    const unreadQuery = { 
+      recipientId: userId,
       isRead: false 
-    });
+    };
+    if (userRole) {
+      unreadQuery.recipientRole = userRole;
+    }
+
+    const unreadCount = await Notification.countDocuments(unreadQuery);
 
     res.json({
       success: true,
@@ -134,9 +161,24 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
     console.log('Quiz Data:', quizData);
     console.log('Teacher Name:', teacherName);
 
+    // Check if notifications already exist for this quiz
+    const existingNotifications = await Notification.find({ 
+      quizId: quizId, 
+      type: 'quiz_assigned' 
+    });
+
+    if (existingNotifications.length > 0) {
+      console.log(`⚠️ Notifications already exist for this quiz (${existingNotifications.length} found). Skipping duplicate creation.`);
+      return { success: true, count: 0, message: 'Notifications already exist' };
+    }
+
     // Get all students with their email and notification settings
     const students = await Student.find({}, { _id: 1, email: 1, name: 1, notificationSettings: 1 });
     console.log(`📧 Found ${students.length} students to notify`);
+    
+    if (students.length > 0) {
+      console.log('👥 Sample student IDs:', students.slice(0, 3).map(s => s._id.toString()));
+    }
 
     if (students.length === 0) {
       console.log('⚠️ No students found in database');
@@ -156,7 +198,7 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
       status: 'pending'
     }));
 
-    console.log('📝 Sample notification:', notifications[0]);
+    console.log('📝 Sample notification:', JSON.stringify(notifications[0], null, 2));
 
     const result = await Notification.insertMany(notifications);
     console.log(`✅ Successfully created ${result.length} notifications`);

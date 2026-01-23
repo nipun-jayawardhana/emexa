@@ -241,6 +241,15 @@ const StudentDashboard = () => {
     };
 
     initializeDashboard();
+    
+    // Auto-refresh every 30 seconds for real-time quiz status updates
+    const refreshInterval = setInterval(() => {
+      console.log('🔄 Auto-refreshing quiz data for real-time updates...');
+      fetchSharedQuizzes();
+      fetchDashboardData();
+    }, 30000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   // Cleanup when leaving dashboard
@@ -277,12 +286,22 @@ const StudentDashboard = () => {
         // Filter out expired quizzes (older than 24 hours)
         const activeQuizzes = response.quizzes.filter((quiz) => {
           // Check if quiz has schedule info
-          if (quiz.scheduleDate && quiz.endTime) {
+          if (quiz.scheduleDate && quiz.endTime && quiz.startTime) {
             try {
               const scheduleDate = new Date(quiz.scheduleDate);
+              const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
               const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-              const endDateTime = new Date(scheduleDate);
+              
+              const startDateTime = new Date(scheduleDate);
+              startDateTime.setHours(startHour, startMinute, 0, 0);
+              
+              let endDateTime = new Date(scheduleDate);
               endDateTime.setHours(endHour, endMinute, 0, 0);
+              
+              // Handle cross-midnight quizzes
+              if (endDateTime <= startDateTime) {
+                endDateTime.setDate(endDateTime.getDate() + 1);
+              }
               
               const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
               
@@ -629,20 +648,60 @@ const StudentDashboard = () => {
                   const upcomingQuizzes = dashboardData?.upcomingQuizzes || [];
                   const allQuizzes = [...sharedQuizzes, ...upcomingQuizzes];
                   
-                  // Filter out expired quizzes (older than 24 hours)
+                  // Remove duplicate quizzes based on quiz ID
+                  const uniqueQuizzes = allQuizzes.reduce((acc, quiz) => {
+                    const quizId = quiz.id || quiz._id;
+                    const existingQuiz = acc.find(q => (q.id || q._id) === quizId);
+                    if (!existingQuiz) {
+                      acc.push(quiz);
+                    }
+                    return acc;
+                  }, []);
+                  
+                  // Filter out expired quizzes and recalculate time status
                   const now = new Date();
-                  const activeQuizzes = allQuizzes.filter((quiz) => {
-                    // Check if quiz has schedule info and is expired
-                    if (quiz.scheduleDate && quiz.endTime) {
+                  const activeQuizzes = uniqueQuizzes.filter((quiz) => {
+                    // Recalculate time status to ensure accuracy
+                    if (quiz.scheduleDate && quiz.startTime && quiz.endTime) {
                       try {
                         const scheduleDate = new Date(quiz.scheduleDate);
+                        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
                         const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-                        const endDateTime = new Date(scheduleDate);
+                        
+                        const startDateTime = new Date(scheduleDate);
+                        startDateTime.setHours(startHour, startMinute, 0, 0);
+                        
+                        let endDateTime = new Date(scheduleDate);
                         endDateTime.setHours(endHour, endMinute, 0, 0);
+                        
+                        // Handle cross-midnight quizzes (when end time is before start time)
+                        if (endDateTime <= startDateTime) {
+                          endDateTime.setDate(endDateTime.getDate() + 1);
+                          console.log(`🌙 Cross-midnight quiz detected: "${quiz.title}" - End extended to next day`);
+                        }
+                        
+                        console.log(`⏰ Quiz "${quiz.title}":`, {
+                          start: startDateTime.toLocaleString(),
+                          end: endDateTime.toLocaleString(),
+                          now: now.toLocaleString(),
+                          isCrossMidnight: endDateTime.getDate() > startDateTime.getDate()
+                        });
+                        
+                        // Recalculate accurate time status
+                        if (now < startDateTime) {
+                          quiz.timeStatus = 'upcoming';
+                          quiz.isCurrentlyActive = false;
+                        } else if (now >= startDateTime && now < endDateTime) {
+                          quiz.timeStatus = 'active';
+                          quiz.isCurrentlyActive = true;
+                        } else {
+                          quiz.timeStatus = 'expired';
+                          quiz.isCurrentlyActive = false;
+                        }
                         
                         const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
                         
-                        // Hide quizzes that ended more than 24 hours ago
+                        // Only hide if quiz ended MORE than 24 hours ago
                         if (hoursSinceEnd > 24) {
                           console.log(`🗑️ Hiding expired quiz: "${quiz.title}" - expired ${hoursSinceEnd.toFixed(2)} hours ago`);
                           return false;
