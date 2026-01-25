@@ -15,6 +15,7 @@ import { io } from "socket.io-client";
 import teacherQuizService from "../services/teacherQuizService";
 import headerLogo from "../assets/headerlogo.png";
 import DownloadIcon from "../assets/download.png";
+import camera from "../lib/camera";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5000";
 
@@ -867,6 +868,59 @@ const QuizPage = () => {
   };
 
   const handleSubmit = async () => {
+    // Stop camera capture and release camera resources
+    try {
+      camera.stopCapture();
+    } catch (e) {
+      console.error("Error stopping camera capture:", e);
+    }
+    try {
+      camera.stop();
+      console.log("📷 Camera singleton stopped after quiz submission");
+    } catch (e) {
+      console.error("Error stopping camera:", e);
+    }
+
+    // Stop the local videoStream (separate from camera.js singleton)
+    if (videoRef.current) {
+      console.log("🛑 Stopping videoRef tracks...");
+      if (videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach((track) => {
+          console.log("🛑 Stopping track:", track.kind, track.label);
+          track.stop();
+        });
+        videoRef.current.srcObject = null;
+      }
+      videoRef.current.pause();
+    }
+
+    if (videoStream) {
+      console.log("🛑 Stopping videoStream state tracks...");
+      videoStream.getTracks().forEach((track) => {
+        console.log("🛑 Stopping track:", track.kind, track.label);
+        track.stop();
+      });
+      setVideoStream(null);
+    }
+
+    // Also stop any remaining video elements in the DOM (defensive cleanup)
+    try {
+      document.querySelectorAll("video").forEach((v) => {
+        if (v.srcObject) {
+          v.srcObject.getTracks().forEach((t) => {
+            console.log("🛑 Stopping orphaned track:", t.kind, t.label);
+            t.stop();
+          });
+          v.srcObject = null;
+        }
+      });
+    } catch (e) {
+      console.error("Error cleaning up orphaned video elements:", e);
+    }
+
+    setWebcamEnabled(false);
+    console.log("📷 All camera resources released after quiz submission");
+
     try {
       // First, submit quiz answers to backend
       const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
