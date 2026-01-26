@@ -15,6 +15,21 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Load saved email, password and remember me state on mount
+  useEffect(() => {
+    const savedRememberMe = localStorage.getItem("rememberMe");
+    const savedEmail = localStorage.getItem("rememberMeEmail");
+    const savedPassword = localStorage.getItem("rememberMePassword");
+    
+    if (savedRememberMe === "true" && savedEmail) {
+      setRemember(true);
+      setEmail(savedEmail);
+      if (savedPassword) {
+        setPassword(savedPassword);
+      }
+    }
+  }, []);
+
   // Show message from registration if exists
   useEffect(() => {
     if (location.state?.message) {
@@ -112,11 +127,15 @@ export default function Login() {
           if (remember) {
             localStorage.setItem("token", res.token);
             localStorage.setItem("rememberMe", "true");
+            localStorage.setItem("rememberMeEmail", email);
+            localStorage.setItem("rememberMePassword", password);
             console.log("💾 Token saved to localStorage (remember me)");
           } else {
             sessionStorage.setItem("token", res.token);
             localStorage.setItem("token", res.token);
             localStorage.removeItem("rememberMe");
+            localStorage.removeItem("rememberMeEmail");
+            localStorage.removeItem("rememberMePassword");
             console.log("💾 Token saved to sessionStorage (this session only)");
           }
         }
@@ -209,7 +228,7 @@ export default function Login() {
         console.log(`🚀 Navigating to ${dashboardPath} (role: ${normalizedRole})`);
 
         setTimeout(() => {
-          navigate(dashboardPath);
+          navigate(dashboardPath, { replace: true });
         }, 1000);
       })
       .catch((err) => {
@@ -358,7 +377,15 @@ export default function Login() {
                 <input
                   type="checkbox"
                   checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
+                  onChange={(e) => {
+                    const isChecked = e.target.checked;
+                    setRemember(isChecked);
+                    if (!isChecked) {
+                      localStorage.removeItem("rememberMe");
+                      localStorage.removeItem("rememberMeEmail");
+                      localStorage.removeItem("rememberMePassword");
+                    }
+                  }}
                 />{" "}
                 Remember me
               </label>

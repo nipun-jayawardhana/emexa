@@ -8,15 +8,9 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000';
 export default function Notification() {
   const navigate = useNavigate();
   
-  // Get current user info to ensure we only show their cached notifications
-  const currentUserId = localStorage.getItem('userId');
-  const currentUserRole = localStorage.getItem('userRole');
-  const cacheKey = `cachedNotifications_${currentUserId}_${currentUserRole}`;
-  const cacheCountKey = `cachedUnreadCount_${currentUserId}_${currentUserRole}`;
-  
-  // Load notifications from cache only if they belong to current user
-  const cachedNotifications = localStorage.getItem(cacheKey);
-  const cachedUnreadCount = localStorage.getItem(cacheCountKey);
+  // Load notifications from cache immediately for instant display
+  const cachedNotifications = localStorage.getItem('cachedNotifications');
+  const cachedUnreadCount = localStorage.getItem('cachedUnreadCount');
   
   const [notifications, setNotifications] = useState(
     cachedNotifications ? JSON.parse(cachedNotifications) : []
@@ -27,13 +21,9 @@ export default function Notification() {
   );
 
   useEffect(() => {
-    // Clear old cache format (without user ID)
-    localStorage.removeItem('cachedNotifications');
-    localStorage.removeItem('cachedUnreadCount');
-    
     fetchNotifications();
-    // Poll for new notifications every 10 seconds (reduced from 1 second for better performance)
-    const interval = setInterval(fetchNotifications, 10000);
+    // Poll for new notifications every 1 second
+    const interval = setInterval(fetchNotifications, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -50,34 +40,7 @@ export default function Notification() {
       });
 
       if (response.data.success) {
-        // Remove duplicates on client side (in case any exist from before the fix)
-        // Keep the most recent notification for each quiz_assigned + quizId combination
-        const uniqueNotifications = [];
-        const seenQuizzes = new Map();
-        
-        // Sort by createdAt (newest first) to keep the most recent
-        const sortedNotifs = [...response.data.notifications].sort((a, b) => 
-          new Date(b.createdAt) - new Date(a.createdAt)
-        );
-        
-        sortedNotifs.forEach(notif => {
-          if (notif.type === 'quiz_assigned' && notif.quizId) {
-            const key = `${notif.type}_${notif.quizId}`;
-            if (!seenQuizzes.has(key)) {
-              seenQuizzes.set(key, true);
-              uniqueNotifications.push(notif);
-            } else {
-              console.log(`🗑️ Filtered duplicate notification: ${notif.title}`);
-            }
-          } else {
-            // For non-quiz notifications, keep all
-            uniqueNotifications.push(notif);
-          }
-        });
-        
-        console.log(`📊 Notification stats: ${response.data.notifications.length} total, ${uniqueNotifications.length} unique`);
-        
-        const formattedNotifications = uniqueNotifications.map(notif => {
+        const formattedNotifications = response.data.notifications.map(notif => {
           let formattedDueDate = notif.dueDate;
           
           // Format due date and convert time to 12-hour format with AM/PM
@@ -125,14 +88,9 @@ export default function Notification() {
         setNotifications(formattedNotifications);
         setUnreadCount(response.data.unreadCount);
         
-        // Cache the data with user-specific keys for instant loading next time
-        const currentUserId = localStorage.getItem('userId');
-        const currentUserRole = localStorage.getItem('userRole');
-        const cacheKey = `cachedNotifications_${currentUserId}_${currentUserRole}`;
-        const cacheCountKey = `cachedUnreadCount_${currentUserId}_${currentUserRole}`;
-        
-        localStorage.setItem(cacheKey, JSON.stringify(formattedNotifications));
-        localStorage.setItem(cacheCountKey, response.data.unreadCount.toString());
+        // Cache the data for instant loading next time
+        localStorage.setItem('cachedNotifications', JSON.stringify(formattedNotifications));
+        localStorage.setItem('cachedUnreadCount', response.data.unreadCount.toString());
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -254,11 +212,6 @@ export default function Notification() {
   const filteredNotifications = filter === 'unread' 
     ? notifications.filter(n => !n.isRead)
     : notifications;
-  
-  // Log filtered count for debugging
-  if (filteredNotifications.length !== notifications.length) {
-    console.log(`📋 Showing ${filteredNotifications.length} of ${notifications.length} notifications (filter: ${filter})`);
-  }
 
   // Determine correct back navigation based on user role
   const handleBackClick = () => {
