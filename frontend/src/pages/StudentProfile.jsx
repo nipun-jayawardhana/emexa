@@ -204,31 +204,12 @@ const Profile = () => {
   }, []); 
 
 useEffect(() => {
-  if (userData?.profileImage && userData.profileImage !== profileImage) {
+  if (userData?.profileImage) {
     console.log('🖼️ Loading profile image from database:', userData.profileImage);
     setProfileImage(userData.profileImage);
     localStorage.setItem('studentProfileImage', userData.profileImage);
-  } else if (!userData?.profileImage) {
-    // Clear profile image if user doesn't have one
-    console.log('🖼️ No profile image, clearing...');
-    setProfileImage(null);
-    localStorage.removeItem('studentProfileImage');
   }
-}, [userData?.profileImage, profileImage]);
-
-  // Listen for profile image changes from upload
-  useEffect(() => {
-    const handleProfileImageChange = (e) => {
-      console.log('🎨 Profile image changed event received:', e.detail);
-      setProfileImage(e.detail);
-    };
-
-    window.addEventListener('studentProfileImageChanged', handleProfileImageChange);
-    
-    return () => {
-      window.removeEventListener('studentProfileImageChanged', handleProfileImageChange);
-    };
-  }, []);
+}, [userData?.profileImage]);
 
   // CRITICAL: Sync notification and privacy settings from userData
   useEffect(() => {
@@ -1046,10 +1027,6 @@ const handleProfileImageChange = async (e) => {
                   src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"}
                   alt="Profile"
                   className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
-                  onError={(e) => {
-                    console.error('❌ Image failed to load:', e.target.src);
-                    e.target.src = "https://via.placeholder.com/120";
-                  }}
                 />
               </div>
               <button
@@ -1064,11 +1041,6 @@ const handleProfileImageChange = async (e) => {
             <div>
               <h1 className="text-xl font-bold text-gray-900">{userData?.name || 'Student'}</h1>
               <p className="text-gray-600 text-sm">{userData?.email || ''}</p>
-              <div className="mt-2 pt-2 border-t border-gray-200">
-                <p className="text-gray-700 text-sm font-medium">
-                  {userData?.year ? `${userData.year}` : 'Year: N/A'}{userData?.semester ? ` • ${userData.semester}` : ' • Semester: N/A'}
-                </p>
-              </div>
             </div>
           </div>
         </div>

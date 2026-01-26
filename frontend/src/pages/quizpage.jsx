@@ -132,48 +132,6 @@ const QuizPage = () => {
     }
   }, [cameraPermissionLoading, webcamEnabled]);
 
-  // Stop camera when quiz is submitted or results are shown
-  useEffect(() => {
-    if (quizSubmitted || showResults) {
-      console.log("🛑 IMMEDIATELY STOPPING camera and all tracks...");
-
-      // ⚡ IMMEDIATE STOP - Don't wait for state updates
-      // Stop videoRef tracks FIRST
-      if (videoRef.current) {
-        console.log("Stopping tracks from videoRef...");
-        if (videoRef.current.srcObject) {
-          videoRef.current.srcObject.getTracks().forEach((track) => {
-            console.log("🛑 Stopping track:", track.kind);
-            track.stop();
-          });
-        }
-        videoRef.current.srcObject = null;
-        videoRef.current.pause();
-      }
-
-      // Stop videoStream state SECOND
-      if (videoStream) {
-        console.log("Stopping tracks from videoStream state...");
-        videoStream.getTracks().forEach((track) => {
-          console.log("🛑 Stopping track:", track.kind);
-          track.stop();
-        });
-      }
-
-      // Then update states
-      setWebcamEnabled(false);
-      setVideoStream(null);
-
-      // Disconnect emotion socket
-      if (emotionSocket) {
-        console.log("🔌 Disconnecting emotion socket...");
-        emotionSocket.disconnect();
-      }
-
-      console.log("✅ Camera, microphone, and sockets fully stopped!");
-    }
-  }, [quizSubmitted, showResults]);
-
   // Initialize AI features (Socket.IO connection only - no webcam yet)
   const initializeAI = async () => {
     try {
@@ -867,59 +825,6 @@ const QuizPage = () => {
   };
 
   const handleSubmit = async () => {
-    // Stop camera capture and release camera resources
-    try {
-      camera.stopCapture();
-    } catch (e) {
-      console.error("Error stopping camera capture:", e);
-    }
-    try {
-      camera.stop();
-      console.log("📷 Camera singleton stopped after quiz submission");
-    } catch (e) {
-      console.error("Error stopping camera:", e);
-    }
-
-    // Stop the local videoStream (separate from camera.js singleton)
-    if (videoRef.current) {
-      console.log("🛑 Stopping videoRef tracks...");
-      if (videoRef.current.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach((track) => {
-          console.log("🛑 Stopping track:", track.kind, track.label);
-          track.stop();
-        });
-        videoRef.current.srcObject = null;
-      }
-      videoRef.current.pause();
-    }
-
-    if (videoStream) {
-      console.log("🛑 Stopping videoStream state tracks...");
-      videoStream.getTracks().forEach((track) => {
-        console.log("🛑 Stopping track:", track.kind, track.label);
-        track.stop();
-      });
-      setVideoStream(null);
-    }
-
-    // Also stop any remaining video elements in the DOM (defensive cleanup)
-    try {
-      document.querySelectorAll("video").forEach((v) => {
-        if (v.srcObject) {
-          v.srcObject.getTracks().forEach((t) => {
-            console.log("🛑 Stopping orphaned track:", t.kind, t.label);
-            t.stop();
-          });
-          v.srcObject = null;
-        }
-      });
-    } catch (e) {
-      console.error("Error cleaning up orphaned video elements:", e);
-    }
-
-    setWebcamEnabled(false);
-    console.log("📷 All camera resources released after quiz submission");
-
     try {
       // First, submit quiz answers to backend
       const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
@@ -1055,14 +960,14 @@ const QuizPage = () => {
     // Deduct 1 mark for each hint used
     const finalScore = Math.max(0, baseScore - hintsUsedCount);
 
-    // console.log("📊 Score Calculation:", {
-    //   correct,
-    //   totalQuestions,
-    //   marksPerQuestion,
-    //   baseScore,
-    //   hintsUsed: hintsUsedCount,
-    //   finalScore,
-    // });
+    console.log("📊 Score Calculation:", {
+      correct,
+      totalQuestions,
+      marksPerQuestion,
+      baseScore,
+      hintsUsed: hintsUsedCount,
+      finalScore,
+    });
 
     return finalScore;
   };
@@ -1857,6 +1762,21 @@ const QuizPage = () => {
                   />
                 </button>
                 {/* Hint type indicator */}
+                <div
+                  className={`text-xs px-2 py-1 rounded-full font-medium ${
+                    cameraPermissionLoading
+                      ? "bg-gray-100 text-gray-600 border border-gray-300"
+                      : webcamEnabled
+                        ? "bg-blue-100 text-blue-700 border border-blue-300"
+                        : "bg-green-100 text-green-700 border border-green-300"
+                  }`}
+                >
+                  {cameraPermissionLoading
+                    ? "⏳ Loading"
+                    : webcamEnabled
+                      ? "🤖 AI"
+                      : "📚 Teacher"}
+                </div>
               </div>
             )}
 
@@ -2186,15 +2106,13 @@ const QuizPage = () => {
       )}
 
       {/* Hidden webcam video for AI emotion tracking */}
-      {!quizSubmitted && !showResults && webcamEnabled && (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          style={{ display: "none" }}
-        />
-      )}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ display: "none" }}
+      />
     </div>
   );
 };
