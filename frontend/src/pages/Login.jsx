@@ -317,16 +317,16 @@ export default function Login() {
                     background: "transparent",
                     border: "none",
                     cursor: "pointer",
-                    fontSize: "20px",
-                    color: "#888",
                     padding: "0",
                     outline: "none",
-                    lineHeight: "1",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     transition: "color 0.2s ease",
                   }}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                  
                 </button>
               </div>
               {errors.password && (

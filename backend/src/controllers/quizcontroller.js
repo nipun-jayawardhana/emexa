@@ -151,35 +151,18 @@ export const submitQuizAnswers = async (req, res) => {
 
     // Create submission confirmation notification for student
     try {
-      // Check if a submission notification already exists for this user and quiz
-      const existingNotification = await Notification.findOne({
+      await Notification.create({
         recipientId: userId,
-        quizId: quizId,
+        recipientRole: 'student',
         type: 'quiz_assigned',
-        status: 'graded'
-      }).sort({ createdAt: -1 }); // Get the most recent notification
-
-      // Only create new notification if:
-      // 1. No existing notification, OR
-      // 2. The score is different from the previous submission
-      const shouldCreateNotification = !existingNotification || existingNotification.score !== `${score}/100`;
-
-      if (shouldCreateNotification) {
-        await Notification.create({
-          recipientId: userId,
-          recipientRole: 'student',
-          type: 'quiz_assigned',
-          title: quiz.title || 'Quiz Submitted',
-          description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
-          quizId: quizId,
-          score: `${score}/100`,
-          status: 'graded',
-          isRead: false
-        });
-        console.log('✅ Submission notification created for student:', userId, `(Score: ${score}%)`);
-      } else {
-        console.log('ℹ️ Submission notification already exists with same score, skipping duplicate');
-      }
+        title: quiz.title || 'Quiz Submitted',
+        description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
+        quizId: quizId,
+        score: `${score}/100`,
+        status: 'graded',
+        isRead: false
+      });
+      console.log('✅ Submission notification created for student:', userId);
 
       // Send email notification if enabled
       try {
