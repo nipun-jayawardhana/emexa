@@ -791,9 +791,6 @@ const ApprovalTab = ({ approvals = [], title, onApprove, onReject }) => {
                   <h3 className="font-bold text-2xl text-gray-900">{ap.name}</h3>
                   <p className="text-gray-700 mt-2 text-lg">{ap.email}</p>
                   <p className="text-gray-500 mt-3">Requested: {ap.createdAt ? new Date(ap.createdAt).toLocaleDateString() : "N/A"}</p>
-                  <p className="text-gray-600 mt-2">
-                    {ap.year ? `${ap.year}` : 'Year: N/A'}{ap.semester ? ` • ${ap.semester}` : ' • Semester: N/A'}
-                  </p>
                   {ap.qualifications && <p className="mt-6 text-gray-800 text-base"><strong className="font-bold">Qualifications:</strong> {ap.qualifications}</p>}
                   <div className="mt-4">
                     <span className={`px-4 py-2 rounded-lg text-sm font-medium ${

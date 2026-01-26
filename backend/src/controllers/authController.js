@@ -309,8 +309,8 @@ export const approveStudent = async (req, res) => {
       profileImage: userRecord.profileImage,
       notificationSettings: userRecord.notificationSettings,
       privacySettings: userRecord.privacySettings,
-      year: userRecord.year,
-      semester: userRecord.semester
+      year: userRecord.year || null, // Transfer year from User record
+      semester: userRecord.semester || null // Transfer semester from User record
     });
     
     await newStudent.save();
