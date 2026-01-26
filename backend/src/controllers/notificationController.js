@@ -156,9 +156,11 @@ export const deleteNotification = async (req, res) => {
 // Create notification when quiz is shared (called from quiz controller)
 export const createQuizNotification = async (quizId, quizData, teacherName) => {
   try {
-    console.log('🔔 Creating quiz notifications...');
+    console.log('='.repeat(80));
+    console.log('🔔 CREATING QUIZ NOTIFICATIONS');
+    console.log('='.repeat(80));
     console.log('Quiz ID:', quizId);
-    console.log('Quiz Data:', quizData);
+    console.log('Quiz Data:', JSON.stringify(quizData, null, 2));
     console.log('Teacher Name:', teacherName);
 
     // Check if notifications already exist for this quiz (prevents race conditions)
@@ -180,9 +182,11 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
         // Handle format "1-1" -> { year: "1st year", semester: "1st semester" }
         if (grade.includes('-')) {
           const [yearNum, semNum] = grade.split('-');
+          const yearSuffix = yearNum === '1' ? 'st' : yearNum === '2' ? 'nd' : yearNum === '3' ? 'rd' : 'th';
+          const semSuffix = semNum === '1' ? 'st' : semNum === '2' ? 'nd' : 'rd';
           return {
-            year: `${yearNum}${yearNum === '1' ? 'st' : yearNum === '2' ? 'nd' : yearNum === '3' ? 'rd' : 'th'} year`,
-            semester: `${semNum}${semNum === '1' ? 'st' : 'nd'} semester`
+            year: `${yearNum}${yearSuffix} year`,
+            semester: `${semNum}${semSuffix} semester`
           };
         }
         // Handle format "1st Year 1st Sem" or similar
@@ -199,10 +203,10 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
       }).filter(Boolean);
     }
     
-    console.log('🎯 Target grade levels:', targetGradeLevels);
+    console.log('🎯 Target grade levels:', JSON.stringify(targetGradeLevels, null, 2));
 
     // Build query to filter students by grade level
-    let studentQuery = {};
+    let studentQuery = { approvalStatus: 'approved' }; // Only send to approved students
     
     if (targetGradeLevels.length > 0) {
       // Create OR conditions for each grade level
@@ -211,7 +215,7 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
         semester: grade.semester
       }));
       
-      studentQuery = { $or: gradeConditions };
+      studentQuery.$or = gradeConditions;
       console.log('🔍 Student filter query:', JSON.stringify(studentQuery, null, 2));
     }
 
@@ -222,18 +226,19 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
       name: 1, 
       year: 1, 
       semester: 1,
+      approvalStatus: 1,
       notificationSettings: 1 
     });
     
     console.log(`📚 Found ${students.length} students matching grade level criteria`);
-    
-    if (students.length > 0) {
-      console.log('👥 Sample matched students:', students.slice(0, 3).map(s => ({
-        id: s._id.toString(),
-        year: s.year,
-        semester: s.semester
-      })));
-    }
+    console.log('📋 All matched students:', students.map(s => ({
+      id: s._id.toString(),
+      name: s.name,
+      email: s.email,
+      year: s.year,
+      semester: s.semester,
+      approvalStatus: s.approvalStatus
+    })));
 
     if (students.length === 0) {
       console.log('⚠️ No students found matching the grade level criteria');
@@ -253,7 +258,8 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
       status: 'pending'
     }));
 
-    console.log('📝 Sample notification:', JSON.stringify(notifications[0], null, 2));
+    console.log('📝 Creating notifications for students:', notifications.length);
+    console.log('📝 Sample notification data:', JSON.stringify(notifications[0], null, 2));
 
     // Use ordered:false to continue inserting even if some duplicates are encountered
     // This handles race conditions where multiple requests try to create notifications simultaneously
@@ -268,7 +274,8 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
       });
     
     const insertedCount = Array.isArray(result) ? result.length : 0;
-    console.log(`✅ Successfully created ${insertedCount} notifications`);
+    console.log(`✅ Successfully created ${insertedCount} notifications in database`);
+    console.log('='.repeat(80));
 
     // Send email notifications to students who have email notifications enabled
     console.log('📧 Sending email notifications...');
