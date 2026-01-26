@@ -161,28 +161,83 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
     console.log('Quiz Data:', quizData);
     console.log('Teacher Name:', teacherName);
 
-    // Check if notifications already exist for this quiz
-    const existingNotifications = await Notification.find({ 
+    // Check if notifications already exist for this quiz (prevents race conditions)
+    const existingCount = await Notification.countDocuments({ 
       quizId: quizId, 
       type: 'quiz_assigned' 
     });
 
-    if (existingNotifications.length > 0) {
-      console.log(`⚠️ Notifications already exist for this quiz (${existingNotifications.length} found). Skipping duplicate creation.`);
-      return { success: true, count: 0, message: 'Notifications already exist' };
+    if (existingCount > 0) {
+      console.log(`⚠️ Notifications already exist for this quiz (${existingCount} found). Skipping duplicate creation.`);
+      return { success: true, count: 0, message: 'Notifications already exist', skipped: true };
     }
 
-    // Get all students with their email and notification settings
-    const students = await Student.find({}, { _id: 1, email: 1, name: 1, notificationSettings: 1 });
-    console.log(`📧 Found ${students.length} students to notify`);
+    // Parse grade levels from quizData (e.g., ["1-1", "1-2"] or ["1st year 1st semester"])
+    let targetGradeLevels = [];
+    
+    if (quizData.gradeLevel && Array.isArray(quizData.gradeLevel)) {
+      targetGradeLevels = quizData.gradeLevel.map(grade => {
+        // Handle format "1-1" -> { year: "1st year", semester: "1st semester" }
+        if (grade.includes('-')) {
+          const [yearNum, semNum] = grade.split('-');
+          return {
+            year: `${yearNum}${yearNum === '1' ? 'st' : yearNum === '2' ? 'nd' : yearNum === '3' ? 'rd' : 'th'} year`,
+            semester: `${semNum}${semNum === '1' ? 'st' : 'nd'} semester`
+          };
+        }
+        // Handle format "1st Year 1st Sem" or similar
+        if (grade.toLowerCase().includes('year')) {
+          const parts = grade.split(' ');
+          const year = parts.find(p => p.toLowerCase().includes('year'));
+          const sem = parts.find(p => p.toLowerCase().includes('sem'));
+          return {
+            year: year ? `${year.replace(/year/i, '').trim()} year` : null,
+            semester: sem ? `${sem.replace(/sem/i, '').trim()} semester` : null
+          };
+        }
+        return null;
+      }).filter(Boolean);
+    }
+    
+    console.log('🎯 Target grade levels:', targetGradeLevels);
+
+    // Build query to filter students by grade level
+    let studentQuery = {};
+    
+    if (targetGradeLevels.length > 0) {
+      // Create OR conditions for each grade level
+      const gradeConditions = targetGradeLevels.map(grade => ({
+        year: grade.year,
+        semester: grade.semester
+      }));
+      
+      studentQuery = { $or: gradeConditions };
+      console.log('🔍 Student filter query:', JSON.stringify(studentQuery, null, 2));
+    }
+
+    // Get students matching the grade level filter
+    const students = await Student.find(studentQuery, { 
+      _id: 1, 
+      email: 1, 
+      name: 1, 
+      year: 1, 
+      semester: 1,
+      notificationSettings: 1 
+    });
+    
+    console.log(`📚 Found ${students.length} students matching grade level criteria`);
     
     if (students.length > 0) {
-      console.log('👥 Sample student IDs:', students.slice(0, 3).map(s => s._id.toString()));
+      console.log('👥 Sample matched students:', students.slice(0, 3).map(s => ({
+        id: s._id.toString(),
+        year: s.year,
+        semester: s.semester
+      })));
     }
 
     if (students.length === 0) {
-      console.log('⚠️ No students found in database');
-      return { success: false, error: 'No students found' };
+      console.log('⚠️ No students found matching the grade level criteria');
+      return { success: true, count: 0, message: 'No students match the target grade level' };
     }
 
     // Create notifications for all students
@@ -200,8 +255,20 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
 
     console.log('📝 Sample notification:', JSON.stringify(notifications[0], null, 2));
 
-    const result = await Notification.insertMany(notifications);
-    console.log(`✅ Successfully created ${result.length} notifications`);
+    // Use ordered:false to continue inserting even if some duplicates are encountered
+    // This handles race conditions where multiple requests try to create notifications simultaneously
+    const result = await Notification.insertMany(notifications, { ordered: false })
+      .catch(error => {
+        // If error is due to duplicate key (E11000), extract successful inserts
+        if (error.code === 11000 && error.writeErrors) {
+          console.log(`⚠️ Some duplicate notifications detected during insert, ${error.insertedDocs?.length || 0} new notifications created`);
+          return error.insertedDocs || [];
+        }
+        throw error; // Re-throw if it's a different error
+      });
+    
+    const insertedCount = Array.isArray(result) ? result.length : 0;
+    console.log(`✅ Successfully created ${insertedCount} notifications`);
 
     // Send email notifications to students who have email notifications enabled
     console.log('📧 Sending email notifications...');
@@ -231,7 +298,7 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
       }
     }
 
-    return { success: true, count: result.length };
+    return { success: true, count: insertedCount };
   } catch (error) {
     console.error('❌ Error creating quiz notifications:', error);
     return { success: false, error: error.message };

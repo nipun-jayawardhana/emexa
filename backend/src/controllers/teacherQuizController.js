@@ -291,12 +291,13 @@ export const scheduleQuiz = async (req, res) => {
     const teacher = await Teacher.findById(quiz.teacherId);
     const teacherName = teacher ? teacher.name : 'Teacher';
     
-    // Create notifications for all students
+    // Create notifications for students matching the grade level
     const formattedDueDate = `${scheduleDate}, ${endTime}`;
     const notificationResult = await createQuizNotification(quiz._id, {
       title: quiz.title,
       subject: quiz.subject,
-      dueDate: formattedDueDate
+      dueDate: formattedDueDate,
+      gradeLevel: quiz.gradeLevel // Pass grade level for filtering
     }, teacherName);
     
     console.log('🔔 Notification result:', notificationResult);

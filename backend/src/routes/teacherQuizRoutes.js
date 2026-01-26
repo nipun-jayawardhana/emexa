@@ -37,11 +37,21 @@ router.get('/shared', async (req, res) => {
       })
       .filter(quiz => {
         // If quiz is expired, check if it's been more than 24 hours since end time
-        if (quiz.timeStatus === 'expired' && quiz.scheduleDate && quiz.endTime) {
+        if (quiz.timeStatus === 'expired' && quiz.scheduleDate && quiz.endTime && quiz.startTime) {
           const scheduleDate = new Date(quiz.scheduleDate);
+          const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
           const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-          const endDateTime = new Date(scheduleDate);
+          
+          const startDateTime = new Date(scheduleDate);
+          startDateTime.setHours(startHour, startMinute, 0, 0);
+          
+          let endDateTime = new Date(scheduleDate);
           endDateTime.setHours(endHour, endMinute, 0, 0);
+          
+          // Handle cross-midnight quizzes
+          if (endDateTime <= startDateTime) {
+            endDateTime.setDate(endDateTime.getDate() + 1);
+          }
           
           // Calculate hours since quiz ended
           const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);

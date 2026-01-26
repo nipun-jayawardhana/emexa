@@ -202,6 +202,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
   const [selectedQuizForDueDate, setSelectedQuizForDueDate] = useState(null);
   const [dueDate, setDueDate] = useState("");
   const [loading, setLoading] = useState(true);
+  const [isSharing, setIsSharing] = useState(false);
   const [filterStatus, setFilterStatus] = useState(() => {
     // Read filter from localStorage on initial load
     const savedFilter = localStorage.getItem("quizFilter");
@@ -473,7 +474,15 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
   };
 
   const handleShareQuiz = async () => {
+    // Prevent multiple simultaneous submissions
+    if (isSharing) {
+      console.log('⚠️ Share already in progress, ignoring duplicate click');
+      return;
+    }
+
     try {
+      setIsSharing(true);
+      
       // Share quiz - activate it for students
       await teacherQuizService.scheduleQuiz(quizToShare.id, {
         scheduleDate: quizToShare.scheduleDate,
@@ -497,6 +506,8 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
         "❌ Failed to share quiz: " +
           (error.response?.data?.message || error.message)
       );
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -1411,9 +1422,24 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
               </button>
               <button
                 onClick={handleShareQuiz}
-                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                disabled={isSharing}
+                className={`flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition flex items-center justify-center gap-2 ${
+                  isSharing 
+                    ? 'bg-gray-400 text-white cursor-not-allowed' 
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
               >
-                Share Quiz
+                {isSharing ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Sharing...
+                  </>
+                ) : (
+                  'Share Quiz'
+                )}
               </button>
             </div>
           </div>

@@ -19,12 +19,29 @@ const formatTime12Hour = (time24) => {
 };
 
 const StudentDashboard = () => {
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Load cached dashboard data immediately for instant display (zero latency)
+  const cachedDashboardData = localStorage.getItem('cachedDashboardData');
+  const [dashboardData, setDashboardData] = useState(
+    cachedDashboardData ? JSON.parse(cachedDashboardData) : {
+      totalQuizzes: 0,
+      averageScore: 0,
+      studyTime: 0,
+      upcomingQuizzes: [],
+      recentActivity: []
+    }
+  );
+  
+  const [loading, setLoading] = useState(false); // Start with false for instant display
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [activeMenuItem, setActiveMenuItem] = useState("dashboard");
-  const [sharedQuizzes, setSharedQuizzes] = useState([]);
+  
+  // Load cached quizzes immediately for instant display (zero latency)
+  const cachedQuizzes = localStorage.getItem('cachedSharedQuizzes');
+  const [sharedQuizzes, setSharedQuizzes] = useState(
+    cachedQuizzes ? JSON.parse(cachedQuizzes) : []
+  );
+  
   const [highlightedQuizId, setHighlightedQuizId] = useState(null);
   const [showAllQuizzes, setShowAllQuizzes] = useState(false);
   const navigate = useNavigate();
@@ -242,12 +259,12 @@ const StudentDashboard = () => {
 
     initializeDashboard();
     
-    // Auto-refresh every 30 seconds for real-time quiz status updates
+    // Auto-refresh every 10 seconds for faster, more responsive quiz status updates
     const refreshInterval = setInterval(() => {
       console.log('🔄 Auto-refreshing quiz data for real-time updates...');
-      fetchSharedQuizzes();
-      fetchDashboardData();
-    }, 30000);
+      // Run fetches in parallel for faster updates
+      Promise.all([fetchSharedQuizzes(), fetchDashboardData()]).catch(console.error);
+    }, 10000);
     
     return () => clearInterval(refreshInterval);
   }, []);
@@ -282,6 +299,7 @@ const StudentDashboard = () => {
 
       if (response.quizzes && response.quizzes.length > 0) {
         const now = new Date();
+        const startTime = performance.now();
         
         // Filter out expired quizzes (older than 24 hours)
         const activeQuizzes = response.quizzes.filter((quiz) => {
@@ -328,11 +346,19 @@ const StudentDashboard = () => {
           return acc;
         }, []);
         
-        console.log(`✅ Showing ${uniqueQuizzes.length} unique quizzes (filtered from ${response.quizzes.length} total, ${response.quizzes.length - activeQuizzes.length} expired hidden)`);
+        const processingTime = performance.now() - startTime;
+        console.log(`✅ Showing ${uniqueQuizzes.length} unique quizzes (filtered from ${response.quizzes.length} total, ${response.quizzes.length - activeQuizzes.length} expired hidden) - Processed in ${processingTime.toFixed(2)}ms`);
+        
+        // Cache quizzes for instant display on next load
+        localStorage.setItem('cachedSharedQuizzes', JSON.stringify(uniqueQuizzes));
+        
         setSharedQuizzes(uniqueQuizzes);
+      } else {
+        setSharedQuizzes([]);
       }
     } catch (error) {
       console.error("❌ Error fetching shared quizzes:", error);
+      setSharedQuizzes([]);
     }
   };
 
@@ -357,6 +383,10 @@ const StudentDashboard = () => {
       );
 
       console.log("✅ Dashboard data fetched:", response.data);
+      
+      // Cache dashboard data for instant display on next load
+      localStorage.setItem('cachedDashboardData', JSON.stringify(response.data));
+      
       setDashboardData(response.data);
     } catch (error) {
       console.error("❌ Error fetching dashboard data:", error);
@@ -367,22 +397,11 @@ const StudentDashboard = () => {
         localStorage.removeItem("userName");
         navigate("/login");
       }
-    } finally {
-      setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
+  // Loading screen removed - dashboard displays instantly with cached data
+  
   const DashboardContent = () => {
     // Calculate completion percentage
     const totalQuizzes = dashboardData?.totalQuizzes || 0;
@@ -609,15 +628,36 @@ const StudentDashboard = () => {
                   const upcomingQuizzes = dashboardData?.upcomingQuizzes || [];
                   const allQuizzes = [...sharedQuizzes, ...upcomingQuizzes];
                   
-                  // Filter out expired quizzes for the count
+                  // Remove duplicate quizzes based on quiz ID
+                  const uniqueQuizzes = allQuizzes.reduce((acc, quiz) => {
+                    const quizId = quiz.id || quiz._id;
+                    const existingQuiz = acc.find(q => (q.id || q._id) === quizId);
+                    if (!existingQuiz) {
+                      acc.push(quiz);
+                    }
+                    return acc;
+                  }, []);
+                  
+                  // Filter out expired quizzes for the count - SAME LOGIC as quiz list
                   const now = new Date();
-                  const activeQuizzes = allQuizzes.filter((quiz) => {
-                    if (quiz.scheduleDate && quiz.endTime) {
+                  const activeQuizzes = uniqueQuizzes.filter((quiz) => {
+                    if (quiz.scheduleDate && quiz.startTime && quiz.endTime) {
                       try {
                         const scheduleDate = new Date(quiz.scheduleDate);
+                        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
                         const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-                        const endDateTime = new Date(scheduleDate);
+                        
+                        const startDateTime = new Date(scheduleDate);
+                        startDateTime.setHours(startHour, startMinute, 0, 0);
+                        
+                        let endDateTime = new Date(scheduleDate);
                         endDateTime.setHours(endHour, endMinute, 0, 0);
+                        
+                        // Handle cross-midnight quizzes
+                        if (endDateTime <= startDateTime) {
+                          endDateTime.setDate(endDateTime.getDate() + 1);
+                        }
+                        
                         const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
                         return hoursSinceEnd <= 24; // Only include if not expired
                       } catch (error) {
@@ -736,7 +776,7 @@ const StudentDashboard = () => {
                     );
                   }
                   
-                  // Sort quizzes: active first, then upcoming, then expired at bottom
+                  // Sort quizzes: active first, then upcoming, then expired (latest expired first)
                   const sortedQuizzes = [...activeQuizzes].sort((a, b) => {
                     const statusA = a.timeStatus || 'active';
                     const statusB = b.timeStatus || 'active';
@@ -751,7 +791,39 @@ const StudentDashboard = () => {
                       return 2; // default to upcoming priority
                     };
                     
-                    return getPriority(statusA, isActiveA) - getPriority(statusB, isActiveB);
+                    const priorityA = getPriority(statusA, isActiveA);
+                    const priorityB = getPriority(statusB, isActiveB);
+                    
+                    // If priorities are different, sort by priority
+                    if (priorityA !== priorityB) {
+                      return priorityA - priorityB;
+                    }
+                    
+                    // If both are expired (priority 3), sort by end date (latest expired first)
+                    if (priorityA === 3 && priorityB === 3) {
+                      try {
+                        const getEndDateTime = (quiz) => {
+                          if (quiz.scheduleDate && quiz.endTime) {
+                            const scheduleDate = new Date(quiz.scheduleDate);
+                            const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+                            const endDateTime = new Date(scheduleDate);
+                            endDateTime.setHours(endHour, endMinute, 0, 0);
+                            return endDateTime;
+                          }
+                          return new Date(0); // fallback to epoch if no date
+                        };
+                        
+                        const endA = getEndDateTime(a);
+                        const endB = getEndDateTime(b);
+                        
+                        // Sort descending (latest expired first)
+                        return endB - endA;
+                      } catch (error) {
+                        return 0;
+                      }
+                    }
+                    
+                    return 0; // Keep original order for same priority
                   });
                   
                   // Show only first 2 quizzes if not expanded
