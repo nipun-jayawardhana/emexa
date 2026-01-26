@@ -86,7 +86,12 @@ const Header = ({ userName, userRole }) => {
     const eventName = `${storageKey}Changed`;
 
     const storedImage = localStorage.getItem(storageKey);
-    setProfileImage(storedImage);
+    // Only set profile image if it's a valid URL string
+    if (storedImage && storedImage.trim().length > 0 && storedImage.startsWith('http')) {
+      setProfileImage(storedImage);
+    } else {
+      setProfileImage(null);
+    }
 
     const handleProfileImageChange = (e) => {
       console.log('Profile image change event received:', e?.detail);
