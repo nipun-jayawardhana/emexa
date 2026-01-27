@@ -4,6 +4,25 @@ import logo from "../assets/auth-pages-images/EMEXA Logo.png";
 import api from "../lib/api";
 import "./Form.css";
 
+// Simple encryption/decryption (for basic obfuscation - NOT military-grade security)
+const encryptData = (text) => {
+  try {
+    return btoa(unescape(encodeURIComponent(text)));
+  } catch (e) {
+    console.error("Encryption failed:", e);
+    return text;
+  }
+};
+
+const decryptData = (encrypted) => {
+  try {
+    return decodeURIComponent(escape(atob(encrypted)));
+  } catch (e) {
+    console.error("Decryption failed:", e);
+    return "";
+  }
+};
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,17 +34,25 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Load saved email, password and remember me state on mount
+  // 🔑 AUTO-FILL: Load saved credentials on mount
   useEffect(() => {
     const savedRememberMe = localStorage.getItem("rememberMe");
-    const savedEmail = localStorage.getItem("rememberMeEmail");
-    const savedPassword = localStorage.getItem("rememberMePassword");
+    const savedEmail = localStorage.getItem("savedEmail");
+    const savedPassword = localStorage.getItem("savedPassword"); // Encrypted
     
-    if (savedRememberMe === "true" && savedEmail) {
+    if (savedRememberMe === "true") {
       setRemember(true);
-      setEmail(savedEmail);
+      
+      if (savedEmail) {
+        const decryptedEmail = decryptData(savedEmail);
+        setEmail(decryptedEmail);
+        console.log("✅ Auto-filled email");
+      }
+      
       if (savedPassword) {
-        setPassword(savedPassword);
+        const decryptedPassword = decryptData(savedPassword);
+        setPassword(decryptedPassword);
+        console.log("✅ Auto-filled password");
       }
     }
   }, []);
@@ -69,19 +96,33 @@ export default function Login() {
     api
       .post("/auth/login", { email, password })
       .then((res) => {
-        console.log("✅ Login successful - FULL RESPONSE:", res);
+        console.log("✅ Login successful");
 
-        // CRITICAL FIX: Clear admin viewing flags for ALL logins
-        console.log("🧹 Clearing admin preview flags...");
+        // Clear admin viewing flags
         localStorage.removeItem("adminViewingAs");
         sessionStorage.removeItem("adminViewingAs");
-        console.log("✅ Admin preview flags cleared");
 
-        // Check if user is admin - redirect to admin panel
+        // 🔑 REMEMBER ME: Save encrypted credentials
+        if (remember) {
+          localStorage.setItem("rememberMe", "true");
+          localStorage.setItem("savedEmail", encryptData(email));
+          localStorage.setItem("savedPassword", encryptData(password));
+          console.log("💾 Credentials saved (encrypted)");
+        } else {
+          localStorage.removeItem("rememberMe");
+          localStorage.removeItem("savedEmail");
+          localStorage.removeItem("savedPassword");
+          console.log("🗑️ Remember me disabled - credentials cleared");
+        }
+
+        // Clean up old keys
+        localStorage.removeItem("rememberMeEmail");
+        localStorage.removeItem("rememberMePassword");
+
+        // Check if user is admin
         if (res.user?.role === "admin" || res.user?.role === "Admin") {
           const adminName = res.user?.name || "Admin";
 
-          // Store admin token and user info
           localStorage.setItem("adminToken", res.token);
           localStorage.setItem("adminUser", JSON.stringify(res.user));
           localStorage.setItem("token", res.token);
@@ -90,7 +131,6 @@ export default function Login() {
           localStorage.setItem("userRole", "admin");
 
           setSuccess(`✅ Login successful! Welcome ${adminName}!`);
-          console.log("🚀 Navigating to admin panel");
 
           setTimeout(() => {
             navigate("/admin/user-management");
@@ -98,7 +138,7 @@ export default function Login() {
           return;
         }
 
-        // Regular user flow (students and teachers)
+        // Regular user flow
         const userRole = res.user?.role || "student";
         let userName = "User";
 
@@ -115,28 +155,16 @@ export default function Login() {
             "User";
         }
 
-        console.log("🔍 Extracted userName:", userName);
-
-        // CRITICAL FIX: Clear adminToken for regular users
         localStorage.removeItem("adminToken");
         localStorage.removeItem("adminUser");
-        console.log("🧹 Cleared admin-specific storage for regular user");
 
-        // Save token based on "Remember me" checkbox
+        // Save token
         if (res.token) {
           if (remember) {
             localStorage.setItem("token", res.token);
-            localStorage.setItem("rememberMe", "true");
-            localStorage.setItem("rememberMeEmail", email);
-            localStorage.setItem("rememberMePassword", password);
-            console.log("💾 Token saved to localStorage (remember me)");
           } else {
             sessionStorage.setItem("token", res.token);
             localStorage.setItem("token", res.token);
-            localStorage.removeItem("rememberMe");
-            localStorage.removeItem("rememberMeEmail");
-            localStorage.removeItem("rememberMePassword");
-            console.log("💾 Token saved to sessionStorage (this session only)");
           }
         }
 
@@ -152,13 +180,10 @@ export default function Login() {
 
           Object.keys(userData).forEach((key) => {
             localStorage.setItem(key, userData[key]);
-            console.log(`💾 localStorage.${key} =`, userData[key]);
           });
           
-          // Clear any saved menu state to ensure dashboard shows first
           if (userRole === 'teacher') {
             localStorage.removeItem('teacherActiveMenuItem');
-            console.log('🗑️ Cleared teacherActiveMenuItem to show dashboard first');
           }
 
           if (!remember) {
@@ -166,8 +191,6 @@ export default function Login() {
               sessionStorage.setItem(key, userData[key]);
             });
           }
-
-          console.log("✅ User data saved successfully");
 
           // Sync profile image
           try {
@@ -210,10 +233,9 @@ export default function Login() {
           }
         }
 
-        // Show success message
         setSuccess(`✅ Login successful! Welcome back ${userName}!`);
 
-        // Navigate based on user role
+        // Navigate based on role
         let dashboardPath;
         const normalizedRole = (res.user?.role || "student").toLowerCase();
 
@@ -225,8 +247,6 @@ export default function Login() {
           dashboardPath = "/dashboard";
         }
 
-        console.log(`🚀 Navigating to ${dashboardPath} (role: ${normalizedRole})`);
-
         setTimeout(() => {
           navigate(dashboardPath, { replace: true });
         }, 1000);
@@ -236,7 +256,6 @@ export default function Login() {
 
         let errorMessage = "Login failed. Please check your credentials.";
 
-        // Check for approval-related errors
         if (err.pendingApproval) {
           errorMessage = "⏳ Your account is pending admin approval. Please wait for approval before logging in.";
         } else if (err.rejected) {
@@ -308,6 +327,7 @@ export default function Login() {
                   }
                 }}
                 placeholder="Enter your email"
+                autoComplete="email"
               />
               {errors.email && <div className="error-text">{errors.email}</div>}
             </div>
@@ -324,6 +344,7 @@ export default function Login() {
                   }}
                   placeholder="Enter your password"
                   style={{ paddingRight: "40px" }}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -392,9 +413,10 @@ export default function Login() {
                     const isChecked = e.target.checked;
                     setRemember(isChecked);
                     if (!isChecked) {
+                      // Clear saved credentials when unchecked
                       localStorage.removeItem("rememberMe");
-                      localStorage.removeItem("rememberMeEmail");
-                      localStorage.removeItem("rememberMePassword");
+                      localStorage.removeItem("savedEmail");
+                      localStorage.removeItem("savedPassword");
                     }
                   }}
                 />{" "}
