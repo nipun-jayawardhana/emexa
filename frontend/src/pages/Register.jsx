@@ -10,6 +10,8 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [accountType, setAccountType] = useState("student");
+  const [academicYear, setAcademicYear] = useState("");
+  const [semester, setSemester] = useState("");
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -55,6 +57,17 @@ export default function Register() {
     } else if (password !== confirm) {
       e.confirm = "Passwords do not match";
     }
+    
+    // Only validate academic fields for students
+    if (accountType === "student") {
+      if (!academicYear) {
+        e.academicYear = "Academic year is required for students";
+      }
+      if (!semester) {
+        e.semester = "Semester is required for students";
+      }
+    }
+    
     return e;
   };
 
@@ -67,15 +80,27 @@ export default function Register() {
       setLoading(true);
       setErrors({});
 
-      console.log("📤 Sending registration to backend:", {
+      // Prepare registration data - matching backend expectations
+      const registrationData = {
         fullName,
         email,
-        password: "***",
+        password,
         accountType,
+      };
+
+      // Only include academic fields for students
+      if (accountType === "student") {
+        registrationData.year = academicYear;
+        registrationData.semester = semester;
+      }
+
+      console.log("📤 Sending registration to backend:", {
+        ...registrationData,
+        password: "***",
       });
 
       api
-        .post("/auth/register", { fullName, email, password, accountType })
+        .post("/auth/register", registrationData)
         .then((res) => {
           console.log("✅ Registration response:", res);
 
@@ -125,6 +150,20 @@ export default function Register() {
         });
     }
   };
+
+  // Reset academic fields when account type changes to teacher
+  useEffect(() => {
+    if (accountType === "teacher") {
+      setAcademicYear("");
+      setSemester("");
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.academicYear;
+        delete newErrors.semester;
+        return newErrors;
+      });
+    }
+  }, [accountType]);
 
   return (
     <div className="app-root">
@@ -301,6 +340,79 @@ export default function Register() {
                     <div className="error-text">{errors.confirm}</div>
                   )}
                 </div>
+
+                {/* Academic Year and Semester - Only for Students - Horizontal Layout */}
+                {accountType === "student" && (
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <div className={`field ${errors.academicYear ? "error" : ""}`} style={{ flex: 1 }}>
+                      <label>Academic Year</label>
+                      <select
+                        value={academicYear}
+                        onChange={(e) => setAcademicYear(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "12px",
+                          fontSize: "14px",
+                          border: "1px solid #ddd",
+                          borderRadius: "8px",
+                          backgroundColor: "white",
+                          cursor: "pointer",
+                          outline: "none",
+                          transition: "border-color 0.2s ease",
+                          color: academicYear ? "#000" : "#999",
+                          appearance: "none",
+                          backgroundImage: "url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')",
+                          backgroundRepeat: "no-repeat",
+                          backgroundPosition: "right 12px center",
+                          backgroundSize: "20px",
+                          paddingRight: "40px"
+                        }}
+                      >
+                        <option value="" style={{ color: "#999" }}>Select academic year</option>
+                        <option value="1st year" style={{ color: "#000" }}>1st Year</option>
+                        <option value="2nd year" style={{ color: "#000" }}>2nd Year</option>
+                        <option value="3rd year" style={{ color: "#000" }}>3rd Year</option>
+                        <option value="4th year" style={{ color: "#000" }}>4th Year</option>
+                      </select>
+                      {errors.academicYear && (
+                        <div className="error-text">{errors.academicYear}</div>
+                      )}
+                    </div>
+
+                    <div className={`field ${errors.semester ? "error" : ""}`} style={{ flex: 1 }}>
+                      <label>Semester</label>
+                      <select
+                        value={semester}
+                        onChange={(e) => setSemester(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "12px",
+                          fontSize: "14px",
+                          border: "1px solid #ddd",
+                          borderRadius: "8px",
+                          backgroundColor: "white",
+                          cursor: "pointer",
+                          outline: "none",
+                          transition: "border-color 0.2s ease",
+                          color: semester ? "#000" : "#999",
+                          appearance: "none",
+                          backgroundImage: "url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')",
+                          backgroundRepeat: "no-repeat",
+                          backgroundPosition: "right 12px center",
+                          backgroundSize: "20px",
+                          paddingRight: "40px"
+                        }}
+                      >
+                        <option value="" style={{ color: "#999" }}>Select semester</option>
+                        <option value="1st semester" style={{ color: "#000" }}>1st Semester</option>
+                        <option value="2nd semester" style={{ color: "#000" }}>2nd Semester</option>
+                      </select>
+                      {errors.semester && (
+                        <div className="error-text">{errors.semester}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="field">
                   <label>Account Type</label>
