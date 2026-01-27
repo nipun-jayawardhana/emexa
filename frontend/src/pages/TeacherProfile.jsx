@@ -1545,7 +1545,7 @@ const TeacherProfile = () => {
         {/* ACTIVITY TAB */}
         {activeTab === "activity" && (
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
+            <h2 className="text-xl font-bold text-gray-900">All Activity</h2>
             <div className="text-center py-12">
               <svg
                 className="w-16 h-16 text-gray-300 mx-auto mb-4"
@@ -1561,7 +1561,7 @@ const TeacherProfile = () => {
                 />
               </svg>
               <p className="text-gray-500 font-medium">
-                No recent activity yet
+                No activity yet
               </p>
               <p className="text-sm text-gray-400 mt-2">
                 Your teaching activities will appear here

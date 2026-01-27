@@ -5,7 +5,7 @@ import axios from 'axios';
 import Sidebar from '../components/sidebarorigin';
 import Header from '../components/headerorigin';
 import AdminViewWrapper from '../components/AdminViewWrapper';
-
+import ActivityTab from '../components/ActivityTab'; 
 
 // Helper function to get full image URL - ADDED for multi-device support
 const getImageUrl = (imagePath) => {
@@ -1110,7 +1110,7 @@ const handleProfileImageChange = async (e) => {
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                Recent Activity
+                 Activity
                 {activeTab === 'activity' && (
                   <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
                 )}
@@ -1271,49 +1271,7 @@ const handleProfileImageChange = async (e) => {
           )}
 
           {activeTab === 'activity' && (
-            <div className="space-y-6">
-              <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
-
-              {userData?.recentActivity && userData.recentActivity.length > 0 ? (
-                <div className="space-y-4">
-                  {userData.recentActivity.map((activity, index) => (
-                    <div key={index} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                      <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center shrink-0">
-                        <svg className="w-6 h-6 text-teal-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                        </svg>
-                      </div>
-
-                      <div className="flex-1">
-                        <h3 className="font-medium text-teal-600">{activity.title}</h3>
-                        <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
-                          <span>Calendar {new Date(activity.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                          <span>Attempts: {activity.attempts || 1}</span>
-                        </div>
-                      </div>
-
-                      {activity.score && (
-                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          activity.score >= 90 ? 'bg-green-100 text-green-800' :
-                          activity.score >= 80 ? 'bg-blue-100 text-blue-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          Score: {activity.score}%
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                  <p className="text-gray-500 font-medium">No recent activity yet</p>
-                  <p className="text-sm text-gray-400 mt-2">Your quiz attempts will appear here</p>
-                </div>
-              )}
-            </div>
+             <ActivityTab />
           )}
 
           {activeTab === 'privacy' && (

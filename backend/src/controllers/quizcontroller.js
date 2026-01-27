@@ -6,6 +6,7 @@ import {
 } from '../services/notificationEmail.service.js';
 import User from '../models/user.js';
 import Student from '../models/student.js';
+import QuizAttempt from '../models/quizAttempt.js'; 
 
 const sampleQuizzes = {
   'matrix-quiz': {
@@ -148,6 +149,37 @@ export const submitQuizAnswers = async (req, res) => {
       answers: results,
       submittedAt: new Date()
     };
+
+// CREATE QUIZ ATTEMPT ACTIVITY RECORD
+try {
+  const attemptData = {
+    userId,
+    quizId,
+    sessionId: sessionId || `session-${Date.now()}`,
+    rawScore: correctAnswers,
+    finalScore: score,
+    hintsUsed: hintsUsed || 0,
+    answers: results.map(r => ({
+      questionId: r.questionId.toString(),
+      selectedAnswer: r.userAnswer?.toString(),
+      isCorrect: r.isCorrect
+    })),
+    emotionalSummary: emotionData ? {
+      mostCommonEmotion: emotionData.mostCommonEmotion || 'neutral',
+      confusedCount: emotionData.confusedCount || 0,
+      happyCount: emotionData.happyCount || 0,
+      neutralCount: emotionData.neutralCount || 0,
+      totalEmotionCaptures: emotionData.totalEmotionCaptures || 0
+    } : undefined,
+    completedAt: new Date()
+  };
+
+  const quizAttempt = await QuizAttempt.create(attemptData);
+  console.log('✅ Quiz attempt activity recorded:', quizAttempt._id);
+} catch (activityError) {
+  console.error('❌ Error recording quiz attempt activity:', activityError);
+  // Don't fail the submission if activity recording fails
+}
 
     // Create submission confirmation notification for student
     try {

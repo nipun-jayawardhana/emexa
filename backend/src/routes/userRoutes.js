@@ -10,7 +10,10 @@ import {
   updateNotificationSettings,
   updatePrivacySettings,
   exportUserData,
-  uploadProfileImage 
+  uploadProfileImage,
+  getStudentActivities,
+  getStudentStats
+
 } from '../controllers/userController.js';
 import { protect } from '../middleware/auth.js';
 import multer from 'multer';
@@ -40,6 +43,8 @@ router.put('/notification-settings', protect, updateNotificationSettings);
 router.put('/privacy-settings', protect, updatePrivacySettings);
 router.get('/export-data', protect, exportUserData);
 router.get('/dashboard', protect, getDashboardData);
+router.get('/student/activities', protect, getStudentActivities);
+router.get('/student/stats', protect, getStudentStats);
 
 // FIXED: Changed authenticateToken to protect
 router.get('/:userId/dashboard', protect, getUserDashboardById);

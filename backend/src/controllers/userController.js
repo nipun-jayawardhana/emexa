@@ -11,6 +11,7 @@ import {
   sendSettingsChangeEmail 
 } from '../services/notificationEmail.service.js';
 import bcrypt from 'bcrypt';
+import QuizAttempt from '../models/quizAttempt.js'; 
 
 // ============================================
 // GET ALL APPROVED USERS (FIXED VERSION)
@@ -644,6 +645,142 @@ export const exportUserData = async (req, res) => {
   } catch (error) {
     console.error('❌ Error exporting user data:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// ============================================
+// GET STUDENT ACTIVITIES
+// ============================================
+export const getStudentActivities = async (req, res) => {
+  try {
+    const userId = req.userId; // From auth middleware
+    const { limit = 50, skip = 0 } = req.query;
+
+    console.log('📊 Fetching activities for userId:', userId);
+
+    // Fetch quiz attempts from database
+    const activities = await QuizAttempt.find({ userId })
+      .sort({ completedAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(skip))
+      .lean();
+
+    console.log(`✅ Found ${activities.length} quiz attempts`);
+
+    // Transform data for frontend
+    const formattedActivities = await Promise.all(
+      activities.map(async (activity) => {
+        let quizTitle = 'Unknown Quiz';
+        let quizCategory = 'General';
+        let teacherName = 'Unknown Teacher';
+
+        // Try to get quiz details
+        try {
+          const quiz = await TeacherQuiz.findById(activity.quizId).lean();
+          if (quiz) {
+            quizTitle = quiz.title;
+            quizCategory = quiz.subject || 'General';
+
+            // Get teacher name
+            const teacher = await Teacher.findById(quiz.teacherId).lean();
+            if (teacher) {
+              teacherName = teacher.name;
+            }
+          }
+        } catch (err) {
+          console.log('Could not fetch quiz details:', err.message);
+        }
+
+        return {
+          id: activity._id,
+          quizTitle,
+          quizCategory,
+          teacherName,
+          score: activity.finalScore,
+          totalQuestions: activity.answers?.length || 0,
+          correctAnswers: activity.rawScore,
+          timeSpent: 0, // You can add this field to QuizAttempt model if needed
+          attemptedAt: activity.createdAt,
+          completedAt: activity.completedAt,
+          status: 'completed',
+          hintsUsed: activity.hintsUsed || 0,
+          emotionalSummary: activity.emotionalSummary
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      count: formattedActivities.length,
+      data: formattedActivities
+    });
+  } catch (error) {
+    console.error('❌ Error fetching student activities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch activities',
+      error: error.message
+    });
+  }
+};
+
+// ============================================
+// GET STUDENT ACTIVITY STATISTICS
+// ============================================
+export const getStudentStats = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    console.log('📊 Fetching stats for userId:', userId);
+
+    // Get all completed quiz attempts
+    const attempts = await QuizAttempt.find({ userId }).lean();
+
+    if (attempts.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          totalQuizzes: 0,
+          averageScore: 0,
+          totalTimeSpent: 0,
+          accuracy: 0
+        }
+      });
+    }
+
+    // Calculate statistics
+    const totalQuizzes = attempts.length;
+    const totalScore = attempts.reduce((sum, attempt) => sum + attempt.finalScore, 0);
+    const averageScore = Math.round((totalScore / totalQuizzes) * 100) / 100;
+
+    const totalCorrect = attempts.reduce((sum, attempt) => sum + attempt.rawScore, 0);
+    const totalQuestions = attempts.reduce((sum, attempt) => sum + (attempt.answers?.length || 0), 0);
+    const accuracy = totalQuestions > 0 
+      ? Math.round((totalCorrect / totalQuestions) * 100) 
+      : 0;
+
+    console.log('✅ Stats calculated:', {
+      totalQuizzes,
+      averageScore,
+      accuracy
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalQuizzes,
+        averageScore,
+        totalTimeSpent: 0, // Add time tracking to QuizAttempt if needed
+        accuracy
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching student stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch statistics',
+      error: error.message
+    });
   }
 };
 
