@@ -17,28 +17,65 @@ export default function Login() {
 
   // Load saved email, password and remember me state on mount
   useEffect(() => {
-    const savedRememberMe = localStorage.getItem("rememberMe");
-    const savedEmail = localStorage.getItem("rememberMeEmail");
-    const savedPassword = localStorage.getItem("rememberMePassword");
-    
-    if (savedRememberMe === "true" && savedEmail) {
-      setRemember(true);
-      setEmail(savedEmail);
-      if (savedPassword) {
-        setPassword(savedPassword);
+    // Small delay to ensure localStorage is ready
+    const loadRememberedData = () => {
+      const savedRememberMe = localStorage.getItem("rememberMe");
+      const savedEmail = localStorage.getItem("rememberMeEmail");
+      const savedPassword = localStorage.getItem("rememberMePassword");
+      
+      console.log("🔍 Loading remember me data:", {
+        rememberMe: savedRememberMe,
+        email: savedEmail ? `${savedEmail.substring(0, 3)}***` : null,
+        hasPassword: !!savedPassword,
+        allRememberKeys: Object.keys(localStorage).filter(key => key.includes('remember'))
+      });
+      
+      if (savedRememberMe === "true" && savedEmail) {
+        console.log("✅ Restoring remembered credentials");
+        setRemember(true);
+        setEmail(savedEmail);
+        if (savedPassword) {
+          setPassword(savedPassword);
+          console.log("✅ Email and password restored successfully");
+        } else {
+          console.log("⚠️ Email restored but password missing");
+        }
+      } else {
+        console.log("ℹ️ No remembered credentials found", {
+          hasRememberMeFlag: !!savedRememberMe,
+          hasEmail: !!savedEmail,
+          rememberMeValue: savedRememberMe,
+          allLocalStorageKeys: Object.keys(localStorage)
+        });
       }
-    }
+    };
+    
+    // Load immediately
+    loadRememberedData();
+    
+    // Also try after a small delay in case of timing issues
+    const timeoutId = setTimeout(loadRememberedData, 100);
+    
+    return () => clearTimeout(timeoutId);
   }, []);
 
-  // Show message from registration if exists
+  // Show message from registration if exists (but don't override remembered email)
   useEffect(() => {
+    // Check if we already have remembered credentials loaded
+    const savedRememberMe = localStorage.getItem("rememberMe");
+    const savedEmail = localStorage.getItem("rememberMeEmail");
+    
     if (location.state?.message) {
       setSuccess(location.state.message);
-      if (location.state?.email) {
+      // Only set email from location if there's no remembered email AND email field is empty
+      if (location.state?.email && (!savedRememberMe || !savedEmail) && !email) {
+        console.log("📧 Setting email from location state (no remembered email)");
         setEmail(location.state.email);
+      } else if (savedRememberMe === "true" && savedEmail) {
+        console.log("✅ Remembered email exists, not overriding with location state");
       }
     }
-  }, [location]);
+  }, [location, email]);
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -124,19 +161,32 @@ export default function Login() {
 
         // Save token based on "Remember me" checkbox
         if (res.token) {
+          console.log("💾 Remember me checkbox state:", remember);
           if (remember) {
             localStorage.setItem("token", res.token);
             localStorage.setItem("rememberMe", "true");
             localStorage.setItem("rememberMeEmail", email);
             localStorage.setItem("rememberMePassword", password);
-            console.log("💾 Token saved to localStorage (remember me)");
+            console.log("✅ Token and credentials saved to localStorage (remember me enabled)");
+            console.log("📧 Saved email:", email);
+            
+            // Verify the data was actually saved
+            const verifyRememberMe = localStorage.getItem("rememberMe");
+            const verifyEmail = localStorage.getItem("rememberMeEmail");
+            const verifyPassword = localStorage.getItem("rememberMePassword");
+            console.log("🔍 Verification after save:", {
+              rememberMe: verifyRememberMe,
+              hasEmail: !!verifyEmail,
+              hasPassword: !!verifyPassword,
+              emailMatch: verifyEmail === email
+            });
           } else {
             sessionStorage.setItem("token", res.token);
             localStorage.setItem("token", res.token);
             localStorage.removeItem("rememberMe");
             localStorage.removeItem("rememberMeEmail");
             localStorage.removeItem("rememberMePassword");
-            console.log("💾 Token saved to sessionStorage (this session only)");
+            console.log("💾 Token saved to sessionStorage (remember me disabled)");
           }
         }
 
@@ -336,16 +386,27 @@ export default function Login() {
                     background: "transparent",
                     border: "none",
                     cursor: "pointer",
-                    fontSize: "20px",
                     color: "#888",
-                    padding: "0",
+                    padding: "4px",
                     outline: "none",
-                    lineHeight: "1",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     transition: "color 0.2s ease",
                   }}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                  {showPassword ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  )}
                 </button>
               </div>
               {errors.password && (
