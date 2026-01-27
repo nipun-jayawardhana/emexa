@@ -1,29 +1,106 @@
 import nodemailer from 'nodemailer';
+import * as brevo from '@getbrevo/brevo';
 
-// Don't create transporter immediately - create it when needed
+// Initialize Brevo API
+let brevoApiInstance = null;
+
+const initializeBrevo = () => {
+  if (!brevoApiInstance && process.env.BREVO_API_KEY) {
+    brevoApiInstance = new brevo.TransactionalEmailsApi();
+    brevoApiInstance.setApiKey(
+      brevo.TransactionalEmailsApiApiKeys.apiKey,
+      process.env.BREVO_API_KEY
+    );
+  }
+  return brevoApiInstance;
+};
+
+// Get transporter for sending emails
 const getTransporter = () => {
   console.log('🔧 Creating email transporter...');
-  console.log('📧 Using EMAIL_USER:', process.env.EMAIL_USER);
-  console.log('🔑 Using EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD ? '✅ Present' : '❌ Missing');
   
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD
+  const emailMode = process.env.EMAIL_MODE || 'mailtrap';
+  
+  if (emailMode === 'mailtrap') {
+    // TESTING MODE - Use Mailtrap
+    console.log('📧 TESTING MODE: Using Mailtrap');
+    console.log('   Host:', process.env.MAILTRAP_HOST);
+    console.log('   User:', process.env.MAILTRAP_USER ? '✅ Present' : '❌ Missing');
+    
+    return nodemailer.createTransport({
+      host: process.env.MAILTRAP_HOST || 'sandbox.smtp.mailtrap.io',
+      port: process.env.MAILTRAP_PORT || 2525,
+      auth: {
+        user: process.env.MAILTRAP_USER,
+        pass: process.env.MAILTRAP_PASSWORD
+      }
+    });
+  }
+  
+  // For Brevo, we'll use their API directly, not nodemailer
+  return null;
+};
+
+// Send email via Brevo API
+const sendViaBrevo = async (mailOptions) => {
+  try {
+    const api = initializeBrevo();
+    
+    if (!api) {
+      throw new Error('Brevo API not initialized. Check BREVO_API_KEY.');
     }
-  });
+
+    const sendSmtpEmail = {
+      sender: {
+        email: process.env.BREVO_SENDER_EMAIL || 'emexaed@gmail.com',
+        name: process.env.BREVO_SENDER_NAME || 'EMEXA'
+      },
+      to: [{ email: mailOptions.to }],
+      subject: mailOptions.subject,
+      htmlContent: mailOptions.html
+    };
+
+    const result = await api.sendTransacEmail(sendSmtpEmail);
+    console.log('✅ Email sent via Brevo:', result);
+    return true;
+  } catch (error) {
+    console.error('❌ Brevo API Error:', error);
+    throw error;
+  }
+};
+
+// Send email via Nodemailer (Mailtrap)
+const sendViaNodemailer = async (transporter, mailOptions) => {
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('✅ Email sent via Mailtrap to:', mailOptions.to);
+    console.log('📬 Check your Mailtrap inbox at: https://mailtrap.io/inboxes');
+    return true;
+  } catch (error) {
+    console.error('❌ Nodemailer Error:', error);
+    throw error;
+  }
+};
+
+// Main email sending function
+const sendEmail = async (mailOptions) => {
+  const emailMode = process.env.EMAIL_MODE || 'mailtrap';
+  
+  console.log(`📧 Sending email via ${emailMode.toUpperCase()}...`);
+  
+  if (emailMode === 'brevo') {
+    return await sendViaBrevo(mailOptions);
+  } else {
+    const transporter = getTransporter();
+    return await sendViaNodemailer(transporter, mailOptions);
+  }
 };
 
 // Send reset code email
 export const sendResetCodeEmail = async (userEmail, userName, resetCode) => {
-  const transporter = getTransporter();
-  
-  // Create the reset link with email and code
   const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?email=${encodeURIComponent(userEmail)}&code=${resetCode}`;
   
   const mailOptions = {
-    from: process.env.EMAIL_USER,
     to: userEmail,
     subject: 'Password Reset Code - EMEXA',
     html: `
@@ -86,7 +163,7 @@ export const sendResetCodeEmail = async (userEmail, userName, resetCode) => {
             </ul>
             
             <div class="alert">
-              <strong>⚠️ Security Notice:</strong> If you did not request this password reset, please ignore this email or contact support immediately at emexaed@gmail.com
+              <strong>⚠️ Security Notice:</strong> If you did not request this password reset, please ignore this email or contact support immediately
             </div>
             
             <p>Best regards,<br><strong>EMEXA Team</strong></p>
@@ -102,21 +179,11 @@ export const sendResetCodeEmail = async (userEmail, userName, resetCode) => {
     `
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log('✅ Reset code email sent to:', userEmail);
-    return true;
-  } catch (error) {
-    console.error('❌ Error sending reset code email:', error);
-    throw error;
-  }
+  return await sendEmail(mailOptions);
 };
 
 export const sendPasswordChangeEmail = async (userEmail, userName) => {
-  const transporter = getTransporter(); // Create transporter here
-  
   const mailOptions = {
-    from: process.env.EMAIL_USER,
     to: userEmail,
     subject: 'Password Changed Successfully - EMEXA',
     html: `
@@ -146,7 +213,7 @@ export const sendPasswordChangeEmail = async (userEmail, userName) => {
               <li>📧 Email: ${userEmail}</li>
             </ul>
             <div class="alert">
-              <strong>⚠️ Important:</strong> If you did not make this change, please contact our support team immediately at emexaed@gmail.com
+              <strong>⚠️ Important:</strong> If you did not make this change, please contact our support team immediately
             </div>
             <p>For your security, we recommend:</p>
             <ul>
@@ -166,21 +233,11 @@ export const sendPasswordChangeEmail = async (userEmail, userName) => {
     `
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log('✅ Password change email sent to:', userEmail);
-    return true;
-  } catch (error) {
-    console.error('❌ Error sending password change email:', error);
-    throw error;
-  }
+  return await sendEmail(mailOptions);
 };
 
 export const sendPasswordResetEmail = async (userEmail, userName) => {
-  const transporter = getTransporter(); // Create transporter here
-  
   const mailOptions = {
-    from: process.env.EMAIL_USER,
     to: userEmail,
     subject: 'Password Reset Successfully - EMEXA',
     html: `
@@ -210,7 +267,7 @@ export const sendPasswordResetEmail = async (userEmail, userName) => {
               <li>📧 Email: ${userEmail}</li>
             </ul>
             <div class="alert">
-              <strong>⚠️ Important:</strong> If you did not request this password reset, please contact our support team immediately at emexaed@gmail.com
+              <strong>⚠️ Important:</strong> If you did not request this password reset, please contact our support team immediately
             </div>
             <p>You can now log in with your new password.</p>
             <p>Best regards,<br><strong>EMEXA Team</strong></p>
@@ -225,12 +282,5 @@ export const sendPasswordResetEmail = async (userEmail, userName) => {
     `
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log('✅ Password reset confirmation email sent to:', userEmail);
-    return true;
-  } catch (error) {
-    console.error('❌ Error sending password reset email:', error);
-    throw error;
-  }
+  return await sendEmail(mailOptions);
 };
