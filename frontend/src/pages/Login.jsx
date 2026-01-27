@@ -17,65 +17,28 @@ export default function Login() {
 
   // Load saved email, password and remember me state on mount
   useEffect(() => {
-    // Small delay to ensure localStorage is ready
-    const loadRememberedData = () => {
-      const savedRememberMe = localStorage.getItem("rememberMe");
-      const savedEmail = localStorage.getItem("rememberMeEmail");
-      const savedPassword = localStorage.getItem("rememberMePassword");
-      
-      console.log("🔍 Loading remember me data:", {
-        rememberMe: savedRememberMe,
-        email: savedEmail ? `${savedEmail.substring(0, 3)}***` : null,
-        hasPassword: !!savedPassword,
-        allRememberKeys: Object.keys(localStorage).filter(key => key.includes('remember'))
-      });
-      
-      if (savedRememberMe === "true" && savedEmail) {
-        console.log("✅ Restoring remembered credentials");
-        setRemember(true);
-        setEmail(savedEmail);
-        if (savedPassword) {
-          setPassword(savedPassword);
-          console.log("✅ Email and password restored successfully");
-        } else {
-          console.log("⚠️ Email restored but password missing");
-        }
-      } else {
-        console.log("ℹ️ No remembered credentials found", {
-          hasRememberMeFlag: !!savedRememberMe,
-          hasEmail: !!savedEmail,
-          rememberMeValue: savedRememberMe,
-          allLocalStorageKeys: Object.keys(localStorage)
-        });
-      }
-    };
-    
-    // Load immediately
-    loadRememberedData();
-    
-    // Also try after a small delay in case of timing issues
-    const timeoutId = setTimeout(loadRememberedData, 100);
-    
-    return () => clearTimeout(timeoutId);
-  }, []);
-
-  // Show message from registration if exists (but don't override remembered email)
-  useEffect(() => {
-    // Check if we already have remembered credentials loaded
     const savedRememberMe = localStorage.getItem("rememberMe");
     const savedEmail = localStorage.getItem("rememberMeEmail");
+    const savedPassword = localStorage.getItem("rememberMePassword");
     
-    if (location.state?.message) {
-      setSuccess(location.state.message);
-      // Only set email from location if there's no remembered email AND email field is empty
-      if (location.state?.email && (!savedRememberMe || !savedEmail) && !email) {
-        console.log("📧 Setting email from location state (no remembered email)");
-        setEmail(location.state.email);
-      } else if (savedRememberMe === "true" && savedEmail) {
-        console.log("✅ Remembered email exists, not overriding with location state");
+    if (savedRememberMe === "true" && savedEmail) {
+      setRemember(true);
+      setEmail(savedEmail);
+      if (savedPassword) {
+        setPassword(savedPassword);
       }
     }
-  }, [location, email]);
+  }, []);
+
+  // Show message from registration if exists
+  useEffect(() => {
+    if (location.state?.message) {
+      setSuccess(location.state.message);
+      if (location.state?.email) {
+        setEmail(location.state.email);
+      }
+    }
+  }, [location]);
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -161,32 +124,19 @@ export default function Login() {
 
         // Save token based on "Remember me" checkbox
         if (res.token) {
-          console.log("💾 Remember me checkbox state:", remember);
           if (remember) {
             localStorage.setItem("token", res.token);
             localStorage.setItem("rememberMe", "true");
             localStorage.setItem("rememberMeEmail", email);
             localStorage.setItem("rememberMePassword", password);
-            console.log("✅ Token and credentials saved to localStorage (remember me enabled)");
-            console.log("📧 Saved email:", email);
-            
-            // Verify the data was actually saved
-            const verifyRememberMe = localStorage.getItem("rememberMe");
-            const verifyEmail = localStorage.getItem("rememberMeEmail");
-            const verifyPassword = localStorage.getItem("rememberMePassword");
-            console.log("🔍 Verification after save:", {
-              rememberMe: verifyRememberMe,
-              hasEmail: !!verifyEmail,
-              hasPassword: !!verifyPassword,
-              emailMatch: verifyEmail === email
-            });
+            console.log("💾 Token saved to localStorage (remember me)");
           } else {
             sessionStorage.setItem("token", res.token);
             localStorage.setItem("token", res.token);
             localStorage.removeItem("rememberMe");
             localStorage.removeItem("rememberMeEmail");
             localStorage.removeItem("rememberMePassword");
-            console.log("💾 Token saved to sessionStorage (remember me disabled)");
+            console.log("💾 Token saved to sessionStorage (this session only)");
           }
         }
 

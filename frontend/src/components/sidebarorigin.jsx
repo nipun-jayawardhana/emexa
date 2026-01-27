@@ -62,12 +62,12 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
 
   const handleConfirmLogout = () => {
     setShowLogoutModal(false);
-    // Clear all auth data (but preserve rememberMe credentials)
+    // Clear all auth data
     localStorage.removeItem("token");
     localStorage.removeItem("userName");
     localStorage.removeItem("adminToken");
     localStorage.removeItem("adminUser");
-    // Don't clear rememberMe, rememberMeEmail, rememberMePassword - let user stay logged in next time
+    localStorage.removeItem("rememberMe");
     localStorage.removeItem("user");
     localStorage.removeItem("userRole");
     sessionStorage.removeItem("token");
