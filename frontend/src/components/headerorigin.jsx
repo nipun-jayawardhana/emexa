@@ -47,23 +47,17 @@ const Header = ({ userName, userRole }) => {
       if (response.data.success) {
         console.log('🔔 Unread notification count:', response.data.count);
         setUnreadCount(response.data.count);
-        
-        // Update user-specific cache
-        const currentUserId = localStorage.getItem('userId');
-        const currentUserRole = localStorage.getItem('userRole');
-        const cacheCountKey = `cachedUnreadCount_${currentUserId}_${currentUserRole}`;
-        localStorage.setItem(cacheCountKey, response.data.count.toString());
       }
     } catch (error) {
       console.error('❌ Error fetching unread count:', error);
     }
   };
 
-  // Poll for unread count every 10 seconds (for students and teachers)
+  // Poll for unread count every 1 second (for students and teachers)
   useEffect(() => {
     if (userRole === 'student' || userRole === 'teacher') {
       fetchUnreadCount();
-      const interval = setInterval(fetchUnreadCount, 10000);
+      const interval = setInterval(fetchUnreadCount, 1000);
       
       // Listen for custom event to refresh notification count immediately
       const handleRefreshNotifications = () => {
@@ -86,7 +80,12 @@ const Header = ({ userName, userRole }) => {
     const eventName = `${storageKey}Changed`;
 
     const storedImage = localStorage.getItem(storageKey);
-    setProfileImage(storedImage);
+    // Only set profile image if it's a valid URL string
+    if (storedImage && storedImage.trim().length > 0 && storedImage.startsWith('http')) {
+      setProfileImage(storedImage);
+    } else {
+      setProfileImage(null);
+    }
 
     const handleProfileImageChange = (e) => {
       console.log('Profile image change event received:', e?.detail);
