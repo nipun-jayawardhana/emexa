@@ -9,15 +9,10 @@ import {
   sendSettingsChangeEmail 
 } from '../services/notificationEmail.service.js';
 
-// Import QuizResult - adjust path based on your project structure
-// If you have a separate quiz.js model file with QuizResult export
 import { QuizResult } from '../models/quiz.js';
-// OR if QuizResult is in a different file, adjust the path:
-// import QuizResult from '../models/quizResult.js';
+import QuizAttempt from '../models/quizAttempt.js'; 
 
-/**
- * HELPER: Calculate actual dashboard statistics
- */
+
 const calculateTeacherStats = async (teacherId) => {
   console.log('📊 Calculating teacher stats for:', teacherId);
 
@@ -401,69 +396,6 @@ const getStudentOverview = async (req, res) => {
 };
 
 /**
- * Get teacher's recent quizzes with actual data
- */
-const getRecentQuizzes = async (req, res) => {
-  try {
-    const teacherId = req.userId || req.user._id;
-    const limit = parseInt(req.query.limit) || 3;
-    
-    console.log('📝 Fetching recent quizzes for teacher:', teacherId);
-
-    // Get recent quizzes
-    const quizzes = await TeacherQuiz.find({
-      teacherId: teacherId,
-      isDeleted: false,
-      status: { $ne: 'draft' }
-    })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
-
-    // Get completion stats for each quiz
-    const quizzesWithStats = await Promise.all(
-      quizzes.map(async (quiz) => {
-        // Count total students assigned
-        const totalStudents = await Notification.countDocuments({
-          quizId: quiz._id,
-          type: 'quiz_assigned',
-          recipientRole: 'student'
-        });
-
-        // Count completed attempts
-        const completed = await QuizResult.countDocuments({
-          quizId: quiz._id
-        });
-
-        return {
-          id: quiz._id,
-          title: quiz.title,
-          subject: quiz.subject,
-          dueDate: quiz.dueDate,
-          scheduleDate: quiz.scheduleDate,
-          totalStudents: totalStudents,
-          completed: completed,
-          status: quiz.status
-        };
-      })
-    );
-
-    res.json({
-      success: true,
-      data: quizzesWithStats,
-      message: 'Recent quizzes retrieved successfully'
-    });
-  } catch (error) {
-    console.error('❌ Error fetching recent quizzes:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch recent quizzes',
-      error: error.message
-    });
-  }
-};
-
-/**
  * Get teacher profile
  */
 const getProfile = async (req, res) => {
@@ -502,6 +434,66 @@ const getProfile = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch profile',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get teacher's recent quizzes with actual data
+ */
+const getRecentQuizzes = async (req, res) => {
+  try {
+    const teacherId = req.userId || req.user._id;
+    const limit = parseInt(req.query.limit) || 3;
+    
+    console.log('📝 Fetching recent quizzes for teacher:', teacherId);
+
+    // Get recent quizzes - NO STATUS FILTER (shows all including drafts)
+    const quizzes = await TeacherQuiz.find({
+      teacherId: teacherId,
+      isDeleted: false
+    })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    // Get completion stats for each quiz
+    const quizzesWithStats = await Promise.all(
+      quizzes.map(async (quiz) => {
+        const totalStudents = await Notification.countDocuments({
+          quizId: quiz._id,
+          type: 'quiz_assigned',
+          recipientRole: 'student'
+        });
+
+        const completed = await QuizResult.countDocuments({
+          quizId: quiz._id
+        });
+
+        return {
+          id: quiz._id,
+          title: quiz.title,
+          subject: quiz.subject,
+          dueDate: quiz.dueDate,
+          scheduleDate: quiz.scheduleDate,
+          totalStudents: totalStudents,
+          completed: completed,
+          status: quiz.status
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: quizzesWithStats,
+      message: 'Recent quizzes retrieved successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error fetching recent quizzes:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch recent quizzes',
       error: error.message
     });
   }
@@ -819,6 +811,273 @@ const updateSettings = async (req, res) => {
   }
 };
 
+// ============================================
+// ADDED: GET TEACHER ACTIVITIES
+// ============================================
+export const getTeacherActivities = async (req, res) => {
+  try {
+    const teacherId = req.user?.id || req.user?._id;
+
+    if (!teacherId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    console.log('📊 Fetching activities for teacherId:', teacherId);
+
+    // Get all quizzes created by this teacher
+    const teacherQuizzes = await TeacherQuiz.find({
+      teacherId,
+      isDeleted: false
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    console.log(`✅ Found ${teacherQuizzes.length} quizzes`);
+
+    // Transform data for frontend with additional statistics
+    const formattedActivities = await Promise.all(
+      teacherQuizzes.map(async (quiz) => {
+        // Get submission statistics for this quiz
+        const submissions = await QuizAttempt.find({ quizId: quiz._id }).lean();
+        
+        const totalAttempts = submissions.length;
+        const averageScore = submissions.length > 0
+          ? Math.round(submissions.reduce((sum, s) => sum + s.finalScore, 0) / submissions.length * 100) / 100
+          : 0;
+
+        // Get unique students who attempted
+        const uniqueStudents = [...new Set(submissions.map(s => s.userId.toString()))];
+        const studentCount = uniqueStudents.length;
+
+        // Calculate completion rate
+        const completedSubmissions = submissions.filter(s => s.completedAt).length;
+        const completionRate = totalAttempts > 0 
+          ? Math.round((completedSubmissions / totalAttempts) * 100)
+          : 0;
+
+        return {
+          id: quiz._id,
+          quizTitle: quiz.title,
+          subject: quiz.subject,
+          gradeLevel: Array.isArray(quiz.gradeLevel) ? quiz.gradeLevel.join(', ') : quiz.gradeLevel,
+          status: quiz.status,
+          isScheduled: quiz.isScheduled,
+          scheduleDate: quiz.scheduleDate,
+          createdAt: quiz.createdAt,
+          lastEdited: quiz.lastEdited,
+          totalQuestions: quiz.questions?.length || 0,
+          totalAttempts,
+          studentCount,
+          averageScore,
+          completionRate,
+          progress: quiz.progress || 0
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      count: formattedActivities.length,
+      data: formattedActivities
+    });
+  } catch (error) {
+    console.error('❌ Error fetching teacher activities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch activities',
+      error: error.message
+    });
+  }
+};
+
+// ============================================
+// ADDED: GET TEACHER ACTIVITY STATISTICS
+// ============================================
+export const getTeacherStats = async (req, res) => {
+  try {
+    const teacherId = req.user?.id || req.user?._id;
+
+    if (!teacherId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    console.log('📊 Fetching stats for teacherId:', teacherId);
+
+    // Get all quizzes by this teacher
+    const quizzes = await TeacherQuiz.find({
+  teacherId,
+  isDeleted: false
+  // ✅ NO status filter - includes drafts
+}).lean();
+
+    // Get all attempts for teacher's quizzes
+    const quizIds = quizzes.map(q => q._id);
+    const allAttempts = await QuizAttempt.find({
+      quizId: { $in: quizIds }
+    }).lean();
+
+    // Calculate statistics
+    const totalQuizzes = quizzes.length;
+    const draftQuizzes = quizzes.filter(q => q.status === 'draft').length;
+    const scheduledQuizzes = quizzes.filter(q => q.isScheduled).length;
+    const activeQuizzes = quizzes.filter(q => q.status === 'active').length;
+    const closedQuizzes = quizzes.filter(q => q.status === 'closed').length; 
+
+    const totalAttempts = allAttempts.length;
+    const averageScore = allAttempts.length > 0
+      ? Math.round(allAttempts.reduce((sum, a) => sum + a.finalScore, 0) / allAttempts.length * 100) / 100
+      : 0;
+
+    // Get unique students
+    const uniqueStudents = [...new Set(allAttempts.map(a => a.userId.toString()))];
+    const totalStudents = uniqueStudents.length;
+
+    // Calculate engagement rate (students who completed vs total attempts)
+    const completedAttempts = allAttempts.filter(a => a.completedAt).length;
+    const engagementRate = totalAttempts > 0
+      ? Math.round((completedAttempts / totalAttempts) * 100)
+      : 0;
+
+    console.log('✅ Stats calculated:', {
+      totalQuizzes,
+      totalAttempts,
+      averageScore,
+      totalStudents
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalQuizzes,
+        draftQuizzes,
+        scheduledQuizzes,
+        activeQuizzes,
+         closedQuizzes,
+        totalAttempts,
+        totalStudents,
+        averageScore,
+        engagementRate
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching teacher stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch statistics',
+      error: error.message
+    });
+  }
+};
+
+// ============================================
+// ADDED: GET QUIZ PERFORMANCE DETAILS
+// ============================================
+export const getQuizPerformance = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const teacherId = req.user?.id || req.user?._id;
+
+    if (!teacherId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    console.log('📊 Fetching performance for quizId:', quizId);
+
+    // Verify quiz ownership
+    const quiz = await TeacherQuiz.findOne({
+      _id: quizId,
+      teacherId,
+      isDeleted: false
+    }).lean();
+
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        message: 'Quiz not found or unauthorized'
+      });
+    }
+
+    // Get all attempts for this quiz
+    const attempts = await QuizAttempt.find({ quizId }).lean();
+
+    // Get student details for each attempt
+    const studentIds = [...new Set(attempts.map(a => a.userId))];
+    const students = await Student.find({
+      _id: { $in: studentIds }
+    }).select('name email').lean();
+
+    const studentMap = {};
+    students.forEach(s => {
+      studentMap[s._id.toString()] = s;
+    });
+
+    // Format attempts with student info
+    const formattedAttempts = attempts.map(attempt => ({
+      attemptId: attempt._id,
+      studentId: attempt.userId,
+      studentName: studentMap[attempt.userId.toString()]?.name || 'Unknown Student',
+      studentEmail: studentMap[attempt.userId.toString()]?.email || '',
+      score: attempt.finalScore,
+      correctAnswers: attempt.rawScore,
+      totalQuestions: attempt.answers?.length || 0,
+      hintsUsed: attempt.hintsUsed || 0,
+      completedAt: attempt.completedAt,
+      timeSpent: 0 // Add if you have this field
+    }));
+
+    // Calculate statistics
+    const averageScore = attempts.length > 0
+      ? Math.round(attempts.reduce((sum, a) => sum + a.finalScore, 0) / attempts.length * 100) / 100
+      : 0;
+
+    const highestScore = attempts.length > 0
+      ? Math.max(...attempts.map(a => a.finalScore))
+      : 0;
+
+    const lowestScore = attempts.length > 0
+      ? Math.min(...attempts.map(a => a.finalScore))
+      : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        quiz: {
+          id: quiz._id,
+          title: quiz.title,
+          subject: quiz.subject,
+          totalQuestions: quiz.questions?.length || 0
+        },
+        statistics: {
+          totalAttempts: attempts.length,
+          uniqueStudents: studentIds.length,
+          averageScore,
+          highestScore,
+          lowestScore
+        },
+        attempts: formattedAttempts.sort((a, b) => 
+          new Date(b.completedAt) - new Date(a.completedAt)
+        )
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching quiz performance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch quiz performance',
+      error: error.message
+    });
+  }
+};
+
 export default {
   getDashboardStats,
   getClassProgress,
@@ -831,5 +1090,8 @@ export default {
   changePassword,
   uploadProfileImage,
   getSettings,
-  updateSettings
+  updateSettings,
+  getTeacherActivities, 
+  getTeacherStats, 
+  getQuizPerformance
 };

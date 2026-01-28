@@ -63,6 +63,30 @@ router.get(
   teacherController.getRecentQuizzes
 );
 
+// ============================================
+// ACTIVITY TRACKING ROUTES
+// ============================================
+router.get(
+  '/activities',
+  protect,
+  authorize('teacher'),
+  teacherController.getTeacherActivities
+);
+
+router.get(
+  '/stats',
+  protect,
+  authorize('teacher'),
+  teacherController.getTeacherStats
+);
+
+router.get(
+  '/quiz/:quizId/performance',
+  protect,
+  authorize('teacher'),
+  teacherController.getQuizPerformance
+);
+
 // Profile routes
 router.get('/profile', protect, authorize('teacher'), teacherController.getProfile);
 
