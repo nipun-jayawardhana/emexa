@@ -305,15 +305,18 @@ const TeacherCreateQuiz = ({
     }
 
     try {
+      // Map selected grade IDs to their format (e.g., "1-1" -> "1st Year 1st Sem")
       const gradeLabels = gradeOptions
         .filter((g) => selectedGrades.includes(g.id))
         .map((g) => g.label);
-      const firstGrade = gradeLabels[0] || "";
+
+      console.log('📊 Selected grades for quiz:', selectedGrades);
+      console.log('🏷️ Grade labels:', gradeLabels);
 
       const quizData = {
         title: assignmentTitle,
         subject: subject.charAt(0).toUpperCase() + subject.slice(1),
-        gradeLevel: [firstGrade],
+        gradeLevel: selectedGrades, // Send all selected grade IDs (e.g., ["1-1", "1-2"])
         questions: questions.map((q) => ({
           id: q.id,
           type: q.type,

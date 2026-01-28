@@ -44,6 +44,7 @@ const calculateTeacherStats = async (teacherId) => {
   const totalStudents = studentIds.length;
 
   console.log('👥 Total students assigned quizzes:', totalStudents);
+  console.log('📬 Total notifications sent:', notifications.length);
 
   // Get all quiz results for these quizzes
   const quizResults = await QuizResult.find({

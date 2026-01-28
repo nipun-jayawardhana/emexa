@@ -291,12 +291,13 @@ export const scheduleQuiz = async (req, res) => {
     const teacher = await Teacher.findById(quiz.teacherId);
     const teacherName = teacher ? teacher.name : 'Teacher';
     
-    // Create notifications for all students
+    // Create notifications for students matching the grade level
     const formattedDueDate = `${scheduleDate}, ${endTime}`;
     const notificationResult = await createQuizNotification(quiz._id, {
       title: quiz.title,
       subject: quiz.subject,
-      dueDate: formattedDueDate
+      dueDate: formattedDueDate,
+      gradeLevel: quiz.gradeLevel // Pass grade level for filtering
     }, teacherName);
     
     console.log('🔔 Notification result:', notificationResult);
@@ -423,24 +424,54 @@ export const getQuizStats = async (req, res) => {
       closed: 0
     };
     
+    const now = new Date();
+    
     allQuizzes.forEach(quiz => {
-      // Check if scheduled quiz is currently active
-      const isCurrentlyActive = quiz.isScheduled && quiz.isCurrentlyActive && quiz.isCurrentlyActive();
+      // Check time windows if quiz has schedule information
+      let isCurrentlyActive = false;
+      let hasEnded = false;
       
-      // Scheduled = has schedule info but not currently in active time window
-      if ((quiz.status === 'draft' || quiz.status === 'scheduled') && quiz.isScheduled && !isCurrentlyActive) {
-        formattedStats.scheduled++;
+      if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+        try {
+          const scheduleDate = new Date(quiz.scheduleDate);
+          const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+          const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+          
+          const startDateTime = new Date(scheduleDate);
+          startDateTime.setHours(startHour, startMinute, 0, 0);
+          
+          const endDateTime = new Date(scheduleDate);
+          endDateTime.setHours(endHour, endMinute, 0, 0);
+          
+          // Handle cross-midnight quizzes: if end time is before start time, add 1 day to end date
+          if (endDateTime <= startDateTime) {
+            endDateTime.setDate(endDateTime.getDate() + 1);
+          }
+          
+          // Check if quiz is currently active (between start and end time)
+          isCurrentlyActive = now >= startDateTime && now < endDateTime;
+          
+          // Check if quiz has ended
+          hasEnded = now >= endDateTime;
+        } catch (error) {
+          console.error('Error parsing quiz schedule:', error);
+        }
       }
-      // Active = active status OR scheduled quiz that is currently in its time window
-      else if (quiz.status === 'active' || (quiz.status === 'scheduled' && isCurrentlyActive)) {
+      
+      // Active = scheduled quiz that is currently in its time window
+      if (isCurrentlyActive) {
         formattedStats.active++;
+      }
+      // Scheduled = has schedule info, not currently active, and has NOT ended
+      else if ((quiz.status === 'draft' || quiz.status === 'scheduled') && quiz.isScheduled && !hasEnded) {
+        formattedStats.scheduled++;
       }
       // Draft = draft status and no schedule info
       else if (quiz.status === 'draft' && !quiz.isScheduled) {
         formattedStats.drafts++;
       }
-      // Closed
-      else if (quiz.status === 'closed') {
+      // Closed or ended quizzes
+      else if (quiz.status === 'closed' || hasEnded) {
         formattedStats.closed++;
       }
     });
@@ -536,18 +567,34 @@ export const submitQuizAnswers = async (req, res) => {
 
     // Create submission confirmation notification for student
     try {
-      await Notification.create({
+      // Check if a submission notification already exists for this user and quiz
+      const existingNotification = await Notification.findOne({
         recipientId: userId,
-        recipientRole: 'student',
-        type: 'quiz_graded',
-        title: quiz.title,
-        description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
         quizId: id,
-        score: `${score}/100`,
-        status: 'graded',
-        isRead: false
-      });
-      console.log('✅ Submission notification created for student:', userId);
+        type: 'quiz_graded'
+      }).sort({ createdAt: -1 }); // Get the most recent notification
+
+      // Only create new notification if:
+      // 1. No existing notification, OR
+      // 2. The score is different from the previous submission
+      const shouldCreateNotification = !existingNotification || existingNotification.score !== `${score}/100`;
+
+      if (shouldCreateNotification) {
+        await Notification.create({
+          recipientId: userId,
+          recipientRole: 'student',
+          type: 'quiz_graded',
+          title: quiz.title,
+          description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
+          quizId: id,
+          score: `${score}/100`,
+          status: 'graded',
+          isRead: false
+        });
+        console.log('✅ Submission notification created for student:', userId, `(Score: ${score}%)`);
+      } else {
+        console.log('ℹ️ Submission notification already exists with same score, skipping duplicate');
+      }
 
       // Send email notification if enabled
       try {

@@ -171,16 +171,37 @@ teacherQuizSchema.methods.isCurrentlyActive = function() {
   const now = new Date();
   const scheduleDate = new Date(this.scheduleDate);
   
-  // Parse start and end times (format: "HH:MM")
+  // Parse start and end times (format: "HH:MM" in 24-hour format)
   const [startHour, startMinute] = this.startTime.split(':').map(Number);
   const [endHour, endMinute] = this.endTime.split(':').map(Number);
+  
+  console.log(`⏰ isCurrentlyActive check for "${this.title}":`, {
+    startTime: this.startTime,
+    endTime: this.endTime,
+    startHour,
+    endHour,
+    scheduleDate: scheduleDate.toLocaleDateString()
+  });
   
   // Create start and end datetime objects for the scheduled date
   const startDateTime = new Date(scheduleDate);
   startDateTime.setHours(startHour, startMinute, 0, 0);
   
-  const endDateTime = new Date(scheduleDate);
+  let endDateTime = new Date(scheduleDate);
   endDateTime.setHours(endHour, endMinute, 0, 0);
+  
+  // Handle cross-midnight quizzes (when end time is before start time)
+  if (endDateTime <= startDateTime) {
+    endDateTime.setDate(endDateTime.getDate() + 1);
+    console.log(`🌙 Cross-midnight detected! End date extended to: ${endDateTime.toLocaleString()}`);
+  }
+  
+  console.log(`📊 Time comparison:`, {
+    now: now.toLocaleString(),
+    start: startDateTime.toLocaleString(),
+    end: endDateTime.toLocaleString(),
+    isActive: now >= startDateTime && now < endDateTime
+  });
   
   // Check if current time is between start and end time
   return now >= startDateTime && now < endDateTime;
@@ -202,8 +223,13 @@ teacherQuizSchema.methods.getTimeStatus = function() {
   const startDateTime = new Date(scheduleDate);
   startDateTime.setHours(startHour, startMinute, 0, 0);
   
-  const endDateTime = new Date(scheduleDate);
+  let endDateTime = new Date(scheduleDate);
   endDateTime.setHours(endHour, endMinute, 0, 0);
+  
+  // Handle cross-midnight quizzes (when end time is before start time)
+  if (endDateTime <= startDateTime) {
+    endDateTime.setDate(endDateTime.getDate() + 1);
+  }
   
   if (now < startDateTime) {
     return 'upcoming';

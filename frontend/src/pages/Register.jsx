@@ -10,7 +10,7 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [accountType, setAccountType] = useState("student");
-  const [academicYear, setAcademicYear] = useState("");
+  const [year, setYear] = useState("");
   const [semester, setSemester] = useState("");
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -57,17 +57,6 @@ export default function Register() {
     } else if (password !== confirm) {
       e.confirm = "Passwords do not match";
     }
-    
-    // Only validate academic fields for students
-    if (accountType === "student") {
-      if (!academicYear) {
-        e.academicYear = "Academic year is required for students";
-      }
-      if (!semester) {
-        e.semester = "Semester is required for students";
-      }
-    }
-    
     return e;
   };
 
@@ -80,27 +69,17 @@ export default function Register() {
       setLoading(true);
       setErrors({});
 
-      // Prepare registration data - matching backend expectations
-      const registrationData = {
+      console.log("📤 Sending registration to backend:", {
         fullName,
         email,
-        password,
-        accountType,
-      };
-
-      // Only include academic fields for students
-      if (accountType === "student") {
-        registrationData.year = academicYear;
-        registrationData.semester = semester;
-      }
-
-      console.log("📤 Sending registration to backend:", {
-        ...registrationData,
         password: "***",
+        accountType,
+        year,
+        semester,
       });
 
       api
-        .post("/auth/register", registrationData)
+        .post("/auth/register", { fullName, email, password, accountType, year, semester })
         .then((res) => {
           console.log("✅ Registration response:", res);
 
@@ -150,20 +129,6 @@ export default function Register() {
         });
     }
   };
-
-  // Reset academic fields when account type changes to teacher
-  useEffect(() => {
-    if (accountType === "teacher") {
-      setAcademicYear("");
-      setSemester("");
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors.academicYear;
-        delete newErrors.semester;
-        return newErrors;
-      });
-    }
-  }, [accountType]);
 
   return (
     <div className="app-root">
@@ -264,27 +229,16 @@ export default function Register() {
                         background: "transparent",
                         border: "none",
                         cursor: "pointer",
+                        fontSize: "20px",
                         color: "#888",
-                        padding: "4px",
+                        padding: "0",
                         outline: "none",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
+                        lineHeight: "1",
                         transition: "color 0.2s ease",
                       }}
                       aria-label={showPassword ? "Hide password" : "Show password"}
                     >
-                      {showPassword ? (
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                          <line x1="1" y1="1" x2="23" y2="23"></line>
-                        </svg>
-                      ) : (
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                      )}
+                      {showPassword ? "👁️" : "👁️‍🗨️"}
                     </button>
                   </div>
                   {errors.password && (
@@ -313,27 +267,16 @@ export default function Register() {
                         background: "transparent",
                         border: "none",
                         cursor: "pointer",
+                        fontSize: "20px",
                         color: "#888",
-                        padding: "4px",
+                        padding: "0",
                         outline: "none",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
+                        lineHeight: "1",
                         transition: "color 0.2s ease",
                       }}
                       aria-label={showConfirm ? "Hide password" : "Show password"}
                     >
-                      {showConfirm ? (
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                          <line x1="1" y1="1" x2="23" y2="23"></line>
-                        </svg>
-                      ) : (
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                      )}
+                      {showConfirm ? "👁️" : "👁️‍🗨️"}
                     </button>
                   </div>
                   {errors.confirm && (
@@ -341,78 +284,55 @@ export default function Register() {
                   )}
                 </div>
 
-                {/* Academic Year and Semester - Only for Students - Horizontal Layout */}
-                {accountType === "student" && (
-                  <div style={{ display: "flex", gap: "12px" }}>
-                    <div className={`field ${errors.academicYear ? "error" : ""}`} style={{ flex: 1 }}>
-                      <label>Academic Year</label>
-                      <select
-                        value={academicYear}
-                        onChange={(e) => setAcademicYear(e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "12px",
-                          fontSize: "14px",
-                          border: "1px solid #ddd",
-                          borderRadius: "8px",
-                          backgroundColor: "white",
-                          cursor: "pointer",
-                          outline: "none",
-                          transition: "border-color 0.2s ease",
-                          color: academicYear ? "#000" : "#999",
-                          appearance: "none",
-                          backgroundImage: "url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')",
-                          backgroundRepeat: "no-repeat",
-                          backgroundPosition: "right 12px center",
-                          backgroundSize: "20px",
-                          paddingRight: "40px"
-                        }}
-                      >
-                        <option value="" style={{ color: "#999" }}>Select academic year</option>
-                        <option value="1st year" style={{ color: "#000" }}>1st Year</option>
-                        <option value="2nd year" style={{ color: "#000" }}>2nd Year</option>
-                        <option value="3rd year" style={{ color: "#000" }}>3rd Year</option>
-                        <option value="4th year" style={{ color: "#000" }}>4th Year</option>
-                      </select>
-                      {errors.academicYear && (
-                        <div className="error-text">{errors.academicYear}</div>
-                      )}
-                    </div>
-
-                    <div className={`field ${errors.semester ? "error" : ""}`} style={{ flex: 1 }}>
-                      <label>Semester</label>
-                      <select
-                        value={semester}
-                        onChange={(e) => setSemester(e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "12px",
-                          fontSize: "14px",
-                          border: "1px solid #ddd",
-                          borderRadius: "8px",
-                          backgroundColor: "white",
-                          cursor: "pointer",
-                          outline: "none",
-                          transition: "border-color 0.2s ease",
-                          color: semester ? "#000" : "#999",
-                          appearance: "none",
-                          backgroundImage: "url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')",
-                          backgroundRepeat: "no-repeat",
-                          backgroundPosition: "right 12px center",
-                          backgroundSize: "20px",
-                          paddingRight: "40px"
-                        }}
-                      >
-                        <option value="" style={{ color: "#999" }}>Select semester</option>
-                        <option value="1st semester" style={{ color: "#000" }}>1st Semester</option>
-                        <option value="2nd semester" style={{ color: "#000" }}>2nd Semester</option>
-                      </select>
-                      {errors.semester && (
-                        <div className="error-text">{errors.semester}</div>
-                      )}
-                    </div>
+                <div style={{ display: "flex", gap: "16px", marginBottom: "20px" }}>
+                  <div className="field" style={{ flex: 1 }}>
+                    <label>Year</label>
+                    <select
+                      value={year}
+                      onChange={(e) => setYear(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        border: "1px solid #ddd",
+                        fontSize: "15px",
+                        color: year ? "#333" : "#999",
+                        backgroundColor: "#fff",
+                        cursor: "pointer",
+                        outline: "none",
+                      }}
+                    >
+                      <option value="" disabled>Select year</option>
+                      <option value="1st year">1st year</option>
+                      <option value="2nd year">2nd year</option>
+                      <option value="3rd year">3rd year</option>
+                      <option value="4th year">4th year</option>
+                    </select>
                   </div>
-                )}
+
+                  <div className="field" style={{ flex: 1 }}>
+                    <label>Semester</label>
+                    <select
+                      value={semester}
+                      onChange={(e) => setSemester(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        border: "1px solid #ddd",
+                        fontSize: "15px",
+                        color: semester ? "#333" : "#999",
+                        backgroundColor: "#fff",
+                        cursor: "pointer",
+                        outline: "none",
+                      }}
+                    >
+                      <option value="" disabled>Select semester</option>
+                      <option value="1st semester">1st semester</option>
+                      <option value="2nd semester">2nd semester</option>
+                    </select>
+                  </div>
+                </div>
 
                 <div className="field">
                   <label>Account Type</label>
