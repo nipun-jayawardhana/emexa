@@ -75,7 +75,10 @@ export default function Login() {
         console.log("🧹 Clearing admin preview flags...");
         localStorage.removeItem("adminViewingAs");
         sessionStorage.removeItem("adminViewingAs");
-        console.log("✅ Admin preview flags cleared");
+        
+        // Clear old notification cache from previous user
+        localStorage.removeItem("cachedNotifications");
+        console.log("✅ Admin preview flags and notification cache cleared");
 
         // Check if user is admin - redirect to admin panel
         if (res.user?.role === "admin" || res.user?.role === "Admin") {
