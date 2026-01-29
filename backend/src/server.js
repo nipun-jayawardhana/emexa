@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { startQuizCleanupJob } from './jobs/quizCleanup.js';
 
 // Question schema for teacher-created quizzes
 const teacherQuestionSchema = new mongoose.Schema({
@@ -90,12 +91,6 @@ const teacherQuizSchema = new mongoose.Schema({
     index: true
   },
   
-  // Auto-removal after 1 month
-  expiryDate: {
-    type: Date,
-    index: true // For efficient cleanup queries
-  },
-  
   // Student interaction tracking
   studentsTaken: {
     type: Number,
@@ -146,12 +141,6 @@ teacherQuizSchema.index({ scheduleDate: 1, status: 1 });
 // Pre-save middleware to update lastEdited
 teacherQuizSchema.pre('save', function(next) {
   this.lastEdited = new Date();
-  
-  // Auto-calculate expiry date if quiz is scheduled
-  if (this.isScheduled && this.scheduleDate && this.endTime && !this.expiryDate) {
-    this.calculateExpiryDate();
-  }
-  
   next();
 });
 
@@ -172,35 +161,6 @@ teacherQuizSchema.methods.calculateProgress = function() {
   
   this.progress = Math.round((filledQuestions / this.questions.length) * 100);
   return this.progress;
-};
-
-// Instance method to calculate expiry date (1 month after end time)
-teacherQuizSchema.methods.calculateExpiryDate = function() {
-  if (!this.scheduleDate || !this.endTime) {
-    this.expiryDate = null;
-    return null;
-  }
-  
-  const scheduleDate = new Date(this.scheduleDate);
-  const [endHour, endMinute] = this.endTime.split(':').map(Number);
-  
-  const endDateTime = new Date(scheduleDate);
-  endDateTime.setHours(endHour, endMinute, 0, 0);
-  
-  // If end time is before start time (spans to next day), adjust
-  if (this.startTime) {
-    const [startHour, startMinute] = this.startTime.split(':').map(Number);
-    if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-      endDateTime.setDate(endDateTime.getDate() + 1);
-    }
-  }
-  
-  // Add 1 month to the end time
-  const expiryDate = new Date(endDateTime);
-  expiryDate.setMonth(expiryDate.getMonth() + 1);
-  
-  this.expiryDate = expiryDate;
-  return this.expiryDate;
 };
 
 // Instance method to check if quiz is currently active based on schedule
@@ -265,49 +225,6 @@ teacherQuizSchema.methods.getTimeStatus = function() {
   }
 };
 
-// Static method to clean up expired quizzes and notifications
-teacherQuizSchema.statics.cleanupExpiredQuizzes = async function() {
-  const now = new Date();
-  
-  try {
-    // Find all expired quizzes
-    const expiredQuizzes = await this.find({
-      expiryDate: { $lte: now },
-      isDeleted: false
-    });
-    
-    // Soft delete expired quizzes
-    const result = await this.updateMany(
-      { expiryDate: { $lte: now }, isDeleted: false },
-      { 
-        $set: { 
-          isDeleted: true,
-          status: 'closed'
-        } 
-      }
-    );
-    
-    console.log(`Cleaned up ${result.modifiedCount} expired quizzes`);
-    return { success: true, count: result.modifiedCount, quizIds: expiredQuizzes.map(q => q._id) };
-  } catch (error) {
-    console.error('Error cleaning up expired quizzes:', error);
-    return { success: false, error: error.message };
-  }
-};
-
-// Static method to find quizzes that should be visible (not expired)
-teacherQuizSchema.statics.findVisibleQuizzes = function(teacherId) {
-  const now = new Date();
-  return this.find({
-    teacherId,
-    isDeleted: false,
-    $or: [
-      { expiryDate: { $gt: now } },
-      { expiryDate: null }
-    ]
-  }).sort({ updatedAt: -1 });
-};
-
 // Static method to find teacher's quizzes
 teacherQuizSchema.statics.findByTeacher = function(teacherId, includeDeleted = false) {
   const query = { teacherId };
@@ -355,3 +272,6 @@ teacherQuizSchema.set('toObject', { virtuals: true });
 
 export const TeacherQuiz = mongoose.model('TeacherQuiz', teacherQuizSchema);
 export default TeacherQuiz;
+
+// Start the cleanup job
+startQuizCleanupJob();
