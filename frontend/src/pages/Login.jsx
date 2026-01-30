@@ -101,25 +101,9 @@ export default function Login() {
         // Clear admin viewing flags
         localStorage.removeItem("adminViewingAs");
         sessionStorage.removeItem("adminViewingAs");
+        console.log("✅ Admin preview flags cleared");
 
-        // 🔑 REMEMBER ME: Save encrypted credentials
-        if (remember) {
-          localStorage.setItem("rememberMe", "true");
-          localStorage.setItem("savedEmail", encryptData(email));
-          localStorage.setItem("savedPassword", encryptData(password));
-          console.log("💾 Credentials saved (encrypted)");
-        } else {
-          localStorage.removeItem("rememberMe");
-          localStorage.removeItem("savedEmail");
-          localStorage.removeItem("savedPassword");
-          console.log("🗑️ Remember me disabled - credentials cleared");
-        }
-
-        // Clean up old keys
-        localStorage.removeItem("rememberMeEmail");
-        localStorage.removeItem("rememberMePassword");
-
-        // Check if user is admin
+        // Check if user is admin - redirect to admin panel
         if (res.user?.role === "admin" || res.user?.role === "Admin") {
           const adminName = res.user?.name || "Admin";
 

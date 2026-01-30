@@ -335,17 +335,24 @@ export const deleteQuiz = async (req, res) => {
       });
     }
     
-    // Soft delete
+    console.log(`🗑️ Deleting quiz: "${quiz.title}" (ID: ${id})`);
+    
+    // Soft delete the quiz
     quiz.isDeleted = true;
     await quiz.save();
     
-    // Delete all related notifications
-    await Notification.deleteMany({ quizId: id });
-    console.log('🗑️ Deleted notifications for quiz:', id);
+    // Delete all related notifications for students
+    const notificationResult = await Notification.deleteMany({ quizId: id });
+    console.log(`🔔 Deleted ${notificationResult.deletedCount} notifications for quiz: ${id}`);
+    
+    // Trigger a refresh event for students (if you have socket.io set up)
+    // This would notify connected students to refresh their quiz list
+    console.log('✅ Quiz and related data deleted successfully');
     
     res.status(200).json({
       success: true,
-      message: 'Quiz deleted successfully'
+      message: 'Quiz and related notifications deleted successfully',
+      deletedNotifications: notificationResult.deletedCount
     });
   } catch (error) {
     console.error('Error deleting quiz:', error);
@@ -363,6 +370,12 @@ export const permanentDeleteQuiz = async (req, res) => {
     const { id } = req.params;
     console.log('⚠️ Permanent Delete Quiz:', id);
     
+    // Get quiz info before deleting
+    const quiz = await TeacherQuiz.findById(id);
+    if (quiz) {
+      console.log(`⚠️ Permanently deleting quiz: "${quiz.title}" (ID: ${id})`);
+    }
+    
     const result = await TeacherQuiz.findOneAndDelete({
       _id: id
     });
@@ -374,13 +387,14 @@ export const permanentDeleteQuiz = async (req, res) => {
       });
     }
     
-    // Delete all related notifications
-    await Notification.deleteMany({ quizId: id });
-    console.log('🗑️ Deleted notifications for permanently deleted quiz:', id);
+    // Delete all related notifications for students
+    const notificationResult = await Notification.deleteMany({ quizId: id });
+    console.log(`🔔 Deleted ${notificationResult.deletedCount} notifications for permanently deleted quiz: ${id}`);
     
     res.status(200).json({
       success: true,
-      message: 'Quiz permanently deleted'
+      message: 'Quiz and related notifications permanently deleted',
+      deletedNotifications: notificationResult.deletedCount
     });
   } catch (error) {
     console.error('Error permanently deleting quiz:', error);
@@ -414,6 +428,19 @@ export const getQuizStats = async (req, res) => {
     
     console.log('📊 Total quizzes found:', allQuizzes.length);
     
+    // Debug: Log each quiz's status
+    allQuizzes.forEach((quiz, index) => {
+      console.log(`Quiz ${index + 1}:`, {
+        id: quiz._id,
+        title: quiz.title,
+        status: quiz.status,
+        isScheduled: quiz.isScheduled,
+        scheduleDate: quiz.scheduleDate,
+        startTime: quiz.startTime,
+        endTime: quiz.endTime
+      });
+    });
+    
     // Count by status with custom logic for scheduled
     const formattedStats = {
       total: allQuizzes.length,
@@ -424,24 +451,51 @@ export const getQuizStats = async (req, res) => {
     };
     
     allQuizzes.forEach(quiz => {
-      // Check if scheduled quiz is currently active
-      const isCurrentlyActive = quiz.isScheduled && quiz.isCurrentlyActive && quiz.isCurrentlyActive();
+      // Check if scheduled quiz is currently active or expired
+      const now = new Date();
+      let isCurrentlyActive = false;
+      let isExpired = false;
       
-      // Scheduled = has schedule info but not currently in active time window
-      if ((quiz.status === 'draft' || quiz.status === 'scheduled') && quiz.isScheduled && !isCurrentlyActive) {
-        formattedStats.scheduled++;
+      if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+        const scheduleDate = new Date(quiz.scheduleDate);
+        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+        
+        const startDateTime = new Date(scheduleDate);
+        startDateTime.setHours(startHour, startMinute, 0, 0);
+        
+        const endDateTime = new Date(scheduleDate);
+        endDateTime.setHours(endHour, endMinute, 0, 0);
+        
+        // Handle case where quiz spans across midnight
+        if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+          endDateTime.setDate(endDateTime.getDate() + 1);
+        }
+        
+        isCurrentlyActive = now >= startDateTime && now < endDateTime;
+        isExpired = now >= endDateTime;
       }
-      // Active = active status OR scheduled quiz that is currently in its time window
-      else if (quiz.status === 'active' || (quiz.status === 'scheduled' && isCurrentlyActive)) {
-        formattedStats.active++;
-      }
-      // Draft = draft status and no schedule info
-      else if (quiz.status === 'draft' && !quiz.isScheduled) {
+      
+      // Priority-based counting to avoid double counting
+      // 1. Draft = draft status and no schedule info
+      if (quiz.status === 'draft' && !quiz.isScheduled) {
         formattedStats.drafts++;
       }
-      // Closed
-      else if (quiz.status === 'closed') {
+      // 2. Active = active status OR scheduled quiz that is currently in its time window
+      else if (quiz.status === 'active' || (quiz.isScheduled && isCurrentlyActive)) {
+        formattedStats.active++;
+      }
+      // 3. Closed = closed status OR expired scheduled quizzes (past end time + 1 month for expiry)
+      else if (quiz.status === 'closed' || (quiz.isScheduled && isExpired && !quiz.isExpired)) {
         formattedStats.closed++;
+      }
+      // 4. Scheduled = has schedule info but not currently active AND not expired
+      else if (quiz.isScheduled && !isCurrentlyActive && !isExpired) {
+        formattedStats.scheduled++;
+      }
+      // 5. Default fallback based on status
+      else if (quiz.status === 'scheduled') {
+        formattedStats.scheduled++;
       }
     });
     
@@ -469,6 +523,31 @@ export const submitQuizAnswers = async (req, res) => {
     const userId = req.user.id;
 
     console.log('📝 Student submitting quiz:', id, 'User:', userId);
+
+    // Check for duplicate submission within last 5 seconds to prevent multiple clicks
+    const recentSubmission = await QuizResult.findOne({
+      userId,
+      quizId: id,
+      submittedAt: { $gte: new Date(Date.now() - 5000) }
+    });
+
+    if (recentSubmission) {
+      console.log('⚠️ Duplicate submission detected, returning existing result');
+      return res.json({
+        success: true,
+        message: 'Quiz already submitted',
+        result: {
+          userId,
+          quizId: id,
+          score: recentSubmission.score,
+          correctAnswers: recentSubmission.correctAnswers,
+          totalQuestions: recentSubmission.totalQuestions,
+          timeTaken: recentSubmission.timeTaken,
+          answers: recentSubmission.answers,
+          submittedAt: recentSubmission.submittedAt
+        }
+      });
+    }
 
     // Find the quiz
     const quiz = await TeacherQuiz.findById(id);
@@ -535,19 +614,34 @@ export const submitQuizAnswers = async (req, res) => {
     console.log('✅ Quiz result saved to database:', quizResult._id);
 
     // Create submission confirmation notification for student
+    // Check if notification already exists for this specific submission
     try {
-      await Notification.create({
+      const existingNotification = await Notification.findOne({
         recipientId: userId,
-        recipientRole: 'student',
-        type: 'quiz_graded',
-        title: quiz.title,
-        description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
         quizId: id,
-        score: `${score}/100`,
-        status: 'graded',
-        isRead: false
+        type: 'quiz_graded',
+        createdAt: { $gte: new Date(Date.now() - 5000) } // Within last 5 seconds
       });
-      console.log('✅ Submission notification created for student:', userId);
+
+      if (!existingNotification) {
+        await Notification.create({
+          recipientId: userId,
+          recipientRole: 'student',
+          type: 'quiz_graded',
+          title: quiz.title,
+          description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
+          quizId: id,
+          score: `${score}/100`,
+          status: 'graded',
+          isRead: false,
+          metadata: {
+            submissionId: quizResult._id.toString()
+          }
+        });
+        console.log('✅ Submission notification created for student:', userId);
+      } else {
+        console.log('⚠️ Notification already exists for this submission, skipping duplicate');
+      }
 
       // Send email notification if enabled
       try {

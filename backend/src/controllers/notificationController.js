@@ -5,6 +5,50 @@ import {
   sendQuizAssignmentEmail 
 } from '../services/notificationEmail.service.js';
 
+// Shared deduplication function to ensure consistency
+// Returns both unique notifications and IDs of duplicates that should be marked as read
+const deduplicateNotifications = (notifications) => {
+  const uniqueNotifications = [];
+  const duplicateIds = [];
+  const seenQuizAssignments = new Map(); // Map to track first occurrence
+  const seenQuizSubmissions = new Map();
+  
+  for (const notification of notifications) {
+    // Deduplicate quiz_assigned notifications (same quiz assignment)
+    if (notification.type === 'quiz_assigned' && notification.quizId && notification.status !== 'graded') {
+      const quizIdStr = notification.quizId.toString();
+      if (!seenQuizAssignments.has(quizIdStr)) {
+        seenQuizAssignments.set(quizIdStr, notification._id);
+        uniqueNotifications.push(notification);
+      } else {
+        // This is a duplicate, track it
+        if (!notification.isRead) {
+          duplicateIds.push(notification._id);
+        }
+      }
+    }
+    // Deduplicate quiz_graded notifications (same quiz submission with same score)
+    else if ((notification.type === 'quiz_graded' || (notification.type === 'quiz_assigned' && notification.status === 'graded')) && notification.quizId) {
+      const key = `${notification.quizId.toString()}_${notification.score || 'no-score'}`;
+      if (!seenQuizSubmissions.has(key)) {
+        seenQuizSubmissions.set(key, notification._id);
+        uniqueNotifications.push(notification);
+      } else {
+        // This is a duplicate, track it
+        if (!notification.isRead) {
+          duplicateIds.push(notification._id);
+        }
+      }
+    }
+    // For other notifications, keep all
+    else {
+      uniqueNotifications.push(notification);
+    }
+  }
+  
+  return { uniqueNotifications, duplicateIds };
+};
+
 // Get all notifications for a user
 export const getNotifications = async (req, res) => {
   try {
@@ -21,14 +65,24 @@ export const getNotifications = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(50);
 
-    const unreadCount = await Notification.countDocuments({ 
-      recipientId: userId, 
-      isRead: false 
-    });
+    // Apply deduplication and get duplicate IDs
+    const { uniqueNotifications, duplicateIds } = deduplicateNotifications(notifications);
+
+    // Mark duplicate notifications as read in the database to maintain consistency
+    if (duplicateIds.length > 0) {
+      await Notification.updateMany(
+        { _id: { $in: duplicateIds } },
+        { $set: { isRead: true } }
+      );
+      console.log(`✅ Marked ${duplicateIds.length} duplicate notifications as read`);
+    }
+
+    // Count unread from the deduplicated list
+    const unreadCount = uniqueNotifications.filter(n => !n.isRead).length;
 
     res.json({
       success: true,
-      notifications,
+      notifications: uniqueNotifications,
       unreadCount
     });
   } catch (error) {
@@ -134,6 +188,17 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
     console.log('Quiz Data:', quizData);
     console.log('Teacher Name:', teacherName);
 
+    // Check if notifications already exist for this quiz
+    const existingNotifications = await Notification.countDocuments({ 
+      quizId: quizId,
+      type: 'quiz_assigned'
+    });
+    
+    if (existingNotifications > 0) {
+      console.log(`⚠️ Notifications already exist for quiz ${quizId}. Skipping duplicate notifications.`);
+      return { success: true, count: existingNotifications, skipped: true };
+    }
+
     // Get all students with their email and notification settings
     const students = await Student.find({}, { _id: 1, email: 1, name: 1, notificationSettings: 1 });
     console.log(`📧 Found ${students.length} students to notify`);
@@ -201,14 +266,27 @@ export const getUnreadCount = async (req, res) => {
   try {
     const userId = req.user.id;
     
-    const count = await Notification.countDocuments({ 
+    // Fetch all unread notifications
+    const notifications = await Notification.find({ 
       recipientId: userId, 
       isRead: false 
-    });
+    }).lean();
+
+    // Apply the same deduplication logic
+    const { uniqueNotifications, duplicateIds } = deduplicateNotifications(notifications);
+
+    // Mark duplicate notifications as read in the database to maintain consistency
+    if (duplicateIds.length > 0) {
+      await Notification.updateMany(
+        { _id: { $in: duplicateIds } },
+        { $set: { isRead: true } }
+      );
+      console.log(`✅ Marked ${duplicateIds.length} duplicate notifications as read in getUnreadCount`);
+    }
 
     res.json({
       success: true,
-      count
+      count: uniqueNotifications.length
     });
   } catch (error) {
     console.error('Error getting unread count:', error);
@@ -259,6 +337,70 @@ export const createDataExportNotification = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to create notification'
+    });
+  }
+};
+
+// Clean up duplicate quiz notifications
+export const cleanupDuplicateNotifications = async (req, res) => {
+  try {
+    console.log('🧹 Starting cleanup of duplicate quiz notifications...');
+    
+    // Find all quiz notifications grouped by recipientId and quizId
+    const duplicates = await Notification.aggregate([
+      {
+        $match: {
+          type: 'quiz_assigned',
+          quizId: { $exists: true, $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            recipientId: '$recipientId',
+            quizId: '$quizId'
+          },
+          notifications: { $push: { _id: '$_id', createdAt: '$createdAt' } },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $match: {
+          count: { $gt: 1 }
+        }
+      }
+    ]);
+
+    let deletedCount = 0;
+
+    // For each group of duplicates, keep only the oldest notification
+    for (const duplicate of duplicates) {
+      const notifications = duplicate.notifications.sort((a, b) => 
+        new Date(a.createdAt) - new Date(b.createdAt)
+      );
+      
+      // Remove all except the first (oldest) notification
+      const idsToDelete = notifications.slice(1).map(n => n._id);
+      
+      if (idsToDelete.length > 0) {
+        const result = await Notification.deleteMany({ _id: { $in: idsToDelete } });
+        deletedCount += result.deletedCount;
+      }
+    }
+
+    console.log(`✅ Cleanup complete. Deleted ${deletedCount} duplicate notifications.`);
+
+    res.json({
+      success: true,
+      message: `Deleted ${deletedCount} duplicate notifications`,
+      deletedCount
+    });
+  } catch (error) {
+    console.error('❌ Error cleaning up duplicate notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to cleanup duplicate notifications',
+      error: error.message
     });
   }
 };

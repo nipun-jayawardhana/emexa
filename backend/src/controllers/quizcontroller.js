@@ -182,19 +182,31 @@ try {
 }
 
     // Create submission confirmation notification for student
+    // Check if notification already exists for this specific submission
     try {
-      await Notification.create({
+      const existingNotification = await Notification.findOne({
         recipientId: userId,
-        recipientRole: 'student',
-        type: 'quiz_assigned',
-        title: quiz.title || 'Quiz Submitted',
-        description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
         quizId: quizId,
-        score: `${score}/100`,
-        status: 'graded',
-        isRead: false
+        type: 'quiz_assigned',
+        createdAt: { $gte: new Date(Date.now() - 5000) } // Within last 5 seconds
       });
-      console.log('✅ Submission notification created for student:', userId);
+
+      if (!existingNotification) {
+        await Notification.create({
+          recipientId: userId,
+          recipientRole: 'student',
+          type: 'quiz_assigned',
+          title: quiz.title || 'Quiz Submitted',
+          description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
+          quizId: quizId,
+          score: `${score}/100`,
+          status: 'graded',
+          isRead: false
+        });
+        console.log('✅ Submission notification created for student:', userId);
+      } else {
+        console.log('⚠️ Notification already exists for this submission, skipping duplicate');
+      }
 
       // Send email notification if enabled
       try {

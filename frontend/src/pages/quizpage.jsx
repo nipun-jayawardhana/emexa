@@ -32,6 +32,7 @@ const QuizPage = () => {
   const [revealedHints, setRevealedHints] = useState({}); // Track revealed hints per question
   const [pendingHintRequest, setPendingHintRequest] = useState(null); // Store hint request details
   const [quizSubmitted, setQuizSubmitted] = useState(showResults);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [quizStartTime] = useState(Date.now());
   const [totalTime, setTotalTime] = useState(0);
   const [activeFilter, setActiveFilter] = useState("all"); // Start with NO filter selected
@@ -867,6 +868,15 @@ const QuizPage = () => {
   };
 
   const handleSubmit = async () => {
+    // Prevent multiple submissions
+    if (isSubmitting || quizSubmitted) {
+      console.log('⚠️ Already submitting or submitted, ignoring click');
+      return;
+    }
+
+    setIsSubmitting(true);
+    console.log('🚀 Starting quiz submission...');
+
     // Stop camera capture and release camera resources
     try {
       camera.stopCapture();
@@ -944,11 +954,16 @@ const QuizPage = () => {
       if (submitResponse.data.success) {
         console.log("✅ Quiz submitted successfully:", submitResponse.data);
 
+        // Show results immediately (0 seconds delay)
+        setQuizSubmitted(true);
+        setIsSubmitting(false);
+
         // Trigger notification count refresh
         window.dispatchEvent(new Event("refreshNotifications"));
       }
     } catch (submitError) {
       console.error("❌ Error submitting quiz:", submitError);
+      setIsSubmitting(false);
     }
 
     // Then generate AI feedback
@@ -1036,7 +1051,7 @@ const QuizPage = () => {
       });
     }
 
-    setQuizSubmitted(true);
+    // Don't set quizSubmitted here - already set after backend confirmation
   };
 
   const calculateScore = () => {
@@ -1787,9 +1802,14 @@ const QuizPage = () => {
 
         <button
           onClick={handleSubmit}
-          className="w-full bg-teal-700 text-white py-3 rounded-lg font-semibold hover:bg-teal-800 transition-colors mb-8"
+          disabled={isSubmitting || quizSubmitted}
+          className={`w-full py-3 rounded-lg font-semibold transition-colors mb-8 ${
+            isSubmitting || quizSubmitted
+              ? 'bg-gray-400 cursor-not-allowed text-white'
+              : 'bg-teal-700 text-white hover:bg-teal-800'
+          }`}
         >
-          Submit Quiz
+          {isSubmitting ? 'Submitting...' : 'Submit Quiz'}
         </button>
 
         <div className="mt-auto">
@@ -2089,9 +2109,14 @@ const QuizPage = () => {
               {currentQuestion === quizData.questions.length - 1 ? (
                 <button
                   onClick={handleSubmit}
-                  className="px-8 py-3 bg-teal-700 text-white rounded-lg font-semibold hover:bg-teal-800 transition-colors"
+                  disabled={isSubmitting || quizSubmitted}
+                  className={`px-8 py-3 rounded-lg font-semibold transition-colors ${
+                    isSubmitting || quizSubmitted
+                      ? 'bg-gray-400 cursor-not-allowed text-white'
+                      : 'bg-teal-700 text-white hover:bg-teal-800'
+                  }`}
                 >
-                  Submit Quiz
+                  {isSubmitting ? 'Submitting...' : 'Submit Quiz'}
                 </button>
               ) : (
                 <button

@@ -114,8 +114,22 @@ const calculateDashboardStats = async (userId) => {
 
   console.log('🔔 Found quiz notifications:', quizNotifications.length);
 
+  // Remove duplicate notifications for the same quiz (keep only the first one)
+  const uniqueNotifications = [];
+  const seenQuizIds = new Set();
+  
+  for (const notification of quizNotifications) {
+    const quizIdStr = notification.quizId?.toString();
+    if (quizIdStr && !seenQuizIds.has(quizIdStr)) {
+      seenQuizIds.add(quizIdStr);
+      uniqueNotifications.push(notification);
+    }
+  }
+
+  console.log('🔔 Unique quiz notifications:', uniqueNotifications.length);
+
   // Get the actual quiz details for each notification
-  const upcomingQuizzesPromises = quizNotifications.map(async (notification) => {
+  const upcomingQuizzesPromises = uniqueNotifications.map(async (notification) => {
     try {
       const quizId = notification.quizId;
       const quiz = await TeacherQuiz.findById(quizId).lean();
@@ -145,6 +159,20 @@ const calculateDashboardStats = async (userId) => {
         const endDateTime = new Date(scheduleDate);
         endDateTime.setHours(endHour, endMinute, 0, 0);
         
+        // If end time is before start time, quiz spans to next day
+        if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+          endDateTime.setDate(endDateTime.getDate() + 1);
+        }
+        
+        console.log(`⏰ Time check for quiz "${quiz.title}":`, {
+          now: now.toISOString(),
+          startDateTime: startDateTime.toISOString(),
+          endDateTime: endDateTime.toISOString(),
+          isBeforeStart: now < startDateTime,
+          isBetween: now >= startDateTime && now < endDateTime,
+          isAfterEnd: now >= endDateTime
+        });
+        
         if (now < startDateTime) {
           timeStatus = 'upcoming';
           isCurrentlyActive = false;
@@ -155,6 +183,8 @@ const calculateDashboardStats = async (userId) => {
           timeStatus = 'expired';
           isCurrentlyActive = false;
         }
+        
+        console.log(`✅ Final status for "${quiz.title}":`, timeStatus);
       }
       
       return {
@@ -178,18 +208,48 @@ const calculateDashboardStats = async (userId) => {
   });
 
   const upcomingQuizzesResults = await Promise.all(upcomingQuizzesPromises);
-  const upcomingQuizzes = upcomingQuizzesResults.filter(q => q !== null);
+  const upcomingQuizzes = upcomingQuizzesResults
+    .filter(q => q !== null)
+    .sort((a, b) => {
+      // Priority order: active > upcoming > expired
+      const statusPriority = { 'active': 1, 'upcoming': 2, 'expired': 3 };
+      const aPriority = statusPriority[a.timeStatus] || 4;
+      const bPriority = statusPriority[b.timeStatus] || 4;
+      
+      // First sort by status priority
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      // Within same status, sort by latest to oldest (newest first)
+      const aDate = new Date(a.scheduleDate || a.date);
+      const bDate = new Date(b.scheduleDate || b.date);
+      return bDate - aDate; // Descending order (latest first)
+    });
 
   console.log('📚 Upcoming quizzes processed:', upcomingQuizzes.length);
 
-  // Get recent activity
+  // Get recent activity - show all attempts including retakes, but deduplicate identical submissions
   const recentResults = await QuizResult.find({ userId: userId })
     .sort({ submittedAt: -1 })
-    .limit(5)
+    .limit(10) // Get more to account for potential duplicates
     .lean();
 
+  // Deduplicate by submission ID and timestamp to prevent showing same submission multiple times
+  const uniqueSubmissions = new Map();
+  for (const result of recentResults) {
+    // Create unique key using _id to prevent duplicate submissions
+    const submissionId = result._id.toString();
+    if (!uniqueSubmissions.has(submissionId)) {
+      uniqueSubmissions.set(submissionId, result);
+    }
+  }
+
+  // Convert map to array, limit to 5 most recent
+  const uniqueRecentResults = Array.from(uniqueSubmissions.values()).slice(0, 5);
+
   const recentActivity = await Promise.all(
-    recentResults.map(async (result) => {
+    uniqueRecentResults.map(async (result) => {
       // Try to find the quiz details
       let quizTitle = 'Quiz';
       try {

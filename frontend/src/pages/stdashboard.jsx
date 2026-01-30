@@ -59,6 +59,9 @@ const StudentDashboard = () => {
     if (quizId && !loading) {
       console.log("✨ Setting highlighted quiz ID to:", quizId);
       setHighlightedQuizId(quizId);
+      // Auto-expand quiz list to ensure highlighted quiz is visible
+      setShowAllQuizzes(true);
+      console.log("📖 Auto-expanded quiz list");
     } else if (!quizId) {
       console.log("⚠️ No highlightQuiz parameter in URL");
     } else if (loading) {
@@ -82,9 +85,18 @@ const StudentDashboard = () => {
 
     console.log("📍 Scroll effect triggered for quiz:", highlightedQuizId);
 
+    let hasScrolled = false; // Flag to prevent multiple scrolls
+    const timers = [];
+
     // Use requestAnimationFrame for better timing
     const attemptScroll = () => {
       requestAnimationFrame(() => {
+        // If already scrolled, don't try again
+        if (hasScrolled) {
+          console.log("⏭️ Already scrolled, skipping");
+          return;
+        }
+
         const allRefKeys = Object.keys(quizRefs.current);
         console.log("🔑 All available quiz refs:", allRefKeys);
         console.log("🔑 Total refs registered:", allRefKeys.length);
@@ -113,21 +125,20 @@ const StudentDashboard = () => {
             block: "center",
             inline: "nearest",
           });
+          hasScrolled = true; // Mark as scrolled
+          // Clear remaining timers since we found it
+          timers.forEach(clearTimeout);
         } else {
           console.log("❌ No element found for ID:", highlightedQuizId);
-          console.log(
-            "💡 Hint: Check if the quiz ID in notification matches any of these:",
-            allRefKeys
-          );
         }
       });
     };
 
-    // Try multiple times to ensure we catch the element
-    const timer1 = setTimeout(attemptScroll, 100);
-    const timer2 = setTimeout(attemptScroll, 500);
-    const timer3 = setTimeout(attemptScroll, 1000);
-    const timer4 = setTimeout(attemptScroll, 1500);
+    // Try multiple times to ensure we catch the element, but stop after first success
+    timers.push(setTimeout(attemptScroll, 100));
+    timers.push(setTimeout(attemptScroll, 500));
+    timers.push(setTimeout(attemptScroll, 1000));
+    timers.push(setTimeout(attemptScroll, 1500));
 
     // Clear highlight after 5 seconds
     const clearTimer = setTimeout(() => {
@@ -137,10 +148,7 @@ const StudentDashboard = () => {
     }, 5000);
 
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-      clearTimeout(timer4);
+      timers.forEach(clearTimeout);
       clearTimeout(clearTimer);
     };
   }, [highlightedQuizId, loading]);
@@ -238,6 +246,10 @@ const StudentDashboard = () => {
 
       // Fetch shared quizzes for both cases
       await fetchSharedQuizzes();
+      
+      // Force refresh notification count
+      console.log('🔔 Dashboard mounted - refreshing notification count');
+      window.dispatchEvent(new Event('refreshNotifications'));
     };
 
     initializeDashboard();
@@ -550,7 +562,18 @@ const StudentDashboard = () => {
                 </h2>
                 {(() => {
                   const upcomingQuizzes = dashboardData?.upcomingQuizzes || [];
-                  const allQuizzes = [...sharedQuizzes, ...upcomingQuizzes];
+                  const combinedQuizzes = [...sharedQuizzes, ...upcomingQuizzes];
+                  
+                  // Remove duplicates based on quiz id
+                  const seenIds = new Set();
+                  const allQuizzes = combinedQuizzes.filter((quiz) => {
+                    const quizId = String(quiz.id || quiz._id);
+                    if (seenIds.has(quizId)) {
+                      return false;
+                    }
+                    seenIds.add(quizId);
+                    return true;
+                  });
 
                   // Only show View All button if there are more than 2 quizzes
                   if (allQuizzes.length > 2) {
@@ -571,7 +594,18 @@ const StudentDashboard = () => {
               <div className="space-y-3">
                 {(() => {
                   const upcomingQuizzes = dashboardData?.upcomingQuizzes || [];
-                  const allQuizzes = [...sharedQuizzes, ...upcomingQuizzes];
+                  const combinedQuizzes = [...sharedQuizzes, ...upcomingQuizzes];
+                  
+                  // Remove duplicates based on quiz id
+                  const seenIds = new Set();
+                  const allQuizzes = combinedQuizzes.filter((quiz) => {
+                    const quizId = String(quiz.id || quiz._id);
+                    if (seenIds.has(quizId)) {
+                      return false;
+                    }
+                    seenIds.add(quizId);
+                    return true;
+                  });
 
                   if (allQuizzes.length === 0) {
                     return (
@@ -702,32 +736,56 @@ const StudentDashboard = () => {
                                 {quiz.subject} •{" "}
                               </span>
                             )}
-                            <span className="text-blue-600 font-medium">
-                              {(() => {
-                                const dateToShow =
-                                  quiz.scheduleDate ||
-                                  quiz.dueDate ||
-                                  quiz.date;
-                                if (!dateToShow) return "No date set";
-                                try {
-                                  return new Date(
-                                    dateToShow
-                                  ).toLocaleDateString("en-US", {
-                                    month: "short",
-                                    day: "numeric",
-                                    year: "numeric",
-                                  });
-                                } catch {
-                                  return "Invalid date";
-                                }
-                              })()}
-                            </span>
                             {quiz.scheduleDate &&
                               quiz.startTime &&
                               quiz.endTime && (
-                                <span className="ml-1 text-gray-600">
-                                  ({formatTime12Hour(quiz.startTime)} -{" "}
-                                  {formatTime12Hour(quiz.endTime)})
+                                <span className="text-blue-600 font-medium">
+                                  {(() => {
+                                    try {
+                                      const scheduleDate = new Date(quiz.scheduleDate);
+                                      const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+                                      const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+                                      
+                                      // Create start datetime
+                                      const startDateTime = new Date(scheduleDate);
+                                      startDateTime.setHours(startHour, startMinute, 0, 0);
+                                      
+                                      // Create end datetime
+                                      const endDateTime = new Date(scheduleDate);
+                                      endDateTime.setHours(endHour, endMinute, 0, 0);
+                                      
+                                      // If end time is before start time, quiz spans to next day
+                                      if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+                                        endDateTime.setDate(endDateTime.getDate() + 1);
+                                      }
+                                      
+                                      // Format start time
+                                      const startTimeStr = startDateTime.toLocaleTimeString('en-US', {
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                        hour12: true
+                                      });
+                                      const startDateStr = startDateTime.toLocaleDateString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric'
+                                      });
+                                      
+                                      // Format end time
+                                      const endTimeStr = endDateTime.toLocaleTimeString('en-US', {
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                        hour12: true
+                                      });
+                                      const endDateStr = endDateTime.toLocaleDateString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric'
+                                      });
+                                      
+                                      return `${startTimeStr} on ${startDateStr} → ${endTimeStr} on ${endDateStr}`;
+                                    } catch {
+                                      return "Invalid date/time";
+                                    }
+                                  })()}
                                 </span>
                               )}
                           </p>
@@ -796,9 +854,18 @@ const StudentDashboard = () => {
                 <h2 className="text-base font-bold text-gray-900">
                   Recent Activity
                 </h2>
-                <button className="text-green-600 text-xs font-medium hover:underline">
-                  View All
-                </button>
+                {dashboardData?.recentActivity && dashboardData.recentActivity.length > 0 && (
+                  <button 
+                    onClick={() => {
+                      // Show all activities by expanding the list or navigate to a dedicated page
+                      // For now, let's just show a message
+                      alert('Recent Activity: View all feature - Navigate to detailed activity page');
+                    }}
+                    className="text-green-600 text-xs font-medium hover:underline"
+                  >
+                    View All
+                  </button>
+                )}
               </div>
               <div className="divide-y divide-gray-100">
                 {(() => {

@@ -6,11 +6,21 @@ import HelpSupportModal from './HelpSupportModal'; // Import the modal
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000';
 
+// Load cached unread count synchronously
+const loadCachedUnreadCount = () => {
+  try {
+    const cached = localStorage.getItem('cachedUnreadCount');
+    return cached ? parseInt(cached, 10) : 0;
+  } catch (error) {
+    return 0;
+  }
+};
+
 const Header = ({ userName, userRole }) => {
   const navigate = useNavigate();
   const [profileImage, setProfileImage] = useState(null);
   const [displayName, setDisplayName] = useState(userName);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(loadCachedUnreadCount()); // Initialize with cached value
   const [showHelpModal, setShowHelpModal] = useState(false); // State for help modal
 
   const handleLogout = () => {
@@ -56,6 +66,7 @@ const Header = ({ userName, userRole }) => {
   // Poll for unread count every 1 second (for students and teachers)
   useEffect(() => {
     if (userRole === 'student' || userRole === 'teacher') {
+      // Fetch fresh data immediately
       fetchUnreadCount();
       const interval = setInterval(fetchUnreadCount, 1000);
       

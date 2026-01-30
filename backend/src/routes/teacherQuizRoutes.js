@@ -51,6 +51,22 @@ router.get('/shared', async (req, res) => {
         }
         // Include all non-expired quizzes
         return true;
+      })
+      .sort((a, b) => {
+        // Priority order: active > upcoming > expired
+        const statusPriority = { 'active': 1, 'upcoming': 2, 'expired': 3 };
+        const aPriority = statusPriority[a.timeStatus] || 4;
+        const bPriority = statusPriority[b.timeStatus] || 4;
+        
+        // First sort by status priority
+        if (aPriority !== bPriority) {
+          return aPriority - bPriority;
+        }
+        
+        // Within same status, sort by latest to oldest (newest first)
+        const aDate = new Date(a.scheduleDate || a.createdAt);
+        const bDate = new Date(b.scheduleDate || b.createdAt);
+        return bDate - aDate; // Descending order (latest first)
       });
     
     console.log('📚 Fetched shared quizzes for students:', quizzesWithStatus.length);

@@ -5,25 +5,41 @@ import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000';
 
+// Load cached data synchronously before component renders
+const loadCachedNotifications = () => {
+  try {
+    const cached = localStorage.getItem('cachedNotifications');
+    return cached ? JSON.parse(cached) : [];
+  } catch (error) {
+    console.error('Error loading cached notifications:', error);
+    return [];
+  }
+};
+
+const loadCachedUnreadCount = () => {
+  try {
+    const cached = localStorage.getItem('cachedUnreadCount');
+    return cached ? parseInt(cached, 10) : 0;
+  } catch (error) {
+    return 0;
+  }
+};
+
 export default function Notification() {
   const navigate = useNavigate();
   
-  // Load notifications from cache immediately for instant display
-  const cachedNotifications = localStorage.getItem('cachedNotifications');
-  const cachedUnreadCount = localStorage.getItem('cachedUnreadCount');
-  
-  const [notifications, setNotifications] = useState(
-    cachedNotifications ? JSON.parse(cachedNotifications) : []
-  );
+  // Initialize with cached data immediately - no delay
+  const [notifications, setNotifications] = useState(loadCachedNotifications());
   const [filter, setFilter] = useState('all'); // all, unread
-  const [unreadCount, setUnreadCount] = useState(
-    cachedUnreadCount ? parseInt(cachedUnreadCount, 10) : 0
-  );
+  const [unreadCount, setUnreadCount] = useState(loadCachedUnreadCount());
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // Fetch fresh data immediately
     fetchNotifications();
-    // Poll for new notifications every 1 second
-    const interval = setInterval(fetchNotifications, 1000);
+    
+    // Poll for new notifications every 2 seconds
+    const interval = setInterval(fetchNotifications, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -88,9 +104,12 @@ export default function Notification() {
         setNotifications(formattedNotifications);
         setUnreadCount(response.data.unreadCount);
         
-        // Cache the data for instant loading next time
-        localStorage.setItem('cachedNotifications', JSON.stringify(formattedNotifications));
+        // Update cache with fresh data
         localStorage.setItem('cachedUnreadCount', response.data.unreadCount.toString());
+        localStorage.setItem('cachedNotifications', JSON.stringify(formattedNotifications));
+        
+        // Dispatch event to update header notification count
+        window.dispatchEvent(new Event('refreshNotifications'));
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -111,6 +130,30 @@ export default function Notification() {
   };
 
   const handleNotificationClick = async (notification) => {
+    // Mark as read first if unread
+    if (!notification.isRead) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.patch(
+          `${API_BASE}/api/notifications/${notification.id}/read`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        // Update local state and cache immediately
+        const updatedNotifications = notifications.map(n => 
+          n.id === notification.id ? { ...n, isRead: true } : n
+        );
+        setNotifications(updatedNotifications);
+        const newUnreadCount = updatedNotifications.filter(n => !n.isRead).length;
+        setUnreadCount(newUnreadCount);
+        localStorage.setItem('cachedUnreadCount', newUnreadCount.toString());
+        // Trigger header refresh
+        window.dispatchEvent(new Event('refreshNotifications'));
+      } catch (error) {
+        console.error('Error marking as read:', error);
+      }
+    }
+
     // For export notifications, open the PDF file
     if (notification.type === 'export') {
       // Get the stored PDF URL from localStorage
@@ -119,20 +162,6 @@ export default function Notification() {
       if (pdfUrl) {
         // Open PDF in new tab
         window.open(pdfUrl, '_blank');
-      }
-      
-      if (!notification.isRead) {
-        try {
-          const token = localStorage.getItem('token');
-          await axios.patch(
-            `${API_BASE}/api/notifications/${notification.id}/read`,
-            {},
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          fetchNotifications(); // Refresh to update UI
-        } catch (error) {
-          console.error('Error marking as read:', error);
-        }
       }
       return;
     }
@@ -152,20 +181,6 @@ export default function Notification() {
     } else {
       console.log('⚠️ No quizId in notification:', notification);
     }
-    
-    // Mark as read in the background (don't wait)
-    if (!notification.isRead) {
-      try {
-        const token = localStorage.getItem('token');
-        axios.patch(
-          `${API_BASE}/api/notifications/${notification.id}/read`,
-          {},
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      } catch (error) {
-        console.error('Error marking as read:', error);
-      }
-    }
   };
 
   const handleMarkAsRead = async (notificationId) => {
@@ -177,6 +192,8 @@ export default function Notification() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       fetchNotifications();
+      // Trigger immediate header refresh
+      window.dispatchEvent(new Event('refreshNotifications'));
     } catch (error) {
       console.error('Error marking as read:', error);
     }
@@ -191,6 +208,8 @@ export default function Notification() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       fetchNotifications();
+      // Trigger immediate header refresh
+      window.dispatchEvent(new Event('refreshNotifications'));
     } catch (error) {
       console.error('Error marking all as read:', error);
     }
