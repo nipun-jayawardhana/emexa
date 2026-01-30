@@ -12,16 +12,22 @@ class WellnessAIService {
   _ensureInitialized() {
     if (this.initialized) return;
     
-    const apiKey = process.env.HUGGING_FACE_API_KEY;
+    // FIXED: Check for multiple possible environment variable names
+    const apiKey = process.env.HUGGINGFACE_API_KEY ||      // ✅ Your key name
+                   process.env.HUGGING_FACE_API_KEY ||     // Old name
+                   process.env.WELLNESS_AI_API_KEY ||      // Alternative
+                   process.env.HF_API_KEY;                  // Short form
     
     if (!apiKey) {
       console.error('❌ Hugging Face API key not configured');
+      console.error('   Please set one of: HUGGINGFACE_API_KEY, HUGGING_FACE_API_KEY, WELLNESS_AI_API_KEY, or HF_API_KEY');
       throw new Error('Wellness AI not configured');
     }
     
     this.hf = new HfInference(apiKey);
     
-    console.log('🧘 Wellness AI Service initialized with Hugging Face (FREE!)');
+    console.log('✅ Wellness AI Service initialized with Hugging Face (FREE!)');
+    console.log('🧘 Using model:', this.model);
     this.initialized = true;
   }
 
