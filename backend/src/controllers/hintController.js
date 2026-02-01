@@ -1,14 +1,5 @@
-import HintUsage from '../models/hintUsage.js';
-import { getHfClient } from '../utils/hfClient.js';
-
-// Initialize Hugging Face client - lazy initialization to ensure env is loaded
-
-// Create an API endpoint that generates a helpful quiz hint using
-// Hugging Face text generation model.
-// Input: question text, options, previous attempts.
-// Output: 1–2 sentence hint.
-// Deduct 1 mark per hint.
-// Use Hugging Face text generation API.
+import HintUsage from '../models/hintUsage.js';  // ✅ ADD THIS LINE
+import { getHfClient } from '../services/hfClient.js';
 
 export const generateHint = async (req, res) => {
   try {
@@ -59,7 +50,7 @@ export const generateHint = async (req, res) => {
       return res.status(200).json({
         success: true,
         data: {
-          hints: storedHints.length > 0 ? storedHints : [existingHint.hintText], // Always return array
+          hints: storedHints.length > 0 ? storedHints : [existingHint.hintText],
           deduction: existingHint.deduction,
           alreadyRequested: true
         }
@@ -67,122 +58,199 @@ export const generateHint = async (req, res) => {
     }
 
     // Check if HF_API_KEY is available
+    console.log('🔑 Checking HF API client...');
     const hfClient = getHfClient();
+    
     if (!hfClient) {
-      return res.status(503).json({
-        success: false,
-        message: 'AI hint generation is currently unavailable. Please try again later.'
+      console.error('❌ HF Client is null - using fallback hints');
+      
+      // Use fallback hints if API is not available
+      const fallbackHints = [
+        'Think about the fundamental concept being tested in this question.',
+        'Consider the key differences between each option carefully.',
+        'Focus on the specific terminology used in the question.',
+        'Review the core principles related to this topic.'
+      ];
+      
+      const hintUsage = new HintUsage({
+        userId,
+        sessionId,
+        questionId,
+        questionIndex,
+        hintText: fallbackHints.join(' | '),
+        deduction: 1,
+        timestamp: new Date()
+      });
+      
+      await hintUsage.save();
+      
+      return res.status(200).json({
+        success: true,
+        data: {
+          hints: fallbackHints,
+          deduction: 1,
+          alreadyRequested: false,
+          usedFallback: true
+        }
       });
     }
 
+    console.log('✅ HF Client initialized successfully');
+
     // Prepare prompt for Hugging Face
-    const optionsText = options.map((opt, idx) => `${idx + 1}. ${opt}`).join('\n');
+    const optionsText = options.map((opt, idx) => `${String.fromCharCode(65 + idx)}. ${opt}`).join('\n');
     
-    // Create instruction-based prompt for Qwen model to generate 4 hints
-    const userMessage = `You are a helpful tutor. Provide exactly 4 progressive hints for this quiz question. Each hint should be on a new line, numbered 1-4. Start with general guidance and progressively give more specific clues without revealing the answer directly.
+    // Simplified prompt for better results
+    const userMessage = `You are a helpful quiz tutor. Generate exactly 4 progressive hints for this multiple choice question. Make each hint more specific than the last, but don't reveal the answer.
 
 Question: ${questionText}
 
 Options:
 ${optionsText}
 
-Please provide 4 helpful hints (one per line, numbered):`;
+Provide 4 numbered hints (format: "1. hint text"):`;
 
-    // Generate hints using Qwen chat model (conversational)
-    console.log('🤖 Calling Hugging Face API for hint generation...');
-    console.log('📝 Prompt:', userMessage.substring(0, 200) + '...');
+    console.log('🤖 Calling Hugging Face API...');
+    console.log('📝 Using model: Qwen/Qwen2.5-0.5B-Instruct');
     
-    const response = await hfClient.chatCompletion({
-      model: 'Qwen/Qwen3-4B-Instruct-2507',
-      messages: [
-        {
-          role: 'user',
-          content: userMessage
+    try {
+      // Use textGeneration instead of chatCompletion for better compatibility
+      const response = await hfClient.textGeneration({
+        model: 'Qwen/Qwen2.5-0.5B-Instruct',
+        inputs: userMessage,
+        parameters: {
+          max_new_tokens: 300,
+          temperature: 0.7,
+          top_p: 0.9,
+          return_full_text: false
         }
-      ],
-      max_tokens: 250,
-      temperature: 0.7
-    });
+      });
 
-    console.log('✅ HF API raw response:', response);
+      console.log('✅ HF API response received:', response);
 
-    const generatedText = response?.choices?.[0]?.message?.content;
+      let generatedText = response?.generated_text || '';
 
-    if (!generatedText || typeof generatedText !== 'string') {
-      console.error('⚠️ Hugging Face response missing content:', response);
-      throw new Error('AI service returned an empty response');
-    }
+      if (!generatedText || typeof generatedText !== 'string') {
+        console.error('⚠️ Hugging Face response missing content:', response);
+        throw new Error('AI service returned an empty response');
+      }
 
-    let hintText = generatedText.trim();
-    console.log('📄 Generated hint text:', hintText);
-    
-    // Parse the hints - try to extract 4 numbered hints
-    const lines = hintText.split('\n').filter(line => line.trim());
-    const hints = [];
-    
-    // Extract numbered hints (1., 2., 3., 4. or 1: 2: etc)
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      // Match patterns like "1.", "1:", "1 -", "Hint 1:", etc
-      if (/^(\d+[\.\:\-\)]|\*\*?\d+|\d+\s*[-\.]|Hint\s*\d+[\:\.]?)\s*(.+)/.test(trimmedLine)) {
-        const hintContent = trimmedLine.replace(/^(\d+[\.\:\-\)]|\*\*?\d+|\d+\s*[-\.]|Hint\s*\d+[\:\.]?)\s*/, '').trim();
-        if (hintContent) {
-          hints.push(hintContent);
+      console.log('📄 Generated text:', generatedText);
+      
+      // Parse the hints - extract 4 numbered hints
+      const lines = generatedText.split('\n').map(line => line.trim()).filter(line => line);
+      const hints = [];
+      
+      // Extract numbered hints (1., 2., 3., 4.)
+      for (const line of lines) {
+        // Match patterns like "1.", "1:", "1 -", etc
+        const match = line.match(/^(\d+)[\.\:\-\)]\s*(.+)/);
+        if (match && match[2]) {
+          hints.push(match[2].trim());
+        } else if (line && !line.match(/^(Question|Answer|Options?|Hint)/i)) {
+          // Also accept non-numbered lines as hints
+          hints.push(line);
         }
       }
-    }
-    
-    // If we didn't get 4 hints, use the first 4 lines or pad with defaults
-    if (hints.length < 4) {
+      
+      console.log('📋 Extracted hints:', hints);
+      
+      // Fallback hints if parsing fails
       const defaultHints = [
-        'Think carefully about the key concepts in the question.',
-        'Consider what makes each option different from the others.',
-        'Focus on the main idea being tested.',
-        'Review the fundamental principles related to this topic.'
+        'Think about the fundamental concept being tested in this question.',
+        'Consider the key differences between each option carefully.',
+        'Focus on the specific terminology used in the question.',
+        'Review the core principles related to this topic.'
       ];
       
-      while (hints.length < 4) {
-        hints.push(defaultHints[hints.length] || 'Think about what you already know about this topic.');
+      // Ensure we have exactly 4 hints
+      let finalHints = [];
+      if (hints.length >= 4) {
+        finalHints = hints.slice(0, 4);
+      } else if (hints.length > 0) {
+        // Use what we got and fill the rest with defaults
+        finalHints = [...hints];
+        while (finalHints.length < 4) {
+          finalHints.push(defaultHints[finalHints.length]);
+        }
+      } else {
+        // Use all defaults if no hints were extracted
+        finalHints = defaultHints;
       }
-    }
-    
-    // Take only first 4 hints
-    const finalHints = hints.slice(0, 4);
-    console.log('📄 Parsed 4 hints:', finalHints);
-    console.log('📄 Hints count:', finalHints.length);
+      
+      console.log('✅ Final 4 hints:', finalHints);
+      console.log('📊 Hints count:', finalHints.length);
 
-    // Save hint usage to database with all 4 hints
-    console.log('💾 Saving hint usage to database...');
-    const hintUsage = new HintUsage({
-      userId,
-      sessionId,
-      questionId,
-      questionIndex,
-      hintText: finalHints.join(' | '), // Store all hints separated by |
-      deduction: 1, // Each hint deducts 1 mark
-      timestamp: new Date()
-    });
-
-    console.log('📦 HintUsage object:', hintUsage);
-    await hintUsage.save();
-    console.log('✅ Hint saved successfully');
-
-    console.log('📤 Returning response with hints:', finalHints);
-    res.status(200).json({
-      success: true,
-      data: {
-        hints: finalHints, // Return array of 4 hints
+      // Save hint usage to database
+      console.log('💾 Saving hint usage to database...');
+      const hintUsage = new HintUsage({
+        userId,
+        sessionId,
+        questionId,
+        questionIndex,
+        hintText: finalHints.join(' | '),
         deduction: 1,
-        alreadyRequested: false
-      }
-    });
-    console.log('✅ Hint response sent to client');
+        timestamp: new Date()
+      });
+
+      await hintUsage.save();
+      console.log('✅ Hint saved successfully');
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          hints: finalHints,
+          deduction: 1,
+          alreadyRequested: false
+        }
+      });
+
+    } catch (apiError) {
+      console.error('❌ Hugging Face API Error:', apiError);
+      console.error('Error name:', apiError.name);
+      console.error('Error message:', apiError.message);
+      console.error('Error stack:', apiError.stack);
+      
+      // Return fallback hints on API error
+      const fallbackHints = [
+        'Think about the fundamental concept being tested in this question.',
+        'Consider the key differences between each option carefully.',
+        'Focus on the specific terminology used in the question.',
+        'Review the core principles related to this topic.'
+      ];
+      
+      console.log('⚠️ Using fallback hints due to API error');
+      
+      // Still save to database even with fallback
+      const hintUsage = new HintUsage({
+        userId,
+        sessionId,
+        questionId,
+        questionIndex,
+        hintText: fallbackHints.join(' | '),
+        deduction: 1,
+        timestamp: new Date()
+      });
+      
+      await hintUsage.save();
+      
+      return res.status(200).json({
+        success: true,
+        data: {
+          hints: fallbackHints,
+          deduction: 1,
+          alreadyRequested: false,
+          usedFallback: true
+        }
+      });
+    }
 
   } catch (error) {
     console.error('💥 Hint generation error:', error);
     console.error('📋 Error stack:', error.stack);
     console.error('📋 Error message:', error.message);
-    res.status(500).json({
+    
+    return res.status(500).json({
       success: false,
       message: 'Error generating hint',
       error: error.message
