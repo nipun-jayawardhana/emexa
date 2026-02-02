@@ -410,17 +410,28 @@ const QuizPage = () => {
                 ? teacherQuiz.isCurrentlyActive
                 : true;
 
+            // Calculate if quiz has actually started based on real time
+            let hasStarted = true;
+            if (teacherQuiz.scheduleDate && teacherQuiz.startTime) {
+              const scheduleDate = new Date(teacherQuiz.scheduleDate);
+              const [startHour, startMinute] = teacherQuiz.startTime.split(':').map(Number);
+              const startDateTime = new Date(scheduleDate);
+              startDateTime.setHours(startHour, startMinute, 0, 0);
+              const now = new Date();
+              hasStarted = now >= startDateTime;
+            }
+
             console.log(
               "Quiz Page - Time status:",
               timeStatus,
               "Is active:",
               isActive,
+              "Has started:",
+              hasStarted,
             );
 
-            if (
-              timeStatus === "upcoming" ||
-              (!isActive && teacherQuiz.isScheduled)
-            ) {
+            // Only block if quiz hasn't started yet
+            if (!hasStarted) {
               alert(
                 "This quiz has not started yet. Please wait until the scheduled time: " +
                   (teacherQuiz.scheduleDate
@@ -433,7 +444,15 @@ const QuizPage = () => {
               return;
             }
 
-            if (timeStatus === "expired") {
+            // Check if quiz has expired based on actual due date
+            let hasExpired = false;
+            if (teacherQuiz.dueDate) {
+              const dueDateTime = new Date(teacherQuiz.dueDate);
+              const now = new Date();
+              hasExpired = now > dueDateTime;
+            }
+
+            if (hasExpired) {
               alert("This quiz has expired. The deadline has passed.");
               window.location.href = "/dashboard";
               return;
