@@ -241,6 +241,7 @@ const Header = ({ userName, userRole }) => {
         isOpen={showHelpModal}
         onClose={() => setShowHelpModal(false)}
         userRole={userRole}
+        userName={displayName}
       />
     </>
   );

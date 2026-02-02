@@ -2,7 +2,7 @@
 // FIXED VERSION - With Actual Data from Database
 
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import AdminViewWrapper from "../components/AdminViewWrapper";
 import Header from "../components/headerorigin";
@@ -11,8 +11,11 @@ import TeacherQuizzes from "./TeacherQuizzes";
 import TeacherCreateQuiz from "./TeacherCreateQuiz";
 import TeacherQuizDraft from "./TeacherQuizDraft";
 
+const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5000";
+
 const TeacherDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   
   const adminToken = localStorage.getItem("adminToken");
   const isAdminViewing = localStorage.getItem("adminViewingAs");
@@ -30,6 +33,13 @@ const TeacherDashboard = () => {
   
   const [userName, setUserName] = useState("");
   const [editingDraftId, setEditingDraftId] = useState(null);
+
+  useEffect(() => {
+    // Handle navigation state from TeacherProfile
+    if (location.state?.activeMenu) {
+      setActiveMenuItem(location.state.activeMenu);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     if (!isAdminViewing || !adminToken) {
@@ -51,6 +61,9 @@ const TeacherDashboard = () => {
       activeMenuItem !== "create-quiz" &&
       activeMenuItem !== "quiz-drafts"
     ) {
+      setEditingDraftId(null);
+    } else if (activeMenuItem === "quizzes") {
+      // Clear editing state when going to main quiz page
       setEditingDraftId(null);
     }
   }, [activeMenuItem, editingDraftId]);
@@ -98,6 +111,7 @@ const TeacherDashboard = () => {
       ),
       onClick: () => {
         setActiveMenuItem("quizzes");
+        setEditingDraftId(null);
       }
     },
     {
@@ -202,11 +216,11 @@ const DashboardContent = () => {
 
       // Fetch all dashboard data in parallel
       const [statsRes, progressRes, trendRes, emotionRes, studentsRes] = await Promise.all([
-        axios.get("http://localhost:5000/api/teachers/dashboard/stats", { headers }),
-        axios.get("http://localhost:5000/api/teachers/dashboard/class-progress", { headers }),
-        axios.get("http://localhost:5000/api/teachers/dashboard/engagement-trend", { headers }),
-        axios.get("http://localhost:5000/api/teachers/dashboard/emotional-state", { headers }),
-        axios.get("http://localhost:5000/api/teachers/dashboard/students", { headers })
+        axios.get(`${API_BASE}/api/teachers/dashboard/stats`, { headers }),
+        axios.get(`${API_BASE}/api/teachers/dashboard/class-progress`, { headers }),
+        axios.get(`${API_BASE}/api/teachers/dashboard/engagement-trend`, { headers }),
+        axios.get(`${API_BASE}/api/teachers/dashboard/emotional-state`, { headers }),
+        axios.get(`${API_BASE}/api/teachers/dashboard/students`, { headers })
       ]);
 
       console.log('✅ Dashboard data fetched successfully');

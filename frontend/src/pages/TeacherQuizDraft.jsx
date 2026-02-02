@@ -436,9 +436,9 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
     try {
       // Share quiz - activate it for students
       await teacherQuizService.scheduleQuiz(quizToShare.id, {
-        scheduleDate: quizToShare.scheduleDate,
-        startTime: quizToShare.startTime,
-        endTime: quizToShare.endTime,
+        scheduleDate: scheduleDate,
+        startTime: startTime,
+        endTime: endTime,
       });
 
       // Show success message immediately

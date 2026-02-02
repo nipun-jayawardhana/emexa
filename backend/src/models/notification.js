@@ -13,7 +13,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['quiz_assigned', 'quiz_graded', 'reminder', 'announcement', 'data_export'],
+    enum: ['quiz_assigned', 'quiz_graded', 'quiz_majority_complete', 'reminder', 'announcement', 'data_export'],
     required: true
   },
   title: {

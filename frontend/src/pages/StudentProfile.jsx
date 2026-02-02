@@ -7,6 +7,8 @@ import Header from '../components/headerorigin';
 import AdminViewWrapper from '../components/AdminViewWrapper';
 import ActivityTab from '../components/ActivityTab'; 
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000';
+
 // Helper function to get full image URL - ADDED for multi-device support
 const getImageUrl = (imagePath) => {
   if (!imagePath) return "https://via.placeholder.com/120";
@@ -16,9 +18,9 @@ const getImageUrl = (imagePath) => {
     return imagePath;
   }
   
-  // If it's a relative path, construct full URL
+  // If it's a relative path, construct full URL using API_BASE
   if (imagePath.startsWith('/uploads/')) {
-    return `http://localhost:5000${imagePath}`;
+    return `${API_BASE}${imagePath}`;
   }
   
   return imagePath;
@@ -507,7 +509,7 @@ const handleSaveAccountInfo = async () => {
     
     console.log('💾 Saving profile data:', dataToSave);
     
-    let updateUrl = 'http://localhost:5000/api/users/update-profile';
+let updateUrl = `${API_BASE}/api/users/update-profile`;
     
     // If admin is viewing a specific user
     if (isAdminViewing && viewingUserId) {
@@ -571,7 +573,7 @@ const handleSaveAccountInfo = async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.put(
-        'http://localhost:5000/api/users/change-password',
+        `${API_BASE}/api/users/change-password`,
         {
           currentPassword: currentPassword,
           newPassword: newPassword
@@ -596,7 +598,7 @@ const handleSaveAccountInfo = async () => {
       console.log('🔑 Token:', token ? 'Present' : 'Missing');
       
       const response = await axios.put(
-        'http://localhost:5000/api/users/notification-settings',
+        `${API_BASE}/api/users/notification-settings`,
         notificationSettings,
         { headers: { Authorization: `Bearer ${token}` }}
       );
@@ -624,7 +626,7 @@ const handleSaveAccountInfo = async () => {
       console.log('🔑 Token:', token ? 'Present' : 'Missing');
       
       const response = await axios.put(
-        'http://localhost:5000/api/users/privacy-settings',
+        `${API_BASE}/api/users/privacy-settings`,
         privacySettings,
         { headers: { Authorization: `Bearer ${token}` }}
       );
@@ -647,7 +649,7 @@ const handleSaveAccountInfo = async () => {
   const handleExportData = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/users/export-data', {
+      const response = await axios.get(`${API_BASE}/api/users/export-data`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -932,7 +934,7 @@ const handleProfileImageChange = async (e) => {
 
     // Upload to server
     const response = await axios.post(
-      'http://localhost:5000/api/users/upload-profile',
+      `${API_BASE}/api/users/upload-profile`,
       formData,
       {
         headers: {

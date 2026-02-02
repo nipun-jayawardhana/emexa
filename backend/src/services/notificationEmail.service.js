@@ -1,17 +1,90 @@
 import nodemailer from 'nodemailer';
+import * as brevo from '@getbrevo/brevo';
 import User from '../models/user.js';
 import Student from '../models/student.js';
 import Teacher from '../models/teacher.js';
 
-// Get transporter for sending emails
-const getTransporter = () => {
+// Initialize Brevo API
+let brevoApiInstance = null;
+
+const initializeBrevo = () => {
+  if (!brevoApiInstance && process.env.BREVO_API_KEY) {
+    brevoApiInstance = new brevo.TransactionalEmailsApi();
+    brevoApiInstance.setApiKey(
+      brevo.TransactionalEmailsApiApiKeys.apiKey,
+      process.env.BREVO_API_KEY
+    );
+  }
+  return brevoApiInstance;
+};
+
+// Get transporter for Mailtrap (fallback)
+const getMailtrapTransporter = () => {
   return nodemailer.createTransport({
-    service: 'gmail',
+    host: process.env.MAILTRAP_HOST || 'sandbox.smtp.mailtrap.io',
+    port: process.env.MAILTRAP_PORT || 2525,
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD
+      user: process.env.MAILTRAP_USER,
+      pass: process.env.MAILTRAP_PASSWORD
     }
   });
+};
+
+// Send email via Brevo API
+const sendViaBrevo = async (mailOptions) => {
+  try {
+    const api = initializeBrevo();
+    
+    if (!api) {
+      throw new Error('Brevo API not initialized. Check BREVO_API_KEY.');
+    }
+
+    const sendSmtpEmail = {
+      sender: {
+        email: process.env.BREVO_SENDER_EMAIL || 'emexaed@gmail.com',
+        name: process.env.BREVO_SENDER_NAME || 'EMEXA'
+      },
+      to: [{ email: mailOptions.to }],
+      subject: mailOptions.subject,
+      htmlContent: mailOptions.html
+    };
+
+    const result = await api.sendTransacEmail(sendSmtpEmail);
+    console.log('✅ Email sent via Brevo to:', mailOptions.to);
+    return true;
+  } catch (error) {
+    console.error('❌ Brevo API Error:', error);
+    throw error;
+  }
+};
+
+// Send email via Nodemailer (Mailtrap fallback)
+const sendViaMailtrap = async (mailOptions) => {
+  try {
+    const transporter = getMailtrapTransporter();
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER || 'noreply@emexa.com',
+      ...mailOptions
+    });
+    console.log('✅ Email sent via Mailtrap to:', mailOptions.to);
+    return true;
+  } catch (error) {
+    console.error('❌ Mailtrap Error:', error);
+    throw error;
+  }
+};
+
+// Main email sending function
+const sendEmail = async (mailOptions) => {
+  const emailMode = process.env.EMAIL_MODE || 'mailtrap';
+  
+  console.log(`📧 Sending email via ${emailMode.toUpperCase()}...`);
+  
+  if (emailMode === 'brevo') {
+    return await sendViaBrevo(mailOptions);
+  } else {
+    return await sendViaMailtrap(mailOptions);
+  }
 };
 
 /**
@@ -45,16 +118,13 @@ export const sendEmailNotification = async (userId, userEmail, subject, htmlCont
     }
 
     // Send email
-    const transporter = getTransporter();
-    
     const mailOptions = {
-      from: process.env.EMAIL_USER,
       to: userEmail,
       subject: subject,
       html: htmlContent
     };
 
-    await transporter.sendMail(mailOptions);
+    await sendEmail(mailOptions);
     console.log('✅ Email notification sent to:', userEmail);
     return true;
 
@@ -247,6 +317,108 @@ export const sendSettingsChangeEmail = async (userEmail, userName, changedSettin
           </div>
           
           <p>If you did not make these changes, please contact our support team immediately at emexaed@gmail.com</p>
+          
+          <p>Best regards,<br><strong>EMEXA Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>This is an automated notification. Please do not reply to this email.</p>
+          <p>&copy; ${new Date().getFullYear()} EMEXA. All rights reserved.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return htmlContent;
+};
+
+/**
+ * Send quiz share confirmation email to teacher
+ */
+export const sendQuizShareConfirmationEmail = async (teacherEmail, teacherName, quizTitle, totalStudents, scheduleDate, startTime, endTime) => {
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #1976D2; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+        .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
+        .quiz-info { background-color: #e3f2fd; border-left: 4px solid #1976D2; padding: 15px; margin: 20px 0; }
+        .info-row { margin: 10px 0; padding: 5px 0; }
+        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2>✅ Quiz Shared Successfully</h2>
+        </div>
+        <div class="content">
+          <p>Hi <strong>${teacherName}</strong>,</p>
+          <p>Your quiz has been successfully shared with students in EMEXA.</p>
+          
+          <div class="quiz-info">
+            <div class="info-row"><strong>Quiz Title:</strong> ${quizTitle}</div>
+            <div class="info-row"><strong>Students Notified:</strong> ${totalStudents}</div>
+            <div class="info-row"><strong>Scheduled Date:</strong> ${scheduleDate}</div>
+            <div class="info-row"><strong>Start Time:</strong> ${startTime}</div>
+            <div class="info-row"><strong>End Time:</strong> ${endTime}</div>
+          </div>
+          
+          <p>All students have been sent notifications about the new quiz. You can track their progress and submissions in your teacher dashboard.</p>
+          
+          <p>Best regards,<br><strong>EMEXA Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>This is an automated notification. Please do not reply to this email.</p>
+          <p>&copy; ${new Date().getFullYear()} EMEXA. All rights reserved.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return htmlContent;
+};
+
+/**
+ * Send email to teacher when majority of students complete quiz
+ */
+export const sendMajorityCompletionEmail = async (teacherEmail, teacherName, quizTitle, completedStudents, totalStudents, completionPercentage) => {
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+        .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
+        .stats-box { background-color: #c8e6c9; border-left: 4px solid #4CAF50; padding: 15px; margin: 20px 0; }
+        .completion-percentage { font-size: 28px; font-weight: bold; color: #2e7d32; }
+        .stat-row { margin: 10px 0; padding: 5px 0; }
+        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2>📊 Majority of Students Completed Quiz</h2>
+        </div>
+        <div class="content">
+          <p>Hi <strong>${teacherName}</strong>,</p>
+          <p>Great news! The majority of your students have now completed the quiz <strong>${quizTitle}</strong>.</p>
+          
+          <div class="stats-box">
+            <div class="stat-row"><strong>Quiz Title:</strong> ${quizTitle}</div>
+            <div class="stat-row"><strong>Students Completed:</strong> ${completedStudents} out of ${totalStudents}</div>
+            <div class="completion-percentage">${completionPercentage}%</div>
+            <div class="stat-row" style="text-align: center;"><strong>Completion Rate</strong></div>
+          </div>
+          
+          <p>You can now review student submissions and provide feedback. Log in to your EMEXA dashboard to see detailed results and analytics.</p>
           
           <p>Best regards,<br><strong>EMEXA Team</strong></p>
         </div>

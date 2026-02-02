@@ -5,7 +5,9 @@ import { createQuizNotification } from './notificationController.js';
 import { QuizResult } from '../models/quiz.js';
 import { 
   sendEmailNotification, 
-  sendQuizSubmissionEmail 
+  sendQuizSubmissionEmail,
+  sendQuizShareConfirmationEmail,
+  sendMajorityCompletionEmail
 } from '../services/notificationEmail.service.js';
 import Student from '../models/student.js';
 
@@ -287,9 +289,10 @@ export const scheduleQuiz = async (req, res) => {
     
     console.log('✅ Quiz scheduled:', quiz._id);
     
-    // Get teacher name for notification
+    // Get teacher and count students
     const teacher = await Teacher.findById(quiz.teacherId);
     const teacherName = teacher ? teacher.name : 'Teacher';
+    const students = await Student.countDocuments({});
     
     // Create notifications for all students
     const formattedDueDate = `${scheduleDate}, ${endTime}`;
@@ -300,6 +303,53 @@ export const scheduleQuiz = async (req, res) => {
     }, teacherName);
     
     console.log('🔔 Notification result:', notificationResult);
+    
+    // Create in-app notification for teacher
+    try {
+      const Notification = require('../models/notification.js').default || require('../models/notification.js');
+      await Notification.create({
+        recipientId: quiz.teacherId,
+        recipientRole: 'teacher',
+        type: 'quiz_assigned',
+        title: `Quiz Shared: ${quiz.title}`,
+        description: `Your quiz "${quiz.title}" has been shared with ${students} students. Scheduled for ${scheduleDate} from ${startTime} to ${endTime}.`,
+        quizId: quiz._id,
+        instructor: teacherName,
+        dueDate: formattedDueDate,
+        status: 'pending',
+        isRead: false
+      });
+      console.log('✅ In-app notification created for teacher');
+    } catch (notifError) {
+      console.error('❌ Error creating in-app notification for teacher:', notifError.message);
+      // Don't fail the request if notification creation fails
+    }
+    
+    // Send confirmation email to teacher
+    try {
+      if (teacher && teacher.email) {
+        const emailHtml = await sendQuizShareConfirmationEmail(
+          teacher.email,
+          teacherName,
+          quiz.title,
+          students,
+          scheduleDate,
+          startTime,
+          endTime
+        );
+        
+        await sendEmailNotification(
+          quiz.teacherId,
+          teacher.email,
+          `✅ Quiz Shared: ${quiz.title}`,
+          emailHtml
+        );
+        console.log('✅ Quiz share confirmation email sent to teacher:', teacher.email);
+      }
+    } catch (emailError) {
+      console.error('❌ Error sending quiz share confirmation email to teacher:', emailError.message);
+      // Don't fail the request if email fails
+    }
     
     res.status(200).json({
       success: true,
@@ -660,12 +710,70 @@ export const submitQuizAnswers = async (req, res) => {
             `✅ Quiz Submitted: ${quiz.title}`,
             emailHtml
           );
+          console.log('✅ Quiz submission email sent to student:', student.email);
         }
       } catch (emailError) {
         console.error('❌ Error sending submission email:', emailError.message);
       }
     } catch (notifError) {
       console.error('❌ Error creating submission notification:', notifError);
+    }
+
+    // Check if majority of students have now completed the quiz
+    try {
+      const totalStudents = await Student.countDocuments({});
+      const completedCount = await QuizResult.countDocuments({ quizId: id });
+      const completionPercentage = Math.round((completedCount / totalStudents) * 100);
+      const majorityThreshold = 50; // 50% or more is considered majority
+
+      console.log(`📊 Quiz completion: ${completedCount}/${totalStudents} students (${completionPercentage}%)`);
+
+      // Check if we've just crossed the majority threshold
+      if (completionPercentage >= majorityThreshold && completionPercentage - Math.round(((completedCount - 1) / totalStudents) * 100) > 0) {
+        console.log(`📊 Majority threshold reached! Sending notification to teacher...`);
+        
+        // Get teacher info
+        const teacher = await Teacher.findById(quiz.teacherId);
+        
+        if (teacher && teacher.email) {
+          try {
+            const emailHtml = await sendMajorityCompletionEmail(
+              teacher.email,
+              teacher.name || 'Teacher',
+              quiz.title,
+              completedCount,
+              totalStudents,
+              completionPercentage
+            );
+
+            await sendEmailNotification(
+              quiz.teacherId,
+              teacher.email,
+              `📊 Quiz Status: ${quiz.title} - ${completionPercentage}% Complete`,
+              emailHtml
+            );
+            console.log('✅ Majority completion email sent to teacher:', teacher.email);
+
+            // Also create in-app notification for teacher
+            await Notification.create({
+              recipientId: quiz.teacherId,
+              recipientRole: 'teacher',
+              type: 'quiz_majority_complete',
+              title: `Majority Completion: ${quiz.title}`,
+              description: `${completedCount} out of ${totalStudents} students (${completionPercentage}%) have completed the quiz.`,
+              quizId: id,
+              status: 'completed',
+              isRead: false
+            });
+            console.log('✅ Majority completion notification created for teacher');
+          } catch (emailError) {
+            console.error('❌ Error sending majority completion email:', emailError.message);
+          }
+        }
+      }
+    } catch (majorityError) {
+      console.error('❌ Error checking majority completion:', majorityError);
+      // Don't fail the submission if majority check fails
     }
 
     res.json({

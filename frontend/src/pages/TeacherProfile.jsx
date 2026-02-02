@@ -20,9 +20,9 @@ const getImageUrl = (imagePath) => {
     return imagePath;
   }
 
-  // If it's a relative path, construct full URL
+  // If it's a relative path, construct full URL using API_BASE
   if (imagePath.startsWith("/uploads/")) {
-    return `http://localhost:5000${imagePath}`;
+    return `${API_BASE}${imagePath}`;
   }
 
   return imagePath;
@@ -256,8 +256,8 @@ const TeacherProfile = () => {
         </svg>
       ),
       onClick: () => {
-        setActiveMenuItem("quiz");
-        navigate("/teacher-create-quiz");
+        setActiveMenuItem("quizzes");
+        navigate("/teacher-dashboard", { state: { activeMenu: "quizzes" } });
       },
     },
     {
