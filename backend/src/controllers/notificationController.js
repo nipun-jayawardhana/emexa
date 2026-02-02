@@ -1,5 +1,7 @@
 import Notification from '../models/notification.js';
 import Student from '../models/student.js';
+import User from '../models/user.js';
+import Teacher from '../models/teacher.js';
 import { 
   sendEmailNotification, 
   sendQuizAssignmentEmail 
@@ -54,6 +56,24 @@ export const getNotifications = async (req, res) => {
   try {
     const userId = req.user.id;
     const { filter } = req.query; // 'all', 'unread'
+
+    // First check user's notification preferences
+    let user = await User.findById(userId).select('notificationSettings');
+    if (!user) user = await Student.findById(userId).select('notificationSettings');
+    if (!user) user = await Teacher.findById(userId).select('notificationSettings');
+
+    const inAppNotificationsEnabled = user?.notificationSettings?.inAppNotifications ?? true;
+
+    // If in-app notifications are disabled, return empty array
+    if (!inAppNotificationsEnabled) {
+      console.log('🔕 In-app notifications disabled for user:', userId);
+      return res.json({
+        success: true,
+        notifications: [],
+        unreadCount: 0,
+        message: 'In-app notifications are disabled'
+      });
+    }
 
     let query = { recipientId: userId };
     
@@ -266,6 +286,23 @@ export const getUnreadCount = async (req, res) => {
   try {
     const userId = req.user.id;
     
+    // First check if in-app notifications are enabled
+    let user = await User.findById(userId).select('notificationSettings');
+    if (!user) user = await Student.findById(userId).select('notificationSettings');
+    if (!user) user = await Teacher.findById(userId).select('notificationSettings');
+
+    const inAppNotificationsEnabled = user?.notificationSettings?.inAppNotifications ?? true;
+
+    // If in-app notifications are disabled, return 0
+    if (!inAppNotificationsEnabled) {
+      console.log('🔕 In-app notifications disabled for user:', userId);
+      return res.json({
+        success: true,
+        count: 0,
+        message: 'In-app notifications are disabled'
+      });
+    }
+    
     // Fetch all unread notifications
     const notifications = await Notification.find({ 
       recipientId: userId, 
@@ -400,6 +437,150 @@ export const cleanupDuplicateNotifications = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to cleanup duplicate notifications',
+      error: error.message
+    });
+  }
+};
+
+// Get notification settings for the current user
+export const getNotificationSettings = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    let user = await User.findById(userId).select('notificationSettings');
+    if (!user) user = await Student.findById(userId).select('notificationSettings');
+    if (!user) user = await Teacher.findById(userId).select('notificationSettings');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const settings = user.notificationSettings || {
+      emailNotifications: true,
+      smsNotifications: false,
+      inAppNotifications: true
+    };
+
+    res.json({
+      success: true,
+      notificationSettings: settings
+    });
+  } catch (error) {
+    console.error('❌ Error fetching notification settings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch notification settings'
+    });
+  }
+};
+
+// Test notification endpoint to verify settings are working
+export const testNotifications = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { type } = req.body; // 'email', 'inapp', or 'both'
+
+    let user = await User.findById(userId).select('name email notificationSettings');
+    if (!user) user = await Student.findById(userId).select('name email notificationSettings');
+    if (!user) user = await Teacher.findById(userId).select('name email notificationSettings');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const results = {
+      success: true,
+      tests: {
+        emailNotificationsEnabled: user.notificationSettings?.emailNotifications ?? true,
+        inAppNotificationsEnabled: user.notificationSettings?.inAppNotifications ?? true,
+        testType: type || 'all'
+      }
+    };
+
+    // Create a test in-app notification
+    if (type === 'inapp' || type === 'both') {
+      if (results.tests.inAppNotificationsEnabled) {
+        const testNotification = await Notification.create({
+          recipientId: userId,
+          recipientRole: user.role || 'student',
+          type: 'announcement',
+          title: '🧪 Test In-App Notification',
+          description: 'This is a test in-app notification to verify your settings are working correctly.',
+          status: 'completed',
+          isRead: false,
+          metadata: {
+            isTest: true,
+            testTime: new Date().toISOString()
+          }
+        });
+        results.tests.inAppNotificationCreated = true;
+        results.tests.inAppNotificationId = testNotification._id;
+      } else {
+        results.tests.inAppNotificationCreated = false;
+        results.tests.inAppNotificationMessage = 'In-app notifications are disabled for this user';
+      }
+    }
+
+    // Send a test email if email notifications are enabled
+    if (type === 'email' || type === 'both') {
+      if (results.tests.emailNotificationsEnabled && user.email) {
+        try {
+          const emailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background-color: #2196F3; color: white; padding: 20px; text-align: center; border-radius: 5px; }
+                .content { background-color: #f9f9f9; padding: 30px; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h2>🧪 Test Email Notification</h2>
+                </div>
+                <div class="content">
+                  <p>Hi <strong>${user.name || 'User'}</strong>,</p>
+                  <p>This is a test email to verify that your email notification settings are working correctly in EMEXA.</p>
+                  <p>If you received this email, your notification settings are properly configured!</p>
+                  <p>You can change your notification preferences in your profile settings.</p>
+                </div>
+              </div>
+            </body>
+            </html>
+          `;
+
+          await sendEmailNotification(
+            userId,
+            user.email,
+            '🧪 Test Email from EMEXA',
+            emailHtml
+          );
+          results.tests.emailSent = true;
+        } catch (emailError) {
+          results.tests.emailSent = false;
+          results.tests.emailError = emailError.message;
+        }
+      } else {
+        results.tests.emailSent = false;
+        results.tests.emailMessage = 'Email notifications are disabled for this user';
+      }
+    }
+
+    res.json(results);
+  } catch (error) {
+    console.error('❌ Error in test notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to test notifications',
       error: error.message
     });
   }
