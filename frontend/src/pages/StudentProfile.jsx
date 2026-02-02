@@ -208,8 +208,14 @@ const Profile = () => {
 useEffect(() => {
   if (userData?.profileImage && userData.profileImage !== profileImage) {
     console.log('🖼️ Loading profile image from database:', userData.profileImage);
-    setProfileImage(userData.profileImage);
-    localStorage.setItem('studentProfileImage', userData.profileImage);
+    const fullImageUrl = getImageUrl(userData.profileImage);
+    console.log('🖼️ Converted to full URL:', fullImageUrl);
+    setProfileImage(fullImageUrl);
+    // Save the FULL URL to localStorage so Header can use it directly
+    localStorage.setItem('studentProfileImage', fullImageUrl);
+    console.log('💾 Saved to localStorage:', fullImageUrl);
+    // Also dispatch event to notify other components
+    window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: fullImageUrl }));
   } else if (!userData?.profileImage) {
     // Clear profile image if user doesn't have one
     console.log('🖼️ No profile image, clearing...');
@@ -274,7 +280,7 @@ const fetchUserData = async () => {
       try {
         // Fetch the specific user's profile by ID
         const response = await axios.get(
-          `http://localhost:5000/api/users/${viewingUserId}`,
+          `${API_BASE}/api/users/${viewingUserId}`,
           {
             headers: { Authorization: `Bearer ${adminToken}` }
           }
@@ -312,7 +318,7 @@ const fetchUserData = async () => {
         // Set profile image
         if (user.profileImage) {
           console.log('🖼️ Setting profile image:', user.profileImage);
-          setProfileImage(user.profileImage);
+          setProfileImage(getImageUrl(user.profileImage));
         }
 
         setLoading(false);
@@ -344,12 +350,13 @@ const fetchUserData = async () => {
 
     try {
       console.log('👤 Fetching own profile');
-      const response = await axios.get('http://localhost:5000/api/users/profile', {
+      const response = await axios.get(`${API_BASE}/api/users/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       const user = response.data;
       console.log('✅ Fetched own profile data:', user);
+      console.log('🖼️ ProfileImage from API:', user.profileImage);
       
       setUserData(user);
       setFormData({
@@ -379,7 +386,15 @@ const fetchUserData = async () => {
       // Set profile image
       if (user.profileImage) {
         console.log('🖼️ Loading profile image:', user.profileImage);
-        setProfileImage(user.profileImage);
+        const fullImageUrl = getImageUrl(user.profileImage);
+        console.log('🖼️ Converted to full URL:', fullImageUrl);
+        setProfileImage(fullImageUrl);
+        // SAVE TO LOCALSTORAGE IMMEDIATELY
+        localStorage.setItem('studentProfileImage', fullImageUrl);
+        console.log('💾 Saved to localStorage:', fullImageUrl);
+        // Dispatch event for Header to pick up
+        window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: fullImageUrl }));
+        console.log('📢 Dispatched studentProfileImageChanged event');
       }
 
     } catch (apiError) {
@@ -412,7 +427,7 @@ const fetchUserData = async () => {
       setPrivacySettings(fallbackData.privacySettings);
       
       if (fallbackData.profileImage) {
-        setProfileImage(fallbackData.profileImage);
+        setProfileImage(getImageUrl(fallbackData.profileImage));
       }
     }
     
@@ -437,7 +452,7 @@ const fetchUserData = async () => {
     });
     
     if (fallbackImage) {
-      setProfileImage(fallbackImage);
+      setProfileImage(getImageUrl(fallbackImage));
     }
     
   } finally {
@@ -513,7 +528,7 @@ let updateUrl = `${API_BASE}/api/users/update-profile`;
     
     // If admin is viewing a specific user
     if (isAdminViewing && viewingUserId) {
-      updateUrl = `http://localhost:5000/api/users/${viewingUserId}`;
+      updateUrl = `${API_BASE}/api/users/${viewingUserId}`;
       console.log('👤 Admin updating user:', viewingUserId);
     }
     
@@ -1045,12 +1060,20 @@ const handleProfileImageChange = async (e) => {
               />
               <div className="bg-white rounded-full p-1 shadow-lg">
                 <img
-                  src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"}
+                  key={getImageUrl(profileImage || userData?.profileImage)}
+                  src={getImageUrl(profileImage || userData?.profileImage)}
                   alt="Profile"
                   className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
+                  onLoad={() => {
+                    console.log('✅ Image loaded successfully from:', getImageUrl(profileImage || userData?.profileImage));
+                  }}
                   onError={(e) => {
-                    console.error('❌ Image failed to load:', e.target.src);
-                    e.target.src = "https://via.placeholder.com/120";
+                    console.error('❌ Image failed to load from:', e.target.src);
+                    // Only set fallback if it's not already the fallback (prevent infinite loop)
+                    if (!e.target.src.includes('placeholder')) {
+                      console.log('🔄 Setting fallback image...');
+                      e.target.src = "https://via.placeholder.com/128";
+                    }
                   }}
                 />
               </div>

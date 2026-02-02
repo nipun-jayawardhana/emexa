@@ -39,6 +39,7 @@ const QuizPage = () => {
   const [quizData, setQuizData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [flaggedQuestions, setFlaggedQuestions] = useState(new Set());
+  const [hasExpired, setHasExpired] = useState(false);
 
   // AI Integration States
   const [sessionId] = useState(
@@ -445,14 +446,16 @@ const QuizPage = () => {
             }
 
             // Check if quiz has expired based on actual due date
-            let hasExpired = false;
+            let quizExpired = false;
             if (teacherQuiz.dueDate) {
               const dueDateTime = new Date(teacherQuiz.dueDate);
               const now = new Date();
-              hasExpired = now > dueDateTime;
+              quizExpired = now > dueDateTime;
             }
 
-            if (hasExpired) {
+            setHasExpired(quizExpired);
+
+            if (quizExpired) {
               alert("This quiz has expired. The deadline has passed.");
               window.location.href = "/dashboard";
               return;
@@ -896,17 +899,19 @@ const QuizPage = () => {
     setIsSubmitting(true);
     console.log('🚀 Starting quiz submission...');
 
-    // Stop camera capture and release camera resources
-    try {
-      camera.stopCapture();
-    } catch (e) {
-      console.error("Error stopping camera capture:", e);
-    }
-    try {
-      camera.stop();
-      console.log("📷 Camera singleton stopped after quiz submission");
-    } catch (e) {
-      console.error("Error stopping camera:", e);
+    // Stop camera capture and release camera resources (safely check if camera exists)
+    if (typeof camera !== 'undefined' && camera) {
+      try {
+        camera.stopCapture();
+      } catch (e) {
+        console.error("Error stopping camera capture:", e);
+      }
+      try {
+        camera.stop();
+        console.log("📷 Camera singleton stopped after quiz submission");
+      } catch (e) {
+        console.error("Error stopping camera:", e);
+      }
     }
 
     // Stop the local videoStream (separate from camera.js singleton)
@@ -959,29 +964,34 @@ const QuizPage = () => {
       const token = localStorage.getItem("token");
       console.log("📤 Submitting quiz answers to backend:", quizId);
 
-      const submitResponse = await axios.post(
-        `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
-        {
-          answers: answersArray,
-          timeTaken,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      try {
+        const submitResponse = await axios.post(
+          `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
+          {
+            answers: answersArray,
+            timeTaken,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
 
-      if (submitResponse.data.success) {
-        console.log("✅ Quiz submitted successfully:", submitResponse.data);
-
-        // Show results immediately (0 seconds delay)
-        setQuizSubmitted(true);
-        setIsSubmitting(false);
-
-        // Trigger notification count refresh
-        window.dispatchEvent(new Event("refreshNotifications"));
+        if (submitResponse.data.success) {
+          console.log("✅ Quiz submitted successfully:", submitResponse.data);
+        }
+      } catch (submitError) {
+        console.error("❌ Error submitting quiz to /submit endpoint:", submitError);
+        // Continue anyway - feedback will still be generated
       }
+
+      // Show results immediately even if submit fails
+      setQuizSubmitted(true);
+      setIsSubmitting(false);
+
+      // Trigger notification count refresh
+      window.dispatchEvent(new Event("refreshNotifications"));
     } catch (submitError) {
-      console.error("❌ Error submitting quiz:", submitError);
+      console.error("❌ Error in submit flow:", submitError);
       setIsSubmitting(false);
     }
 
@@ -1013,7 +1023,7 @@ const QuizPage = () => {
         });
 
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:5000/api/feedback", {
+        const response = await fetch(`${API_BASE}/api/feedback`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

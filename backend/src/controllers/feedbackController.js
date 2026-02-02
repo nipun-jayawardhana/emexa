@@ -179,7 +179,7 @@ Feedback:`;
 
     // Save quiz attempt
     console.log('💾 Saving quiz attempt...');
-    const quizAttempt = new QuizAttempt({
+    const quizAttemptData = {
       userId: userObjectId,
       quizId: quizObjectId,
       sessionId,
@@ -196,9 +196,14 @@ Feedback:`;
       aiFeedback,
       answers: answers || [],
       completedAt: new Date()
-    });
+    };
 
-    await quizAttempt.save();
+    // Use upsert to handle duplicate sessionId - update if exists, insert if not
+    await QuizAttempt.updateOne(
+      { sessionId },
+      quizAttemptData,
+      { upsert: true }
+    );
 
     console.log('✅ Quiz attempt saved successfully');
     console.log(`📊 Results: Raw: ${rawScore}, Hints: ${totalHints}, Final: ${finalScore}`);
