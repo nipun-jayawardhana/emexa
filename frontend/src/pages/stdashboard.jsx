@@ -737,27 +737,16 @@ const StudentDashboard = () => {
                               </span>
                             )}
                             {quiz.scheduleDate &&
-                              quiz.startTime &&
-                              quiz.endTime && (
+                              quiz.startTime && (
                                 <span className="text-blue-600 font-medium">
                                   {(() => {
                                     try {
                                       const scheduleDate = new Date(quiz.scheduleDate);
                                       const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
-                                      const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
                                       
                                       // Create start datetime
                                       const startDateTime = new Date(scheduleDate);
                                       startDateTime.setHours(startHour, startMinute, 0, 0);
-                                      
-                                      // Create end datetime
-                                      const endDateTime = new Date(scheduleDate);
-                                      endDateTime.setHours(endHour, endMinute, 0, 0);
-                                      
-                                      // If end time is before start time, quiz spans to next day
-                                      if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-                                        endDateTime.setDate(endDateTime.getDate() + 1);
-                                      }
                                       
                                       // Format start time
                                       const startTimeStr = startDateTime.toLocaleTimeString('en-US', {
@@ -770,18 +759,7 @@ const StudentDashboard = () => {
                                         day: 'numeric'
                                       });
                                       
-                                      // Format end time
-                                      const endTimeStr = endDateTime.toLocaleTimeString('en-US', {
-                                        hour: 'numeric',
-                                        minute: '2-digit',
-                                        hour12: true
-                                      });
-                                      const endDateStr = endDateTime.toLocaleDateString('en-US', {
-                                        month: 'short',
-                                        day: 'numeric'
-                                      });
-                                      
-                                      return `${startTimeStr} on ${startDateStr} → ${endTimeStr} on ${endDateStr}`;
+                                      return `Start: ${startTimeStr} on ${startDateStr}`;
                                     } catch {
                                       return "Invalid date/time";
                                     }
@@ -789,6 +767,15 @@ const StudentDashboard = () => {
                                 </span>
                               )}
                           </p>
+                          {quiz.dueDate && (
+                            <p className="text-xs text-red-600 font-semibold mb-1.5">
+                              Due: {new Date(quiz.dueDate).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </p>
+                          )}
                           <p className="text-xs text-gray-600 leading-relaxed">
                             {quiz.description ||
                               (quiz.questions?.length

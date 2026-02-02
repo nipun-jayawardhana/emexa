@@ -254,8 +254,8 @@ export const updateQuiz = async (req, res) => {
 export const scheduleQuiz = async (req, res) => {
   try {
     const { id } = req.params;
-    const { scheduleDate, startTime, endTime } = req.body;
-    console.log('🗓️ Schedule Quiz:', id, { scheduleDate, startTime, endTime });
+    const { scheduleDate, startTime, endTime, dueDate } = req.body;
+    console.log('🗓️ Schedule Quiz:', id, { scheduleDate, startTime, endTime, dueDate });
     
     // Validate schedule data
     if (!scheduleDate || !startTime || !endTime) {
@@ -283,6 +283,9 @@ export const scheduleQuiz = async (req, res) => {
     quiz.scheduleDate = new Date(scheduleDate);
     quiz.startTime = startTime;
     quiz.endTime = endTime;
+    if (dueDate) {
+      quiz.dueDate = new Date(dueDate);
+    }
     quiz.status = 'scheduled'; // Set to scheduled, not active
     
     await quiz.save();

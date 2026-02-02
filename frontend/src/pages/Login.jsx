@@ -31,28 +31,30 @@ export default function Login() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState([]);
   const navigate = useNavigate();
   const location = useLocation();
 
   // 🔑 AUTO-FILL: Load saved credentials on mount
   useEffect(() => {
-    const savedRememberMe = localStorage.getItem("rememberMe");
-    const savedEmail = localStorage.getItem("savedEmail");
-    const savedPassword = localStorage.getItem("savedPassword"); // Encrypted
-    
-    if (savedRememberMe === "true") {
-      setRemember(true);
-      
-      if (savedEmail) {
-        const decryptedEmail = decryptData(savedEmail);
-        setEmail(decryptedEmail);
-        console.log("✅ Auto-filled email");
-      }
-      
-      if (savedPassword) {
-        const decryptedPassword = decryptData(savedPassword);
-        setPassword(decryptedPassword);
-        console.log("✅ Auto-filled password");
+    // Load all saved accounts
+    const savedAccountsData = localStorage.getItem("savedAccounts");
+    if (savedAccountsData) {
+      try {
+        const accounts = JSON.parse(savedAccountsData);
+        setSavedAccounts(accounts);
+        
+        // Auto-fill with the first (most recent) saved account
+        if (accounts.length > 0) {
+          const decryptedEmail = decryptData(accounts[0].email);
+          const decryptedPassword = decryptData(accounts[0].password);
+          setEmail(decryptedEmail);
+          setPassword(decryptedPassword);
+          setRemember(true);
+          console.log("✅ Auto-filled email from saved accounts");
+        }
+      } catch (e) {
+        console.warn("Could not parse saved accounts:", e);
       }
     }
   }, []);
@@ -97,6 +99,52 @@ export default function Login() {
       .post("/auth/login", { email, password })
       .then((res) => {
         console.log("✅ Login successful");
+
+        // Save "Remember Me" credentials if checked
+        if (remember) {
+          console.log("💾 Saving credentials for Remember Me");
+          // Get existing saved accounts
+          const savedAccountsData = localStorage.getItem("savedAccounts");
+          let accounts = [];
+          try {
+            accounts = savedAccountsData ? JSON.parse(savedAccountsData) : [];
+          } catch (e) {
+            accounts = [];
+          }
+          
+          // Check if this email already exists in saved accounts
+          const existingIndex = accounts.findIndex(acc => {
+            try {
+              return decryptData(acc.email) === email;
+            } catch {
+              return false;
+            }
+          });
+          
+          // Create account object
+          const newAccount = {
+            email: encryptData(email),
+            password: encryptData(password),
+            savedAt: new Date().toISOString()
+          };
+          
+          // Remove if exists, then add to beginning (most recent first)
+          if (existingIndex > -1) {
+            accounts.splice(existingIndex, 1);
+          }
+          accounts.unshift(newAccount);
+          
+          // Keep only last 5 saved accounts
+          if (accounts.length > 5) {
+            accounts = accounts.slice(0, 5);
+          }
+          
+          // Save updated accounts
+          localStorage.setItem("savedAccounts", JSON.stringify(accounts));
+          console.log("💾 Saved", accounts.length, "accounts");
+        } else {
+          console.log("🗑️ Remember Me unchecked - not saving credentials");
+        }
 
         // Clear admin viewing flags
         localStorage.removeItem("adminViewingAs");
@@ -397,10 +445,8 @@ export default function Login() {
                     const isChecked = e.target.checked;
                     setRemember(isChecked);
                     if (!isChecked) {
-                      // Clear saved credentials when unchecked
-                      localStorage.removeItem("rememberMe");
-                      localStorage.removeItem("savedEmail");
-                      localStorage.removeItem("savedPassword");
+                      // Uncheck - don't save this account
+                      console.log("Remember Me unchecked");
                     }
                   }}
                 />{" "}

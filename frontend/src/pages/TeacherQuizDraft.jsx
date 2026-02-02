@@ -439,6 +439,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
         scheduleDate: scheduleDate,
         startTime: startTime,
         endTime: endTime,
+        dueDate: dueDate || null,
       });
 
       // Show success message immediately
