@@ -663,7 +663,17 @@ const StudentDashboard = () => {
                       quiz.isCurrentlyActive !== undefined
                         ? quiz.isCurrentlyActive
                         : true;
-                    const isExpired = timeStatus === "expired";
+                    
+                    // Check if quiz is truly expired (due date has passed)
+                    let isExpired = false;
+                    if (quiz.dueDate) {
+                      const now = new Date();
+                      const dueDateTime = new Date(quiz.dueDate);
+                      isExpired = now > dueDateTime;
+                    } else {
+                      // If no due date, use the old logic
+                      isExpired = timeStatus === "expired";
+                    }
 
                     console.log("📝 Rendering quiz:", {
                       index,
@@ -724,7 +734,7 @@ const StudentDashboard = () => {
                                 Active Now
                               </span>
                             )}
-                            {timeStatus === "expired" && (
+                            {isExpired && (
                               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
                                 Expired
                               </span>
