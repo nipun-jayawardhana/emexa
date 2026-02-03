@@ -194,6 +194,8 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
   const [scheduleDate, setScheduleDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [semester, setSemester] = useState("");
+  const [academicYear, setAcademicYear] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [quizToDelete, setQuizToDelete] = useState(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -434,17 +436,19 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
 
   const handleShareQuiz = async () => {
     try {
-      // Share quiz - activate it for students
+      // Share quiz - activate it for students with semester and academic year filter
       await teacherQuizService.scheduleQuiz(quizToShare.id, {
         scheduleDate: scheduleDate,
         startTime: startTime,
         endTime: endTime,
         dueDate: dueDate || null,
+        semester: semester,
+        academicYear: parseInt(academicYear)
       });
 
       // Show success message immediately
       alert(
-        `✅ Quiz Shared Successfully!\n\nThe quiz "${quizToShare.title}" is now active and visible to students.`
+        `✅ Quiz Shared Successfully!\n\nThe quiz "${quizToShare.title}" is now active and visible to students in ${semester}, Year ${academicYear}.`
       );
 
       // Close modal
@@ -481,6 +485,11 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
       return;
     }
 
+    if (!semester || !academicYear) {
+      alert("Please select both semester and academic year");
+      return;
+    }
+
     try {
       // Update the quiz with schedule information (but keep as draft)
       await teacherQuizService.updateQuiz(selectedQuizForSchedule.id, {
@@ -489,6 +498,8 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
         endTime,
         dueDate: dueDate || null,
         isScheduled: true,
+        semester,
+        academicYear: parseInt(academicYear)
       });
 
       // Reload drafts to show updated data
@@ -501,6 +512,8 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
       setStartTime("");
       setEndTime("");
       setDueDate("");
+      setSemester("");
+      setAcademicYear("");
 
       alert(
         "✅ Quiz Scheduled Successfully!\n\nYour quiz has been scheduled. Click the 'Share' button to make it active and visible to students."
@@ -1173,6 +1186,38 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Semester *
+                </label>
+                <select
+                  value={semester}
+                  onChange={(e) => setSemester(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm"
+                >
+                  <option value="">Select Semester</option>
+                  <option value="1st semester">1st Semester</option>
+                  <option value="2nd semester">2nd Semester</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Academic Year *
+                </label>
+                <select
+                  value={academicYear}
+                  onChange={(e) => setAcademicYear(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm"
+                >
+                  <option value="">Select Year</option>
+                  <option value="1">1st Year</option>
+                  <option value="2">2nd Year</option>
+                  <option value="3">3rd Year</option>
+                  <option value="4">4th Year</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Due Date (Optional)
                 </label>
                 <input
@@ -1194,6 +1239,8 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                   setStartTime("");
                   setEndTime("");
                   setDueDate("");
+                  setSemester("");
+                  setAcademicYear("");
                 }}
                 className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm"
               >

@@ -219,16 +219,35 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
       return { success: true, count: existingNotifications, skipped: true };
     }
 
-    // Get all students with their email and notification settings
-    const students = await Student.find({}, { _id: 1, email: 1, name: 1, notificationSettings: 1 });
-    console.log(`📧 Found ${students.length} students to notify`);
+    // Build filter for students based on semester and academic year
+    const studentFilter = {};
+    if (quizData.semester) {
+      studentFilter.semester = quizData.semester;
+    }
+    if (quizData.academicYear) {
+      // Convert numeric year to string format (1 -> '1st year', 2 -> '2nd year', etc.)
+      const yearStrings = {
+        1: '1st year',
+        2: '2nd year',
+        3: '3rd year',
+        4: '4th year'
+      };
+      const yearString = yearStrings[parseInt(quizData.academicYear)];
+      if (yearString) {
+        studentFilter.year = yearString;
+      }
+    }
+    
+    // Get all students matching the filter (or all students if no filter)
+    const students = await Student.find(studentFilter, { _id: 1, email: 1, name: 1, notificationSettings: 1 });
+    console.log(`📧 Found ${students.length} students to notify (filter: semester=${quizData.semester}, year=${quizData.academicYear})`);
 
     if (students.length === 0) {
-      console.log('⚠️ No students found in database');
-      return { success: false, error: 'No students found' };
+      console.log(`⚠️ No students found for semester: ${quizData.semester}, year: ${quizData.academicYear}`);
+      return { success: false, error: 'No students found matching the criteria' };
     }
 
-    // Create notifications for all students
+    // Create notifications for filtered students
     const notifications = students.map(student => ({
       recipientId: student._id,
       recipientRole: 'student',

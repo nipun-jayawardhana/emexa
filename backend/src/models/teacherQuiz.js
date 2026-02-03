@@ -58,6 +58,18 @@ const teacherQuizSchema = new mongoose.Schema({
     type: [String], // Array of grade IDs (e.g., ["1-1", "1-2"])
     required: true
   },
+  
+  // Semester and academic year selection (filters for which students receive this quiz)
+  semester: {
+    type: String,
+    enum: ['1st semester', '2nd semester', null],
+    default: null
+  },
+  academicYear: {
+    type: Number, // Year like 1, 2, 3, 4
+    default: null
+  },
+  
   dueDate: {
     type: Date,
     required: false

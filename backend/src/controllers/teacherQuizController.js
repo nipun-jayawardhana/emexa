@@ -254,14 +254,22 @@ export const updateQuiz = async (req, res) => {
 export const scheduleQuiz = async (req, res) => {
   try {
     const { id } = req.params;
-    const { scheduleDate, startTime, endTime, dueDate } = req.body;
-    console.log('🗓️ Schedule Quiz:', id, { scheduleDate, startTime, endTime, dueDate });
+    const { scheduleDate, startTime, endTime, dueDate, semester, academicYear } = req.body;
+    console.log('🗓️ Schedule Quiz:', id, { scheduleDate, startTime, endTime, dueDate, semester, academicYear });
     
     // Validate schedule data
     if (!scheduleDate || !startTime || !endTime) {
       return res.status(400).json({
         success: false,
         message: 'Missing schedule data: scheduleDate, startTime, or endTime'
+      });
+    }
+    
+    // Validate semester if provided
+    if (semester && !['1st semester', '2nd semester'].includes(semester)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid semester. Must be "1st semester" or "2nd semester"'
       });
     }
     
@@ -286,23 +294,53 @@ export const scheduleQuiz = async (req, res) => {
     if (dueDate) {
       quiz.dueDate = new Date(dueDate);
     }
+    // Store semester and academic year for filtering
+    if (semester) {
+      quiz.semester = semester;
+    }
+    if (academicYear) {
+      quiz.academicYear = academicYear;
+    }
     quiz.status = 'scheduled'; // Set to scheduled, not active
     
     await quiz.save();
     
     console.log('✅ Quiz scheduled:', quiz._id);
     
-    // Get teacher and count students
+    // Get teacher and count students with matching semester/academic year
     const teacher = await Teacher.findById(quiz.teacherId);
     const teacherName = teacher ? teacher.name : 'Teacher';
-    const students = await Student.countDocuments({});
     
-    // Create notifications for all students
+    // Build filter for students based on semester and academic year
+    const studentFilter = {};
+    if (semester) {
+      studentFilter.semester = semester;
+    }
+    if (academicYear) {
+      // Convert numeric year to string format (1 -> '1st year', 2 -> '2nd year', etc.)
+      const yearStrings = {
+        1: '1st year',
+        2: '2nd year',
+        3: '3rd year',
+        4: '4th year'
+      };
+      const yearString = yearStrings[parseInt(academicYear)];
+      if (yearString) {
+        studentFilter.year = yearString;
+      }
+    }
+    
+    const students = await Student.countDocuments(studentFilter);
+    console.log(`📚 Filtered students by semester: ${semester}, year: ${academicYear} - Count: ${students}`);
+    
+    // Create notifications for filtered students
     const formattedDueDate = `${scheduleDate}, ${endTime}`;
     const notificationResult = await createQuizNotification(quiz._id, {
       title: quiz.title,
       subject: quiz.subject,
-      dueDate: formattedDueDate
+      dueDate: formattedDueDate,
+      semester: semester,
+      academicYear: academicYear
     }, teacherName);
     
     console.log('🔔 Notification result:', notificationResult);
