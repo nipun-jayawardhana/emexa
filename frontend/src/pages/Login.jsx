@@ -32,6 +32,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [savedAccounts, setSavedAccounts] = useState([]);
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -336,31 +337,133 @@ export default function Login() {
 
             <div className={`field ${errors.email ? "error" : ""}`}>
               <label>Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  const newEmail = e.target.value;
-                  setEmail(newEmail);
-                  setErrors({});
+              <div style={{ position: "relative" }}>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    const newEmail = e.target.value;
+                    setEmail(newEmail);
+                    setErrors({});
 
-                  if (newEmail.trim()) {
-                    if (!/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(newEmail)) {
-                      setErrors((prev) => ({
-                        ...prev,
-                        email: "Please enter a valid email address",
-                      }));
-                    } else if (newEmail !== newEmail.toLowerCase()) {
-                      setErrors((prev) => ({
-                        ...prev,
-                        email: "Email must be in lowercase only",
-                      }));
+                    if (newEmail.trim()) {
+                      if (!/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(newEmail)) {
+                        setErrors((prev) => ({
+                          ...prev,
+                          email: "Please enter a valid email address",
+                        }));
+                      } else if (newEmail !== newEmail.toLowerCase()) {
+                        setErrors((prev) => ({
+                          ...prev,
+                          email: "Email must be in lowercase only",
+                        }));
+                      }
                     }
-                  }
-                }}
-                placeholder="Enter your email"
-                autoComplete="email"
-              />
+                  }}
+                  onFocus={() => setShowAccountDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowAccountDropdown(false), 200)}
+                  placeholder="Enter your email"
+                  autoComplete="email"
+                  style={{
+                    padding: "18px 26px",
+                    fontSize: "16px",
+                    minHeight: "56px",
+                    boxSizing: "border-box",
+                    width: "100%"
+                  }}
+                />
+                
+                {/* Saved Accounts Dropdown */}
+                {showAccountDropdown && savedAccounts.length > 0 && (
+                  <div style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "#fff",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    maxHeight: "250px",
+                    overflowY: "auto",
+                    zIndex: 1000,
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    marginTop: "8px"
+                  }}>
+                    {savedAccounts.map((account, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          padding: "16px 18px",
+                          borderBottom: index < savedAccounts.length - 1 ? "1px solid #f0f0f0" : "none",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          transition: "background-color 0.2s",
+                          backgroundColor: "#fff",
+                          minHeight: "48px"
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f5f5f5"}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#fff"}
+                      >
+                        <div
+                          onClick={() => {
+                            const decryptedEmail = decryptData(account.email);
+                            const decryptedPassword = decryptData(account.password);
+                            setEmail(decryptedEmail);
+                            setPassword(decryptedPassword);
+                            setRemember(true);
+                            setShowAccountDropdown(false);
+                          }}
+                          style={{
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            flex: 1
+                          }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                          </svg>
+                          <span>{decryptData(account.email)}</span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const updatedAccounts = savedAccounts.filter((_, i) => i !== index);
+                            setSavedAccounts(updatedAccounts);
+                            localStorage.setItem("savedAccounts", JSON.stringify(updatedAccounts));
+                            console.log("🗑️ Removed saved account:", decryptData(account.email));
+                          }}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "#999",
+                            padding: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "color 0.2s"
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = "#ff4444"}
+                          onMouseLeave={(e) => e.currentTarget.style.color = "#999"}
+                          title="Remove this account"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               {errors.email && <div className="error-text">{errors.email}</div>}
             </div>
 
