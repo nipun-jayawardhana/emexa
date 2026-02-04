@@ -11,79 +11,15 @@ import {
   permanentDeleteQuiz,
   getQuizStats,
   submitQuizAnswers,
-  getQuizSubmission
+  getQuizSubmission,
+  getSharedQuizzes 
 } from '../controllers/teacherQuizController.js';
 import { protect } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-// Public route - students can access shared quizzes
-router.get('/shared', async (req, res) => {
-  try {
-    const TeacherQuiz = (await import('../models/teacherQuiz.js')).default;
-    const sharedQuizzes = await TeacherQuiz.find({ 
-      isScheduled: true,
-      isDeleted: false 
-    }).select('-__v');
-    
-    // Add timeStatus to each quiz and filter out expired ones older than 24 hours
-    const now = new Date();
-    const quizzesWithStatus = sharedQuizzes
-      .map(quiz => {
-        const quizObj = quiz.toObject();
-        quizObj.timeStatus = quiz.getTimeStatus();
-        quizObj.isCurrentlyActive = quiz.isCurrentlyActive();
-        return quizObj;
-      })
-      .filter(quiz => {
-        // If quiz is expired, check if it's been more than 24 hours since end time
-        if (quiz.timeStatus === 'expired' && quiz.scheduleDate && quiz.endTime) {
-          const scheduleDate = new Date(quiz.scheduleDate);
-          const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-          const endDateTime = new Date(scheduleDate);
-          endDateTime.setHours(endHour, endMinute, 0, 0);
-          
-          // Calculate hours since quiz ended
-          const hoursSinceEnd = (now - endDateTime) / (1000 * 60 * 60);
-          
-          // Only include if less than 24 hours have passed since quiz ended
-          return hoursSinceEnd < 24;
-        }
-        // Include all non-expired quizzes
-        return true;
-      })
-      .sort((a, b) => {
-        // Priority order: active > upcoming > expired
-        const statusPriority = { 'active': 1, 'upcoming': 2, 'expired': 3 };
-        const aPriority = statusPriority[a.timeStatus] || 4;
-        const bPriority = statusPriority[b.timeStatus] || 4;
-        
-        // First sort by status priority
-        if (aPriority !== bPriority) {
-          return aPriority - bPriority;
-        }
-        
-        // Within same status, sort by latest to oldest (newest first)
-        const aDate = new Date(a.scheduleDate || a.createdAt);
-        const bDate = new Date(b.scheduleDate || b.createdAt);
-        return bDate - aDate; // Descending order (latest first)
-      });
-    
-    console.log('📚 Fetched shared quizzes for students:', quizzesWithStatus.length);
-    
-    res.status(200).json({
-      success: true,
-      count: quizzesWithStatus.length,
-      quizzes: quizzesWithStatus
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch shared quizzes',
-      error: error.message
-    });
-  }
-});
+// Public route - students can access shared quizzes (WITH FILTERING)
+router.get('/shared', protect, getSharedQuizzes);
 
 // Protected routes - require authentication
 router.use(protect);

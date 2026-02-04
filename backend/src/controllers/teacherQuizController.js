@@ -606,6 +606,122 @@ export const getQuizStats = async (req, res) => {
   }
 };
 
+/**
+ * Get shared quizzes for students
+ * FIXED: Now filters by student's year and semester
+ */
+export const getSharedQuizzes = async (req, res) => {
+  try {
+    const userId = req.user.id; // Student ID from JWT token
+    
+    console.log('📚 Fetching shared quizzes for student:', userId);
+
+    // CRITICAL: Get the student's year and semester
+    const student = await Student.findById(userId);
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    console.log('👤 Student details:', {
+      id: student._id,
+      name: student.name,
+      year: student.year,           // Using 'year' field from Student model
+      semester: student.semester     // Using 'semester' field from Student model
+    });
+
+    const now = new Date();
+
+    // Build the filter query
+    const filterQuery = {
+      isScheduled: true,  // Must be scheduled
+      isDeleted: false,   // Not deleted
+    };
+
+    // CRITICAL FIX: Match student's year to quiz's academicYear
+    // Convert student.year ("2nd year") to academicYear number (2)
+    if (student.year) {
+      const yearMapping = {
+        '1st year': 1,
+        '2nd year': 2,
+        '3rd year': 3,
+        '4th year': 4
+      };
+      
+      const academicYearNum = yearMapping[student.year];
+      if (academicYearNum) {
+        filterQuery.academicYear = academicYearNum;
+        console.log(`🔍 Filtering by academicYear: ${academicYearNum} (from student.year: ${student.year})`);
+      }
+    }
+
+    // CRITICAL FIX: Match student's semester to quiz's semester
+    if (student.semester) {
+      filterQuery.semester = student.semester;
+      console.log(`🔍 Filtering by semester: ${student.semester}`);
+    }
+
+    console.log('🔍 Final filter query:', filterQuery);
+
+    // Query quizzes with the filter
+    const quizzes = await TeacherQuiz.find(filterQuery)
+      .populate('teacherId', 'name email')
+      .sort({ createdAt: -1 });
+
+    console.log(`✅ Found ${quizzes.length} quizzes for ${student.year} - ${student.semester}`);
+
+    // Process each quiz to add time status
+    const processedQuizzes = quizzes.map(quiz => {
+      const quizObj = quiz.toObject();
+      
+      let timeStatus = 'active';
+      let isCurrentlyActive = true;
+
+      if (quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+        const scheduleDate = new Date(quiz.scheduleDate);
+        scheduleDate.setHours(startHour, startMinute, 0, 0);
+
+        if (now < scheduleDate) {
+          timeStatus = 'upcoming';
+          isCurrentlyActive = false;
+        }
+      }
+
+      if (quiz.dueDate && now > new Date(quiz.dueDate)) {
+        timeStatus = 'expired';
+        isCurrentlyActive = false;
+      }
+
+      return {
+        ...quizObj,
+        timeStatus,
+        isCurrentlyActive
+      };
+    });
+
+    res.json({
+      success: true,
+      quizzes: processedQuizzes,
+      studentInfo: {
+        year: student.year,
+        semester: student.semester
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching shared quizzes:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching shared quizzes',
+      error: error.message
+    });
+  }
+};
+
 // Submit quiz answers (for students)
 export const submitQuizAnswers = async (req, res) => {
   try {
@@ -914,6 +1030,7 @@ export default {
   deleteQuiz,
   permanentDeleteQuiz,
   getQuizStats,
+  getSharedQuizzes,
   submitQuizAnswers,
   getQuizSubmission
 };
