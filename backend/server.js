@@ -91,13 +91,14 @@ app.use("/api/auth", authRoutes);
 app.use("/api/quiz", quizRoutes);
 app.use("/api/camera", cameraRoutes);
 app.use("/api/teacher", teacherRoutes);
+app.use("/api/teachers", teacherRoutes);
 app.use("/api/wellness", wellnessRoutes);
 app.use("/api/teacher-quizzes", teacherQuizRoutes);
 // AI Feature Routes
 app.use("/api/emotion", emotionRoutes);
 app.use("/api/hint", hintRoutes);
 app.use("/api/feedback", feedbackRoutes);
-app.use("/api/notifications", notificationRoutes); // Notification routes
+app.use("/api/notifications", notificationRoutes); 
 app.use("/api/ai-quiz", aiQuizRoutes);
 app.use("/api/wellness-ai", wellnessAIRoutes);
 app.use("/api/moods", moodRoutes);

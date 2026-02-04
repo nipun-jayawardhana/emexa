@@ -1,3 +1,6 @@
+// backend/src/controllers/teacherController.js
+// FIXED VERSION - Corrected stats calculations
+
 import Student from '../models/student.js';
 import Teacher from '../models/teacher.js';
 import User from '../models/user.js';
@@ -12,7 +15,9 @@ import {
 import { QuizResult } from '../models/quiz.js';
 import QuizAttempt from '../models/quizAttempt.js'; 
 
-
+// ============================================================================
+// FIXED: Calculate teacher stats (ONLY for assigned students)
+// ============================================================================
 const calculateTeacherStats = async (teacherId) => {
   console.log('📊 Calculating teacher stats for:', teacherId);
 
@@ -27,18 +32,18 @@ const calculateTeacherStats = async (teacherId) => {
   // Get all quiz IDs
   const quizIds = teacherQuizzes.map(q => q._id);
 
-  // Get all students who have been assigned these quizzes
+  // CRITICAL FIX: Get ONLY students assigned to this teacher's quizzes
   const notifications = await Notification.find({
     quizId: { $in: quizIds },
     type: 'quiz_assigned',
     recipientRole: 'student'
   }).lean();
 
-  // Get unique student IDs
-  const studentIds = [...new Set(notifications.map(n => n.recipientId))];
+  // Get unique student IDs (ONLY students assigned to teacher's quizzes)
+  const studentIds = [...new Set(notifications.map(n => n.recipientId.toString()))];
   const totalStudents = studentIds.length;
 
-  console.log('👥 Total students assigned quizzes:', totalStudents);
+  console.log('👥 Total students assigned to teacher quizzes:', totalStudents);
 
   // Get all quiz results for these quizzes
   const quizResults = await QuizResult.find({
@@ -54,13 +59,17 @@ const calculateTeacherStats = async (teacherId) => {
     averageProgress = Math.round(totalScore / quizResults.length);
   }
 
-  // Calculate engagement level based on quiz completion rate
+  // FIXED: Calculate engagement level based on completion rate
   let engagementLevel = 'Low';
   let engagementPercentage = 0;
   
   if (totalStudents > 0) {
+    // Total assignments = number of unique (student, quiz) pairs
     const totalAssignments = notifications.length;
+    
+    // Completed assignments = number of quiz submissions
     const completedAssignments = quizResults.length;
+    
     engagementPercentage = totalAssignments > 0 
       ? Math.round((completedAssignments / totalAssignments) * 100)
       : 0;
@@ -80,9 +89,20 @@ const calculateTeacherStats = async (teacherId) => {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const presentToday = await QuizResult.countDocuments({
+  // Count unique students who submitted today
+  const todayResults = await QuizResult.find({
     quizId: { $in: quizIds },
     submittedAt: { $gte: today, $lt: tomorrow }
+  }).lean();
+  
+  const presentToday = [...new Set(todayResults.map(r => r.userId.toString()))].length;
+
+  console.log('✅ Stats calculated:', {
+    totalStudents,
+    presentToday,
+    averageProgress,
+    engagementLevel,
+    engagementPercentage
   });
 
   return {
@@ -187,9 +207,9 @@ const getClassProgress = async (req, res) => {
   }
 };
 
-/**
- * Get engagement trend data for chart (last 5 days)
- */
+// ============================================================================
+// FIXED: Get engagement trend (last 5 days with data, not current week)
+// ============================================================================
 const getEngagementTrend = async (req, res) => {
   try {
     const teacherId = req.userId || req.user._id;
@@ -204,49 +224,56 @@ const getEngagementTrend = async (req, res) => {
 
     const quizIds = teacherQuizzes.map(q => q._id);
 
-    // Get total assignments
-    const totalAssignments = await Notification.countDocuments({
+    // FIXED: Get total ASSIGNED students (not all students in database)
+    const notifications = await Notification.find({
       quizId: { $in: quizIds },
       type: 'quiz_assigned',
       recipientRole: 'student'
-    });
+    }).lean();
+    
+    const assignedStudentIds = [...new Set(notifications.map(n => n.recipientId.toString()))];
+    const totalAssignedStudents = assignedStudentIds.length;
+
+    console.log('📚 Total assigned students:', totalAssignedStudents);
 
     const engagementData = [];
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
     const today = new Date();
     
-    // Get current day of week (0 = Sunday, 1 = Monday, etc.)
-    const currentDay = today.getDay();
-    
-    // Calculate Monday of current week
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - (currentDay === 0 ? 6 : currentDay - 1));
-    monday.setHours(0, 0, 0, 0);
-
-    for (let i = 0; i < 5; i++) {
-      const dayStart = new Date(monday);
-      dayStart.setDate(monday.getDate() + i);
+    // FIXED: Get last 5 weekdays instead of current week
+    // This ensures we always show 5 days with actual data
+    for (let i = 4; i >= 0; i--) {
+      const dayDate = new Date(today);
+      dayDate.setDate(today.getDate() - i);
+      
+      const dayStart = new Date(dayDate);
       dayStart.setHours(0, 0, 0, 0);
       
       const dayEnd = new Date(dayStart);
       dayEnd.setHours(23, 59, 59, 999);
 
       // Get quiz results for this day
-      const dayResults = await QuizResult.countDocuments({
+      const dayResults = await QuizResult.find({
         quizId: { $in: quizIds },
         submittedAt: { $gte: dayStart, $lte: dayEnd }
-      });
+      }).lean();
+      
+      // Count unique students active on this day
+      const activeStudents = [...new Set(dayResults.map(r => r.userId.toString()))].length;
 
-      // Calculate engagement percentage for this day
-      let score = totalAssignments > 0 
-        ? Math.round((dayResults / totalAssignments) * 100)
+      // FIXED: Calculate engagement as % of assigned students who were active
+      let score = totalAssignedStudents > 0 
+        ? Math.round((activeStudents / totalAssignedStudents) * 100)
         : 0;
       
       // Ensure score is between 0-100
       score = Math.min(Math.max(score, 0), 100);
 
+      // Get day name
+      const dayName = dayDate.toLocaleDateString('en-US', { weekday: 'short' });
+
       engagementData.push({
-        day: days[i],
+        day: dayName,
         score: score
       });
     }
@@ -395,6 +422,89 @@ const getStudentOverview = async (req, res) => {
   }
 };
 
+// ============================================================================
+// FIXED: Sort recent quizzes - Active/Scheduled first, Drafts last
+// ============================================================================
+const getRecentQuizzes = async (req, res) => {
+  try {
+    const teacherId = req.userId || req.user._id;
+    const limit = parseInt(req.query.limit) || 3;
+    
+    console.log('📝 Fetching recent quizzes for teacher:', teacherId);
+
+    // Get recent quizzes - NO STATUS FILTER (shows all including drafts)
+    const quizzes = await TeacherQuiz.find({
+      teacherId: teacherId,
+      isDeleted: false
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // FIXED: Sort by status priority (active/scheduled first, drafts last)
+    const sortedQuizzes = quizzes.sort((a, b) => {
+      const statusPriority = {
+        'active': 1,
+        'scheduled': 2,
+        'closed': 3,
+        'draft': 4
+      };
+      
+      const aPriority = statusPriority[a.status] || 5;
+      const bPriority = statusPriority[b.status] || 5;
+      
+      // First sort by status priority
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      // Within same status, sort by most recent
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+    // Take only the limit
+    const limitedQuizzes = sortedQuizzes.slice(0, limit);
+
+    // Get completion stats for each quiz
+    const quizzesWithStats = await Promise.all(
+      limitedQuizzes.map(async (quiz) => {
+        const totalStudents = await Notification.countDocuments({
+          quizId: quiz._id,
+          type: 'quiz_assigned',
+          recipientRole: 'student'
+        });
+
+        const completed = await QuizResult.countDocuments({
+          quizId: quiz._id
+        });
+
+        return {
+          id: quiz._id,
+          title: quiz.title,
+          subject: quiz.subject,
+          dueDate: quiz.dueDate,
+          scheduleDate: quiz.scheduleDate,
+          totalStudents: totalStudents,
+          completed: completed,
+          status: quiz.status
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: quizzesWithStats,
+      message: 'Recent quizzes retrieved successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error fetching recent quizzes:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch recent quizzes',
+      error: error.message
+    });
+  }
+};
+
 /**
  * Get teacher profile
  */
@@ -434,66 +544,6 @@ const getProfile = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch profile',
-      error: error.message
-    });
-  }
-};
-
-/**
- * Get teacher's recent quizzes with actual data
- */
-const getRecentQuizzes = async (req, res) => {
-  try {
-    const teacherId = req.userId || req.user._id;
-    const limit = parseInt(req.query.limit) || 3;
-    
-    console.log('📝 Fetching recent quizzes for teacher:', teacherId);
-
-    // Get recent quizzes - NO STATUS FILTER (shows all including drafts)
-    const quizzes = await TeacherQuiz.find({
-      teacherId: teacherId,
-      isDeleted: false
-    })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
-
-    // Get completion stats for each quiz
-    const quizzesWithStats = await Promise.all(
-      quizzes.map(async (quiz) => {
-        const totalStudents = await Notification.countDocuments({
-          quizId: quiz._id,
-          type: 'quiz_assigned',
-          recipientRole: 'student'
-        });
-
-        const completed = await QuizResult.countDocuments({
-          quizId: quiz._id
-        });
-
-        return {
-          id: quiz._id,
-          title: quiz.title,
-          subject: quiz.subject,
-          dueDate: quiz.dueDate,
-          scheduleDate: quiz.scheduleDate,
-          totalStudents: totalStudents,
-          completed: completed,
-          status: quiz.status
-        };
-      })
-    );
-
-    res.json({
-      success: true,
-      data: quizzesWithStats,
-      message: 'Recent quizzes retrieved successfully'
-    });
-  } catch (error) {
-    console.error('❌ Error fetching recent quizzes:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch recent quizzes',
       error: error.message
     });
   }
@@ -911,10 +961,9 @@ export const getTeacherStats = async (req, res) => {
 
     // Get all quizzes by this teacher
     const quizzes = await TeacherQuiz.find({
-  teacherId,
-  isDeleted: false
-  // ✅ NO status filter - includes drafts
-}).lean();
+      teacherId,
+      isDeleted: false
+    }).lean();
 
     // Get all attempts for teacher's quizzes
     const quizIds = quizzes.map(q => q._id);
@@ -958,7 +1007,7 @@ export const getTeacherStats = async (req, res) => {
         draftQuizzes,
         scheduledQuizzes,
         activeQuizzes,
-         closedQuizzes,
+        closedQuizzes,
         totalAttempts,
         totalStudents,
         averageScore,
