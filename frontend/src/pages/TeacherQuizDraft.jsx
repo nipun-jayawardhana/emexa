@@ -12,6 +12,18 @@ const formatTime12Hour = (time24) => {
   return `${displayHour}:${minutes} ${period}`;
 };
 
+// Helper function to format academic year for display
+const formatAcademicYear = (year) => {
+  if (!year) return "";
+  const yearMap = {
+    1: "1st Year",
+    2: "2nd Year",
+    3: "3rd Year",
+    4: "4th Year",
+  };
+  return yearMap[year] || `${year}th Year`;
+};
+
 // Custom Time Picker Component
 const CustomTimePicker = ({ value, onChange, label }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -380,6 +392,9 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
         startTime: quiz.startTime,
         endTime: quiz.endTime,
         dueDate: quiz.dueDate,
+        // ✅ FIXED: Include semester and academicYear from schedule data
+        semester: quiz.semester || null,
+        academicYear: quiz.academicYear || null,
         fullData: {
           assignmentTitle: quiz.title,
           subject: quiz.subject,
@@ -797,6 +812,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                         </span>
                       )}
                     </div>
+                    {/* ✅ FIXED: Show semester and academicYear from schedule data */}
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <button
                         onClick={() => {
@@ -814,6 +830,12 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                           }
                           if (quiz.endTime) {
                             setEndTime(quiz.endTime);
+                          }
+                          if (quiz.semester) {
+                            setSemester(quiz.semester);
+                          }
+                          if (quiz.academicYear) {
+                            setAcademicYear(quiz.academicYear.toString());
                           }
                           setShowScheduleModal(true);
                         }}
@@ -833,7 +855,11 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                           />
                         </svg>
                         <span>
-                          {quiz.grade} - {quiz.semester}
+                          {/* Show schedule year/semester if available, otherwise show grade */}
+                          {quiz.semester && quiz.academicYear 
+                            ? `${formatAcademicYear(quiz.academicYear)} - ${quiz.semester}`
+                            : quiz.grade
+                          }
                         </span>
                       </button>
                     </div>
@@ -851,6 +877,13 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                         setScheduleDate(formattedDate);
                         setStartTime(quiz.startTime || "");
                         setEndTime(quiz.endTime || "");
+                        // Load existing semester and academicYear
+                        if (quiz.semester) {
+                          setSemester(quiz.semester);
+                        }
+                        if (quiz.academicYear) {
+                          setAcademicYear(quiz.academicYear.toString());
+                        }
                         // Load existing due date if available
                         if (quiz.dueDate) {
                           const dueDateObj = new Date(quiz.dueDate);
@@ -911,6 +944,13 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                         }
                         setStartTime(quiz.startTime || "");
                         setEndTime(quiz.endTime || "");
+                        // Load semester and academic year
+                        if (quiz.semester) {
+                          setSemester(quiz.semester);
+                        }
+                        if (quiz.academicYear) {
+                          setAcademicYear(quiz.academicYear.toString());
+                        }
                         // Load existing due date
                         if (quiz.dueDate) {
                           const dueDateObj = new Date(quiz.dueDate);
@@ -1139,7 +1179,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
         </div>
       )}
 
-      {/* Schedule Modal */}
+      {/* Schedule Modal - CONTINUED IN NEXT PART DUE TO LENGTH */}
       {showScheduleModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
@@ -1153,8 +1193,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
                   {selectedQuizForSchedule.title}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {selectedQuizForSchedule.grade} -{" "}
-                  {selectedQuizForSchedule.semester}
+                  {selectedQuizForSchedule.grade}
                 </p>
               </div>
             )}
