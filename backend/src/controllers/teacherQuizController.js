@@ -345,9 +345,8 @@ export const scheduleQuiz = async (req, res) => {
     
     console.log('🔔 Notification result:', notificationResult);
     
-    // Create in-app notification for teacher
+    // ✅ FIXED: Create in-app notification for teacher (removed incorrect require())
     try {
-      const Notification = require('../models/notification.js').default || require('../models/notification.js');
       await Notification.create({
         recipientId: quiz.teacherId,
         recipientRole: 'teacher',
@@ -357,7 +356,7 @@ export const scheduleQuiz = async (req, res) => {
         quizId: quiz._id,
         instructor: teacherName,
         dueDate: formattedDueDate,
-        status: 'pending',
+        status: 'completed',
         isRead: false
       });
       console.log('✅ In-app notification created for teacher');

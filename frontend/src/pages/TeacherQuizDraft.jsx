@@ -494,50 +494,76 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
     setShowShareModal(true);
   };
 
-  const handleScheduleQuiz = async () => {
-    if (!scheduleDate || !startTime || !endTime) {
-      alert("Please select date, start time, and end time");
-      return;
-    }
 
-    if (!semester || !academicYear) {
-      alert("Please select both semester and academic year");
-      return;
-    }
+const handleScheduleQuiz = async () => {
+  if (!scheduleDate || !startTime || !endTime) {
+    alert("Please select date, start time, and end time");
+    return;
+  }
 
-    try {
-      // Update the quiz with schedule information (but keep as draft)
-      await teacherQuizService.updateQuiz(selectedQuizForSchedule.id, {
-        scheduleDate,
-        startTime,
-        endTime,
-        dueDate: dueDate || null,
-        isScheduled: true,
-        semester,
+  if (!semester || !academicYear) {
+    alert("Please select both semester and academic year");
+    return;
+  }
+
+  try {
+    // ✅ DETAILED LOGGING for debugging
+    console.log('🗓️ Scheduling quiz:', selectedQuizForSchedule.id);
+    console.log('📅 Schedule Date:', scheduleDate);
+    console.log('⏰ Start Time:', startTime);
+    console.log('⏰ End Time:', endTime);
+    console.log('📆 Due Date:', dueDate);  // Check if this shows the date
+    console.log('📚 Semester:', semester);
+    console.log('🎓 Academic Year:', academicYear);
+    
+    // ✅ Call the SCHEDULE endpoint (not update)
+    const response = await teacherQuizService.scheduleQuiz(
+      selectedQuizForSchedule.id,
+      {
+        scheduleDate: scheduleDate,
+        startTime: startTime,
+        endTime: endTime,
+        dueDate: dueDate || null,  // Send null if not set
+        semester: semester,
         academicYear: parseInt(academicYear)
-      });
+      }
+    );
 
-      // Reload drafts to show updated data
-      await loadDrafts();
+    console.log('✅ Quiz scheduled successfully:', response);
+    console.log('📧 Notifications sent to:', response.notificationsSent, 'students');
+    console.log('💾 Saved quiz data:', response.quiz);  // Check if dueDate is in here
 
-      // Close modal and reset
-      setShowScheduleModal(false);
-      setSelectedQuizForSchedule(null);
-      setScheduleDate("");
-      setStartTime("");
-      setEndTime("");
-      setDueDate("");
-      setSemester("");
-      setAcademicYear("");
+    // Reload drafts to show updated data
+    await loadDrafts();
 
-      alert(
-        "✅ Quiz Scheduled Successfully!\n\nYour quiz has been scheduled. Click the 'Share' button to make it active and visible to students."
-      );
-    } catch (error) {
-      console.error("Error scheduling quiz:", error);
-      alert("Failed to schedule quiz");
-    }
-  };
+    // Close modal and reset ALL fields
+    setShowScheduleModal(false);
+    setSelectedQuizForSchedule(null);
+    setScheduleDate("");
+    setStartTime("");
+    setEndTime("");
+    setDueDate("");      // ✅ Make sure this is reset
+    setSemester("");
+    setAcademicYear("");
+
+    // Show success message with all details
+    const successMessage = [
+      `✅ Quiz Scheduled Successfully!\n`,
+      `Quiz: "${selectedQuizForSchedule.title}"`,
+      `Students notified: ${response.notificationsSent || 0}`,
+      `Schedule: ${scheduleDate} ${startTime} - ${endTime}`,
+      dueDate ? `Due Date: ${dueDate}` : '',
+      `\nClick 'Share' to make it active for students.`
+    ].filter(Boolean).join('\n');
+
+    alert(successMessage);
+
+  } catch (error) {
+    console.error('❌ Error scheduling quiz:', error);
+    console.error('Error details:', error.response?.data);
+    alert("Failed to schedule quiz: " + (error.response?.data?.message || error.message));
+  }
+};
 
   const handleDueDateUpdate = async () => {
     if (!dueDate) {
