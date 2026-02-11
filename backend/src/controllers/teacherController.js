@@ -1,5 +1,5 @@
 // backend/src/controllers/teacherController.js
-// FIXED VERSION - Corrected stats calculations
+// FIXED VERSION - Corrected quiz time-based status categorization
 
 import Student from '../models/student.js';
 import Teacher from '../models/teacher.js';
@@ -862,7 +862,7 @@ const updateSettings = async (req, res) => {
 };
 
 // ============================================
-// ADDED: GET TEACHER ACTIVITIES
+// FIXED: GET TEACHER ACTIVITIES with time-based status
 // ============================================
 export const getTeacherActivities = async (req, res) => {
   try {
@@ -887,6 +887,8 @@ export const getTeacherActivities = async (req, res) => {
 
     console.log(`✅ Found ${teacherQuizzes.length} quizzes`);
 
+    const now = new Date();
+
     // Transform data for frontend with additional statistics
     const formattedActivities = await Promise.all(
       teacherQuizzes.map(async (quiz) => {
@@ -908,12 +910,43 @@ export const getTeacherActivities = async (req, res) => {
           ? Math.round((completedSubmissions / totalAttempts) * 100)
           : 0;
 
+        // ✅ CRITICAL FIX: Calculate ACTUAL status based on time
+        let actualStatus = quiz.status;
+        
+        if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+          const scheduleDate = new Date(quiz.scheduleDate);
+          const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+          const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+          
+          const startDateTime = new Date(scheduleDate);
+          startDateTime.setHours(startHour, startMinute, 0, 0);
+          
+          const endDateTime = new Date(scheduleDate);
+          endDateTime.setHours(endHour, endMinute, 0, 0);
+          
+          // Handle case where quiz spans across midnight
+          if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+            endDateTime.setDate(endDateTime.getDate() + 1);
+          }
+          
+          // Determine actual status based on current time
+          if (now < startDateTime) {
+            actualStatus = 'scheduled'; // Before start time = scheduled
+          } else if (now >= startDateTime && now < endDateTime) {
+            actualStatus = 'active'; // Between start and end = active
+          } else {
+            actualStatus = 'closed'; // After end time = closed/recent
+          }
+          
+          console.log(`Quiz "${quiz.title}": DB status="${quiz.status}", Actual status="${actualStatus}" (Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}, Now: ${now.toISOString()})`);
+        }
+
         return {
           id: quiz._id,
           quizTitle: quiz.title,
           subject: quiz.subject,
           gradeLevel: Array.isArray(quiz.gradeLevel) ? quiz.gradeLevel.join(', ') : quiz.gradeLevel,
-          status: quiz.status,
+          status: actualStatus, // ✅ Use time-based status instead of DB status
           isScheduled: quiz.isScheduled,
           scheduleDate: quiz.scheduleDate,
           createdAt: quiz.createdAt,
