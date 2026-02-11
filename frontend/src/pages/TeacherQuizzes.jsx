@@ -13,13 +13,16 @@ const TeacherQuizzes = ({ setActiveMenuItem }) => {
     const loadStats = async () => {
       try {
         setLoading(true);
-        const stats = await teacherQuizService.getQuizStats();
-        console.log("📊 Quiz stats received:", stats);
+        const response = await teacherQuizService.getQuizStats();
+        console.log("📊 Quiz stats received:", response);
+
+        // ✅ FIXED: Extract stats from response
+        const statsData = response.stats || response.data?.stats || response;
 
         setQuizStats({
-          active: stats.active || 0,
-          drafts: stats.drafts || 0,
-          scheduled: stats.scheduled || 0,
+          active: statsData.active || 0,
+          drafts: statsData.drafts || 0,
+          scheduled: statsData.scheduled || 0,
         });
       } catch (error) {
         console.error("❌ Error loading quiz stats:", error);

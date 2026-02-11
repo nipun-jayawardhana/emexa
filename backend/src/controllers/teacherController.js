@@ -931,14 +931,12 @@ export const getTeacherActivities = async (req, res) => {
           
           // Determine actual status based on current time
           if (now < startDateTime) {
-            actualStatus = 'scheduled'; // Before start time = scheduled
+            actualStatus = 'scheduled';
           } else if (now >= startDateTime && now < endDateTime) {
-            actualStatus = 'active'; // Between start and end = active
+            actualStatus = 'active';
           } else {
-            actualStatus = 'closed'; // After end time = closed/recent
+            actualStatus = 'closed';
           }
-          
-          console.log(`Quiz "${quiz.title}": DB status="${quiz.status}", Actual status="${actualStatus}" (Start: ${startDateTime.toISOString()}, End: ${endDateTime.toISOString()}, Now: ${now.toISOString()})`);
         }
 
         return {
@@ -946,7 +944,7 @@ export const getTeacherActivities = async (req, res) => {
           quizTitle: quiz.title,
           subject: quiz.subject,
           gradeLevel: Array.isArray(quiz.gradeLevel) ? quiz.gradeLevel.join(', ') : quiz.gradeLevel,
-          status: actualStatus, // ✅ Use time-based status instead of DB status
+          status: actualStatus, // ✅ CHANGED: was quiz.status
           isScheduled: quiz.isScheduled,
           scheduleDate: quiz.scheduleDate,
           createdAt: quiz.createdAt,
