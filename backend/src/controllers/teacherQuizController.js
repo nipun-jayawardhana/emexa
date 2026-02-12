@@ -254,7 +254,7 @@ export const updateQuiz = async (req, res) => {
 export const scheduleQuiz = async (req, res) => {
   try {
     const { id } = req.params;
-    const { scheduleDate, startTime, endTime, dueDate, semester, academicYear } = req.body;
+    const { scheduleDate, startTime, endTime, dueDate, semester, academicYear, maxAttempts } = req.body;
     console.log('🗓️ Schedule Quiz:', id, { scheduleDate, startTime, endTime, dueDate, semester, academicYear });
     
     // Validate schedule data
@@ -300,6 +300,9 @@ export const scheduleQuiz = async (req, res) => {
     }
     if (academicYear) {
       quiz.academicYear = academicYear;
+    }
+    if (maxAttempts) {
+     quiz.maxAttempts = parseInt(maxAttempts);
     }
     quiz.status = 'scheduled'; // Set to scheduled, not active
     
@@ -545,6 +548,7 @@ export const getQuizStats = async (req, res) => {
       const now = new Date();
       let isCurrentlyActive = false;
       let isExpired = false;
+      let isUpcoming = false;
       
       if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
         const scheduleDate = new Date(quiz.scheduleDate);
@@ -557,33 +561,39 @@ export const getQuizStats = async (req, res) => {
         const endDateTime = new Date(scheduleDate);
         endDateTime.setHours(endHour, endMinute, 0, 0);
         
-        // Handle case where quiz spans across midnight
+        // ✅ CRITICAL: Handle case where quiz spans across midnight (e.g., today 8pm to tomorrow 8pm)
         if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
           endDateTime.setDate(endDateTime.getDate() + 1);
         }
         
+        isUpcoming = now < startDateTime;
         isCurrentlyActive = now >= startDateTime && now < endDateTime;
         isExpired = now >= endDateTime;
+        
+        console.log(`📊 Quiz "${quiz.title}": now=${now.toISOString()}, start=${startDateTime.toISOString()}, end=${endDateTime.toISOString()}, isActive=${isCurrentlyActive}, isExpired=${isExpired}`);
       }
       
-      // Priority-based counting to avoid double counting
+      // ✅ FIXED: Priority-based counting - TIME-BASED status takes precedence over DB status
       // 1. Draft = draft status and no schedule info
       if (quiz.status === 'draft' && !quiz.isScheduled) {
         formattedStats.drafts++;
       }
-      // 2. Active = active status OR scheduled quiz that is currently in its time window
-      else if (quiz.status === 'active' || (quiz.isScheduled && isCurrentlyActive)) {
+      // 2. Active = TIME-BASED: scheduled quiz currently in its time window (REGARDLESS of DB status)
+      else if (quiz.isScheduled && isCurrentlyActive) {
         formattedStats.active++;
       }
-      // 3. Closed = closed status OR expired scheduled quizzes (past end time + 1 month for expiry)
-      else if (quiz.status === 'closed' || (quiz.isScheduled && isExpired && !quiz.isExpired)) {
+      // 3. Closed/Recent = TIME-BASED: expired scheduled quizzes OR closed status
+      else if ((quiz.isScheduled && isExpired) || quiz.status === 'closed' || quiz.status === 'completed') {
         formattedStats.closed++;
       }
-      // 4. Scheduled = has schedule info but not currently active AND not expired
-      else if (quiz.isScheduled && !isCurrentlyActive && !isExpired) {
+      // 4. Scheduled = TIME-BASED: future scheduled quizzes (not started yet)
+      else if (quiz.isScheduled && isUpcoming) {
         formattedStats.scheduled++;
       }
-      // 5. Default fallback based on status
+      // 5. Fallback for non-scheduled quizzes with explicit status
+      else if (quiz.status === 'active') {
+        formattedStats.active++;
+      }
       else if (quiz.status === 'scheduled') {
         formattedStats.scheduled++;
       }
@@ -672,8 +682,8 @@ export const getSharedQuizzes = async (req, res) => {
 
     console.log(`✅ Found ${quizzes.length} quizzes for ${student.year} - ${student.semester}`);
 
-    // Process each quiz to add time status
-    const processedQuizzes = quizzes.map(quiz => {
+    // ✅ UPDATED: Process each quiz to add time status AND attempt tracking
+    const processedQuizzes = await Promise.all(quizzes.map(async quiz => {
       const quizObj = quiz.toObject();
       
       let timeStatus = 'active';
@@ -695,12 +705,25 @@ export const getSharedQuizzes = async (req, res) => {
         isCurrentlyActive = false;
       }
 
+      // ✅ NEW: Get attempt tracking info for this student
+      const attemptsUsed = await QuizResult.countDocuments({
+        userId: req.user.id,
+        quizId: quiz._id
+      });
+
+      const canAttempt = attemptsUsed < (quiz.maxAttempts || 1);
+
       return {
         ...quizObj,
         timeStatus,
-        isCurrentlyActive
+        isCurrentlyActive,
+        // ✅ NEW: Attempt tracking fields
+        maxAttempts: quiz.maxAttempts || 1,
+        attemptsUsed,
+        canAttempt,
+        attemptsRemaining: Math.max(0, (quiz.maxAttempts || 1) - attemptsUsed)
       };
-    });
+    }));
 
     res.json({
       success: true,
@@ -729,6 +752,32 @@ export const submitQuizAnswers = async (req, res) => {
     const userId = req.user.id;
 
     console.log('📝 Student submitting quiz:', id, 'User:', userId);
+    const quiz = await TeacherQuiz.findById(id);
+    
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        message: 'Quiz not found'
+      });
+    }
+
+    // Count existing attempts for this student
+    const existingAttempts = await QuizResult.countDocuments({
+      userId,
+      quizId: id
+    });
+
+    console.log(`📊 Attempt check: ${existingAttempts} of ${quiz.maxAttempts} attempts used`);
+
+    // Check if student has exceeded attempt limit
+    if (existingAttempts >= quiz.maxAttempts) {
+      return res.status(403).json({
+        success: false,
+        message: `You have already used all ${quiz.maxAttempts} attempt(s) for this quiz.`,
+        attemptsUsed: existingAttempts,
+        maxAttempts: quiz.maxAttempts
+      });
+    }
 
     // Check for duplicate submission within last 5 seconds to prevent multiple clicks
     const recentSubmission = await QuizResult.findOne({
@@ -754,10 +803,6 @@ export const submitQuizAnswers = async (req, res) => {
         }
       });
     }
-
-    // Find the quiz
-    const quiz = await TeacherQuiz.findById(id);
-
     if (!quiz) {
       return res.status(404).json({
         success: false,

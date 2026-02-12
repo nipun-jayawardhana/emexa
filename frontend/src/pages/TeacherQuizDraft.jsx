@@ -208,6 +208,7 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
   const [endTime, setEndTime] = useState("");
   const [semester, setSemester] = useState("");
   const [academicYear, setAcademicYear] = useState("");
+  const [maxAttempts, setMaxAttempts] = useState("1");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [quizToDelete, setQuizToDelete] = useState(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -523,9 +524,10 @@ const handleScheduleQuiz = async () => {
         scheduleDate: scheduleDate,
         startTime: startTime,
         endTime: endTime,
-        dueDate: dueDate || null,  // Send null if not set
+        dueDate: dueDate || null,  
         semester: semester,
-        academicYear: parseInt(academicYear)
+        academicYear: parseInt(academicYear),
+        maxAttempts: parseInt(maxAttempts) 
       }
     );
 
@@ -1293,6 +1295,39 @@ const handleScheduleQuiz = async () => {
                   placeholder="Select due date"
                 />
               </div>
+
+              <div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    Due Date (Optional)
+  </label>
+  <input
+    type="date"
+    value={dueDate}
+    onChange={(e) => setDueDate(e.target.value)}
+    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm"
+    placeholder="Select due date"
+  />
+</div>
+
+{/* ✅ NEW: Maximum Attempts Dropdown */}
+<div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    Maximum Attempts Allowed *
+  </label>
+  <select
+    value={maxAttempts}
+    onChange={(e) => setMaxAttempts(e.target.value)}
+    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:shadow-[0_0_0_3px_rgba(11,107,58,0.06)] focus:border-teal-600 focus:outline-none text-sm"
+  >
+    <option value="1">1 Attempt (No Retakes)</option>
+    <option value="2">2 Attempts</option>
+    <option value="3">3 Attempts</option>
+  </select>
+  <p className="text-xs text-gray-500 mt-1">
+    Students will be limited to this number of quiz attempts
+  </p>
+</div>
+
             </div>
 
             <div className="flex items-center gap-3">
@@ -1306,6 +1341,7 @@ const handleScheduleQuiz = async () => {
                   setDueDate("");
                   setSemester("");
                   setAcademicYear("");
+                  setMaxAttempts("1");
                 }}
                 className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm"
               >

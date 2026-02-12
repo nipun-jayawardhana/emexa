@@ -12,7 +12,8 @@ import {
   exportUserData,
   uploadProfileImage,
   getStudentActivities,
-  getStudentStats
+  getStudentStats,
+  getStudentAnalytics 
 
 } from '../controllers/userController.js';
 import { protect } from '../middleware/auth.js';
@@ -45,6 +46,7 @@ router.get('/export-data', protect, exportUserData);
 router.get('/dashboard', protect, getDashboardData);
 router.get('/student/activities', protect, getStudentActivities);
 router.get('/student/stats', protect, getStudentStats);
+router.get('/analytics', protect, getStudentAnalytics);
 
 // FIXED: Changed authenticateToken to protect
 router.get('/:userId/dashboard', protect, getUserDashboardById);

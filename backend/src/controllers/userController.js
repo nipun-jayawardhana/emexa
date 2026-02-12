@@ -955,3 +955,173 @@ export const uploadProfileImage = async (req, res) => {
     });
   }
 };
+
+// ============================================
+// GET STUDENT ANALYTICS WITH EMOTION DATA
+// Add this to backend/src/controllers/userController.js
+// ============================================
+export const getStudentAnalytics = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    console.log('📊 Fetching analytics for userId:', userId);
+
+    // Get all completed quiz attempts
+    const attempts = await QuizAttempt.find({ userId })
+      .sort({ completedAt: -1 })
+      .lean();
+
+    if (attempts.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          totalQuizzes: 0,
+          averageScore: 0,
+          highestScore: 0,
+          lowestScore: 0,
+          recentPerformance: [],
+          subjectPerformance: [],
+          emotionalData: null
+        }
+      });
+    }
+
+    // Calculate basic statistics
+    const totalQuizzes = attempts.length;
+    const scores = attempts.map(a => a.finalScore);
+    const totalScore = scores.reduce((sum, score) => sum + score, 0);
+    const averageScore = totalScore / totalQuizzes;
+    const highestScore = Math.max(...scores);
+    const lowestScore = Math.min(...scores);
+
+    // ============================================
+    // PROCESS EMOTIONAL DATA
+    // ============================================
+    const emotionDistribution = {};
+    let totalEmotionCaptures = 0;
+    let mostCommonEmotion = null;
+    let mostCommonCount = 0;
+
+    attempts.forEach(attempt => {
+      if (attempt.emotionalSummary && attempt.emotionalSummary.mostCommonEmotion) {
+        const emotion = attempt.emotionalSummary.mostCommonEmotion;
+        
+        // Count emotion distribution
+        if (!emotionDistribution[emotion]) {
+          emotionDistribution[emotion] = 0;
+        }
+        emotionDistribution[emotion] += 1;
+        totalEmotionCaptures += (attempt.emotionalSummary.totalEmotionCaptures || 1);
+      }
+    });
+
+    // Find most common emotion across all quizzes
+    Object.entries(emotionDistribution).forEach(([emotion, count]) => {
+      if (count > mostCommonCount) {
+        mostCommonEmotion = emotion;
+        mostCommonCount = count;
+      }
+    });
+
+    const emotionalData = totalEmotionCaptures > 0 ? {
+      distribution: emotionDistribution,
+      totalCaptures: totalEmotionCaptures,
+      mostCommonEmotion,
+      mostCommonCount
+    } : null;
+
+    // Get recent performance (last 10 quizzes with details + emotion)
+    const recentAttempts = attempts.slice(0, 10);
+    const recentPerformance = await Promise.all(
+      recentAttempts.map(async (attempt) => {
+        let quizTitle = 'Unknown Quiz';
+        let subject = 'General';
+
+        try {
+          const quiz = await TeacherQuiz.findById(attempt.quizId).lean();
+          if (quiz) {
+            quizTitle = quiz.title;
+            subject = quiz.subject || 'General';
+          }
+        } catch (err) {
+          console.log('Could not fetch quiz details:', err.message);
+        }
+
+        return {
+          title: quizTitle,
+          subject: subject,
+          score: attempt.finalScore,
+          date: attempt.completedAt,
+          correctAnswers: attempt.rawScore,
+          totalQuestions: attempt.answers?.length || 0,
+          emotion: attempt.emotionalSummary?.mostCommonEmotion || null,
+          emotionData: attempt.emotionalSummary || null
+        };
+      })
+    );
+
+    // Calculate subject-wise performance
+    const subjectMap = {};
+    
+    for (const attempt of attempts) {
+      try {
+        const quiz = await TeacherQuiz.findById(attempt.quizId).lean();
+        if (quiz && quiz.subject) {
+          const subject = quiz.subject;
+          
+          if (!subjectMap[subject]) {
+            subjectMap[subject] = {
+              subject: subject,
+              totalScore: 0,
+              count: 0,
+              scores: []
+            };
+          }
+          
+          subjectMap[subject].totalScore += attempt.finalScore;
+          subjectMap[subject].count += 1;
+          subjectMap[subject].scores.push(attempt.finalScore);
+        }
+      } catch (err) {
+        console.log('Error processing subject stats:', err.message);
+      }
+    }
+
+    // Calculate averages and format subject performance
+    const subjectPerformance = Object.values(subjectMap).map(subject => ({
+      subject: subject.subject,
+      averageScore: subject.totalScore / subject.count,
+      count: subject.count,
+      highestScore: Math.max(...subject.scores),
+      lowestScore: Math.min(...subject.scores)
+    })).sort((a, b) => b.averageScore - a.averageScore);
+
+    console.log('✅ Analytics calculated:', {
+      totalQuizzes,
+      averageScore: Math.round(averageScore * 100) / 100,
+      highestScore,
+      subjectCount: subjectPerformance.length,
+      hasEmotionData: !!emotionalData
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalQuizzes,
+        averageScore: Math.round(averageScore * 100) / 100,
+        highestScore,
+        lowestScore,
+        recentPerformance,
+        subjectPerformance,
+        emotionalData  
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching student analytics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch analytics',
+      error: error.message
+    });
+  }
+};

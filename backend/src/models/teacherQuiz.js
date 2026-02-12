@@ -70,6 +70,14 @@ const teacherQuizSchema = new mongoose.Schema({
     default: null
   },
   
+  // ✅ NEW: Maximum attempts allowed for students
+  maxAttempts: {
+    type: Number,
+    enum: [1, 2, 3],
+    default: 1,
+    required: true
+  },
+  
   dueDate: {
     type: Date,
     required: false
