@@ -77,7 +77,6 @@ export const createQuiz = async (req, res) => {
   }
 };
 
-// Get all quizzes for a teacher
 export const getTeacherQuizzes = async (req, res) => {
   try {
     const teacherId = req.user?.id || req.user?._id;
@@ -91,10 +90,45 @@ export const getTeacherQuizzes = async (req, res) => {
     
     const quizzes = await TeacherQuiz.findByTeacher(teacherId);
     
+    // ✅ NEW: Update status based on current time
+    const now = new Date();
+    const updatedQuizzes = quizzes.map(quiz => {
+      const quizObj = quiz.toObject();
+      
+      // Calculate real-time status
+      if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+        const scheduleDate = new Date(quiz.scheduleDate);
+        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+        
+        const startDateTime = new Date(scheduleDate);
+        startDateTime.setHours(startHour, startMinute, 0, 0);
+        
+        const endDateTime = new Date(scheduleDate);
+        endDateTime.setHours(endHour, endMinute, 0, 0);
+        
+        // ✅ Handle midnight crossover
+        if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+          endDateTime.setDate(endDateTime.getDate() + 1);
+        }
+        
+        // ✅ Set real-time status
+        if (now < startDateTime) {
+          quizObj.status = 'scheduled';
+        } else if (now >= startDateTime && now < endDateTime) {
+          quizObj.status = 'active';
+        } else {
+          quizObj.status = 'closed';
+        }
+      }
+      
+      return quizObj;
+    });
+    
     res.status(200).json({
       success: true,
-      count: quizzes.length,
-      quizzes
+      count: updatedQuizzes.length,
+      quizzes: updatedQuizzes
     });
   } catch (error) {
     console.error('Error fetching quizzes:', error);
@@ -761,48 +795,48 @@ export const submitQuizAnswers = async (req, res) => {
       });
     }
 
-    // Count existing attempts for this student
-    const existingAttempts = await QuizResult.countDocuments({
-      userId,
-      quizId: id
-    });
+    // ✅ STEP 1: Check for duplicate submission FIRST (prevent double-click)
+const recentSubmission = await QuizResult.findOne({
+  userId,
+  quizId: id,
+  submittedAt: { $gte: new Date(Date.now() - 5000) }
+});
 
-    console.log(`📊 Attempt check: ${existingAttempts} of ${quiz.maxAttempts} attempts used`);
-
-    // Check if student has exceeded attempt limit
-    if (existingAttempts >= quiz.maxAttempts) {
-      return res.status(403).json({
-        success: false,
-        message: `You have already used all ${quiz.maxAttempts} attempt(s) for this quiz.`,
-        attemptsUsed: existingAttempts,
-        maxAttempts: quiz.maxAttempts
-      });
-    }
-
-    // Check for duplicate submission within last 5 seconds to prevent multiple clicks
-    const recentSubmission = await QuizResult.findOne({
+if (recentSubmission) {
+  console.log('⚠️ Duplicate submission detected, returning existing result');
+  return res.json({
+    success: true,
+    message: 'Quiz already submitted',
+    result: {
       userId,
       quizId: id,
-      submittedAt: { $gte: new Date(Date.now() - 5000) }
-    });
-
-    if (recentSubmission) {
-      console.log('⚠️ Duplicate submission detected, returning existing result');
-      return res.json({
-        success: true,
-        message: 'Quiz already submitted',
-        result: {
-          userId,
-          quizId: id,
-          score: recentSubmission.score,
-          correctAnswers: recentSubmission.correctAnswers,
-          totalQuestions: recentSubmission.totalQuestions,
-          timeTaken: recentSubmission.timeTaken,
-          answers: recentSubmission.answers,
-          submittedAt: recentSubmission.submittedAt
-        }
-      });
+      score: recentSubmission.score,
+      correctAnswers: recentSubmission.correctAnswers,
+      totalQuestions: recentSubmission.totalQuestions,
+      timeTaken: recentSubmission.timeTaken,
+      answers: recentSubmission.answers,
+      submittedAt: recentSubmission.submittedAt
     }
+  });
+}
+
+
+const existingAttempts = await QuizResult.countDocuments({
+  userId,
+  quizId: id
+});
+
+console.log(`📊 Attempt check: ${existingAttempts} of ${quiz.maxAttempts} attempts used`);
+
+// ✅ STEP 3: Check if student has exceeded attempt limit
+if (existingAttempts >= quiz.maxAttempts) {
+  return res.status(403).json({
+    success: false,
+    message: `You have already used all ${quiz.maxAttempts} attempt(s) for this quiz.`,
+    attemptsUsed: existingAttempts,
+    maxAttempts: quiz.maxAttempts
+  });
+}
     if (!quiz) {
       return res.status(404).json({
         success: false,
