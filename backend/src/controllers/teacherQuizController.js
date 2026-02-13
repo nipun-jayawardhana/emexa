@@ -778,11 +778,12 @@ export const getSharedQuizzes = async (req, res) => {
   }
 };
 
-// Submit quiz answers (for students)
+// ✅ CORRECTED VERSION - Replace your submitQuizAnswers function with this
+
 export const submitQuizAnswers = async (req, res) => {
   try {
     const { id } = req.params;
-    const { answers, timeTaken } = req.body;
+    const { answers, timeTaken, abandonedQuiz } = req.body;  // ✅ Add abandonedQuiz here
     const userId = req.user.id;
 
     console.log('📝 Student submitting quiz:', id, 'User:', userId);
@@ -796,55 +797,109 @@ export const submitQuizAnswers = async (req, res) => {
     }
 
     // ✅ STEP 1: Check for duplicate submission FIRST (prevent double-click)
-const recentSubmission = await QuizResult.findOne({
-  userId,
-  quizId: id,
-  submittedAt: { $gte: new Date(Date.now() - 5000) }
-});
-
-if (recentSubmission) {
-  console.log('⚠️ Duplicate submission detected, returning existing result');
-  return res.json({
-    success: true,
-    message: 'Quiz already submitted',
-    result: {
+    const recentSubmission = await QuizResult.findOne({
       userId,
       quizId: id,
-      score: recentSubmission.score,
-      correctAnswers: recentSubmission.correctAnswers,
-      totalQuestions: recentSubmission.totalQuestions,
-      timeTaken: recentSubmission.timeTaken,
-      answers: recentSubmission.answers,
-      submittedAt: recentSubmission.submittedAt
-    }
-  });
-}
+      submittedAt: { $gte: new Date(Date.now() - 5000) }
+    });
 
-
-const existingAttempts = await QuizResult.countDocuments({
-  userId,
-  quizId: id
-});
-
-console.log(`📊 Attempt check: ${existingAttempts} of ${quiz.maxAttempts} attempts used`);
-
-// ✅ STEP 3: Check if student has exceeded attempt limit
-if (existingAttempts >= quiz.maxAttempts) {
-  return res.status(403).json({
-    success: false,
-    message: `You have already used all ${quiz.maxAttempts} attempt(s) for this quiz.`,
-    attemptsUsed: existingAttempts,
-    maxAttempts: quiz.maxAttempts
-  });
-}
-    if (!quiz) {
-      return res.status(404).json({
-        success: false,
-        message: 'Quiz not found'
+    if (recentSubmission) {
+      console.log('⚠️ Duplicate submission detected, returning existing result');
+      return res.json({
+        success: true,
+        message: 'Quiz already submitted',
+        result: {
+          userId,
+          quizId: id,
+          score: recentSubmission.score,
+          correctAnswers: recentSubmission.correctAnswers,
+          totalQuestions: recentSubmission.totalQuestions,
+          timeTaken: recentSubmission.timeTaken,
+          answers: recentSubmission.answers,
+          submittedAt: recentSubmission.submittedAt
+        }
       });
     }
 
-    // Check if quiz is currently active
+    // ✅ STEP 2: Count existing attempts
+    const existingAttempts = await QuizResult.countDocuments({
+      userId,
+      quizId: id
+    });
+
+    console.log(`📊 Attempt check: ${existingAttempts} of ${quiz.maxAttempts} attempts used`);
+
+    // ✅ STEP 3: Check if student has exceeded attempt limit
+    if (existingAttempts >= quiz.maxAttempts) {
+      return res.status(403).json({
+        success: false,
+        message: `You have already used all ${quiz.maxAttempts} attempt(s) for this quiz.`,
+        attemptsUsed: existingAttempts,
+        maxAttempts: quiz.maxAttempts
+      });
+    }
+
+    // ✅ STEP 4: Handle abandoned quiz (student left without submitting)
+    if (abandonedQuiz) {
+      console.log('⚠️ Recording abandoned quiz as attempt');
+      
+      const quizResult = await QuizResult.create({
+        userId,
+        quizId: id,
+        score: 0,
+        correctAnswers: 0,
+        totalQuestions: quiz.questions.length,
+        timeTaken,
+        answers: [],
+        submittedAt: new Date(),
+        abandoned: true
+      });
+
+      console.log('✅ Abandoned quiz recorded:', quizResult._id);
+
+      // Create notification for student
+      try {
+        await Notification.create({
+          recipientId: userId,
+          recipientRole: 'student',
+          type: 'quiz_abandoned',
+          title: quiz.title,
+          description: `Quiz was not completed. This counts as 1 attempt. Score: 0/100`,
+          quizId: id,
+          score: '0/100',
+          status: 'abandoned',
+          isRead: false,
+          metadata: {
+            submissionId: quizResult._id.toString(),
+            attemptNumber: existingAttempts + 1,
+            maxAttempts: quiz.maxAttempts
+          }
+        });
+        console.log('✅ Abandonment notification created');
+      } catch (notifError) {
+        console.error('❌ Error creating abandonment notification:', notifError);
+      }
+
+      return res.json({
+        success: true,
+        message: 'Quiz attempt recorded',
+        result: {
+          userId,
+          quizId: id,
+          score: 0,
+          correctAnswers: 0,
+          totalQuestions: quiz.questions.length,
+          timeTaken,
+          answers: [],
+          submittedAt: quizResult.submittedAt,
+          attemptNumber: existingAttempts + 1,
+          maxAttempts: quiz.maxAttempts,
+          abandoned: true
+        }
+      });
+    }
+
+    // ✅ STEP 5: Check if quiz is currently active
     if (!quiz.isCurrentlyActive()) {
       const timeStatus = quiz.getTimeStatus();
       let message = 'This quiz is not currently available.';
@@ -862,18 +917,17 @@ if (existingAttempts >= quiz.maxAttempts) {
       });
     }
 
-    // Calculate score
+    // ✅ STEP 6: Calculate score (normal submission)
     let correctAnswers = 0;
     const results = quiz.questions.map((question, index) => {
       const userAnswer = answers[index];
-      // Find the index of the correct answer (where isCorrect is true)
       const correctAnswerIndex = question.options?.findIndex(opt => opt.isCorrect);
       const correctAnswer = correctAnswerIndex !== -1 ? correctAnswerIndex : null;
       const isCorrect = userAnswer === correctAnswer;
       if (isCorrect) correctAnswers++;
 
       return {
-        questionId: index + 1,  // Use question number instead of ObjectId
+        questionId: index + 1,
         userAnswer: userAnswer !== undefined ? userAnswer : -1,
         correctAnswer: correctAnswer !== null ? correctAnswer : -1,
         isCorrect
@@ -884,7 +938,7 @@ if (existingAttempts >= quiz.maxAttempts) {
 
     console.log(`✅ Quiz graded: ${correctAnswers}/${quiz.questions.length} correct (${score}%)`);
 
-    // Save submission to database
+    // ✅ STEP 7: Save submission to database
     const quizResult = await QuizResult.create({
       userId,
       quizId: id,
@@ -897,38 +951,43 @@ if (existingAttempts >= quiz.maxAttempts) {
     });
 
     console.log('✅ Quiz result saved to database:', quizResult._id);
+    console.log(`📊 Student now has ${existingAttempts + 1}/${quiz.maxAttempts} attempts used`);
 
-    // Create submission confirmation notification for student
-    // Check if notification already exists for this specific submission
+    // ✅ STEP 8: Create submission confirmation notification
     try {
       const existingNotification = await Notification.findOne({
         recipientId: userId,
         quizId: id,
         type: 'quiz_graded',
-        createdAt: { $gte: new Date(Date.now() - 5000) } // Within last 5 seconds
+        createdAt: { $gte: new Date(Date.now() - 5000) }
       });
 
       if (!existingNotification) {
+        const attemptsRemaining = quiz.maxAttempts - (existingAttempts + 1);
+        const attemptMessage = quiz.maxAttempts > 1 
+          ? ` (Attempt ${existingAttempts + 1}/${quiz.maxAttempts}${attemptsRemaining > 0 ? `, ${attemptsRemaining} remaining` : ', no attempts remaining'})`
+          : '';
+
         await Notification.create({
           recipientId: userId,
           recipientRole: 'student',
           type: 'quiz_graded',
           title: quiz.title,
-          description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
+          description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct)${attemptMessage}.`,
           quizId: id,
           score: `${score}/100`,
           status: 'graded',
           isRead: false,
           metadata: {
-            submissionId: quizResult._id.toString()
+            submissionId: quizResult._id.toString(),
+            attemptNumber: existingAttempts + 1,
+            maxAttempts: quiz.maxAttempts
           }
         });
         console.log('✅ Submission notification created for student:', userId);
-      } else {
-        console.log('⚠️ Notification already exists for this submission, skipping duplicate');
       }
 
-      // Send email notification if enabled
+      // Send email notification
       try {
         const student = await Student.findById(userId);
         if (student && student.email) {
@@ -954,20 +1013,16 @@ if (existingAttempts >= quiz.maxAttempts) {
       console.error('❌ Error creating submission notification:', notifError);
     }
 
-    // Check if majority of students have now completed the quiz
+    // ✅ STEP 9: Check majority completion
     try {
       const totalStudents = await Student.countDocuments({});
       const completedCount = await QuizResult.countDocuments({ quizId: id });
       const completionPercentage = Math.round((completedCount / totalStudents) * 100);
-      const majorityThreshold = 50; // 50% or more is considered majority
+      const majorityThreshold = 50;
 
       console.log(`📊 Quiz completion: ${completedCount}/${totalStudents} students (${completionPercentage}%)`);
 
-      // Check if we've just crossed the majority threshold
       if (completionPercentage >= majorityThreshold && completionPercentage - Math.round(((completedCount - 1) / totalStudents) * 100) > 0) {
-        console.log(`📊 Majority threshold reached! Sending notification to teacher...`);
-        
-        // Get teacher info
         const teacher = await Teacher.findById(quiz.teacherId);
         
         if (teacher && teacher.email) {
@@ -987,9 +1042,7 @@ if (existingAttempts >= quiz.maxAttempts) {
               `📊 Quiz Status: ${quiz.title} - ${completionPercentage}% Complete`,
               emailHtml
             );
-            console.log('✅ Majority completion email sent to teacher:', teacher.email);
 
-            // Also create in-app notification for teacher
             await Notification.create({
               recipientId: quiz.teacherId,
               recipientRole: 'teacher',
@@ -1000,7 +1053,6 @@ if (existingAttempts >= quiz.maxAttempts) {
               status: 'completed',
               isRead: false
             });
-            console.log('✅ Majority completion notification created for teacher');
           } catch (emailError) {
             console.error('❌ Error sending majority completion email:', emailError.message);
           }
@@ -1008,9 +1060,9 @@ if (existingAttempts >= quiz.maxAttempts) {
       }
     } catch (majorityError) {
       console.error('❌ Error checking majority completion:', majorityError);
-      // Don't fail the submission if majority check fails
     }
 
+    // ✅ STEP 10: Return success response
     res.json({
       success: true,
       message: 'Quiz submitted successfully',
@@ -1022,7 +1074,10 @@ if (existingAttempts >= quiz.maxAttempts) {
         totalQuestions: quiz.questions.length,
         timeTaken,
         answers: results,
-        submittedAt: quizResult.submittedAt
+        submittedAt: quizResult.submittedAt,
+        attemptNumber: existingAttempts + 1,
+        maxAttempts: quiz.maxAttempts,
+        attemptsRemaining: Math.max(0, quiz.maxAttempts - (existingAttempts + 1))
       }
     });
   } catch (error) {

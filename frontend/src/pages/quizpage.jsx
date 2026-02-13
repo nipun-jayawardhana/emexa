@@ -621,6 +621,55 @@ const QuizPage = () => {
     setShowHints(false);
   }, [currentQuestion]);
 
+  // ✅ NEW: Block browser navigation during quiz
+useEffect(() => {
+  if (quizSubmitted || showResults || loading) {
+    // Don't block if quiz is submitted, showing results, or still loading
+    return;
+  }
+
+  // Block browser back button
+  const handlePopState = (e) => {
+    e.preventDefault();
+    const confirmLeave = window.confirm(
+      '⚠️ WARNING: Leaving this page will count as using one attempt!\n\n' +
+      'Are you sure you want to leave? This action cannot be undone.'
+    );
+    
+    if (confirmLeave) {
+      // Student confirmed - let them leave and they lose the attempt
+      console.log('🚪 Student left quiz - attempt will be recorded');
+      window.history.back();
+    } else {
+      // Student wants to stay - push state again to prevent navigation
+      window.history.pushState(null, '', window.location.href);
+    }
+  };
+
+  // Block page refresh and tab close
+  const handleBeforeUnload = (e) => {
+    e.preventDefault();
+    e.returnValue = '⚠️ Leaving this page will count as using one attempt!';
+    return e.returnValue;
+  };
+
+  // Initial push state to enable back button blocking
+  window.history.pushState(null, '', window.location.href);
+  
+  // Add event listeners
+  window.addEventListener('popstate', handlePopState);
+  window.addEventListener('beforeunload', handleBeforeUnload);
+
+  console.log('🔒 Navigation blocking enabled');
+
+  // Cleanup
+  return () => {
+    window.removeEventListener('popstate', handlePopState);
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+    console.log('🔓 Navigation blocking disabled');
+  };
+}, [quizSubmitted, showResults, loading]);
+
   const handleAnswerSelect = (optionIndex) => {
     setAnswers({ ...answers, [currentQuestion]: optionIndex });
   };
