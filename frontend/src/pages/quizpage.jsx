@@ -29,13 +29,13 @@ const QuizPage = () => {
   const [showBulb, setShowBulb] = useState(false);
   const [showEmojiDialog, setShowEmojiDialog] = useState(false);
   const [showHints, setShowHints] = useState(false);
-  const [revealedHints, setRevealedHints] = useState({}); // Track revealed hints per question
-  const [pendingHintRequest, setPendingHintRequest] = useState(null); // Store hint request details
+  const [revealedHints, setRevealedHints] = useState({}); 
+  const [pendingHintRequest, setPendingHintRequest] = useState(null); 
   const [quizSubmitted, setQuizSubmitted] = useState(showResults);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [quizStartTime] = useState(Date.now());
   const [totalTime, setTotalTime] = useState(0);
-  const [activeFilter, setActiveFilter] = useState("all"); // Start with NO filter selected
+  const [activeFilter, setActiveFilter] = useState("all"); 
   const [quizData, setQuizData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [flaggedQuestions, setFlaggedQuestions] = useState(new Set());
@@ -669,6 +669,51 @@ useEffect(() => {
     console.log('🔓 Navigation blocking disabled');
   };
 }, [quizSubmitted, showResults, loading]);
+
+// ✅ NEW: Auto-submit if student navigates away
+useEffect(() => {
+  // Track if component is mounted
+  let isMounted = true;
+
+  return () => {
+    isMounted = false;
+    
+    // If quiz was not submitted and student is leaving, auto-submit
+    if (!quizSubmitted && !showResults && !loading && quizData) {
+      console.log('⚠️ Student left quiz without submitting - recording attempt');
+      
+      // Submit quiz in background
+      const autoSubmit = async () => {
+        try {
+          const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
+          const answersArray = Object.entries(answers).map(
+            ([index, answer]) => answer
+          );
+
+          const token = localStorage.getItem('token');
+          
+          await axios.post(
+            `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
+            {
+              answers: answersArray,
+              timeTaken,
+              abandonedQuiz: true  // Flag to indicate student left early
+            },
+            {
+              headers: { Authorization: `Bearer ${token}` }
+            }
+          );
+
+          console.log('✅ Abandoned quiz recorded as attempt');
+        } catch (error) {
+          console.error('❌ Error recording abandoned quiz:', error);
+        }
+      };
+
+      autoSubmit();
+    }
+  };
+}, [quizSubmitted, showResults, loading, quizData, answers, quizId, quizStartTime]);
 
   const handleAnswerSelect = (optionIndex) => {
     setAnswers({ ...answers, [currentQuestion]: optionIndex });

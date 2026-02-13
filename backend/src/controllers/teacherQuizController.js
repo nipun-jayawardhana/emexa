@@ -104,9 +104,25 @@ export const getTeacherQuizzes = async (req, res) => {
         const startDateTime = new Date(scheduleDate);
         startDateTime.setHours(startHour, startMinute, 0, 0);
         
-        const endDateTime = new Date(scheduleDate);
-        endDateTime.setHours(endHour, endMinute, 0, 0);
-        
+        let endDateTime;
+if (quiz.dueDate) {
+  // Use dueDate if available
+  endDateTime = new Date(quiz.dueDate);
+} else if (quiz.endTime) {
+  // Fallback to endTime if no dueDate
+  const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+  endDateTime = new Date(scheduleDate);
+  endDateTime.setHours(endHour, endMinute, 0, 0);
+  
+  // Handle midnight crossover
+  if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+    endDateTime.setDate(endDateTime.getDate() + 1);
+  }
+} else {
+  // No end time specified - treat as active indefinitely after start
+  endDateTime = new Date('2099-12-31');
+}
+
         // ✅ Handle midnight crossover
         if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
           endDateTime.setDate(endDateTime.getDate() + 1);
@@ -585,27 +601,37 @@ export const getQuizStats = async (req, res) => {
       let isUpcoming = false;
       
       if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
-        const scheduleDate = new Date(quiz.scheduleDate);
-        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
-        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-        
-        const startDateTime = new Date(scheduleDate);
-        startDateTime.setHours(startHour, startMinute, 0, 0);
-        
-        const endDateTime = new Date(scheduleDate);
-        endDateTime.setHours(endHour, endMinute, 0, 0);
-        
-        // ✅ CRITICAL: Handle case where quiz spans across midnight (e.g., today 8pm to tomorrow 8pm)
-        if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-          endDateTime.setDate(endDateTime.getDate() + 1);
-        }
-        
-        isUpcoming = now < startDateTime;
-        isCurrentlyActive = now >= startDateTime && now < endDateTime;
-        isExpired = now >= endDateTime;
-        
-        console.log(`📊 Quiz "${quiz.title}": now=${now.toISOString()}, start=${startDateTime.toISOString()}, end=${endDateTime.toISOString()}, isActive=${isCurrentlyActive}, isExpired=${isExpired}`);
-      }
+  const scheduleDate = new Date(quiz.scheduleDate);
+  const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+  
+  const startDateTime = new Date(scheduleDate);
+  startDateTime.setHours(startHour, startMinute, 0, 0);
+  
+  let endDateTime;
+  if (quiz.dueDate) {
+    // Use dueDate if available
+    endDateTime = new Date(quiz.dueDate);
+  } else if (quiz.endTime) {
+    // Fallback to endTime if no dueDate
+    const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+    endDateTime = new Date(scheduleDate);
+    endDateTime.setHours(endHour, endMinute, 0, 0);
+    
+    // Handle midnight crossover
+    if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+      endDateTime.setDate(endDateTime.getDate() + 1);
+    }
+  } else {
+    // No end time specified - treat as active indefinitely after start
+    endDateTime = new Date('2099-12-31');
+  }
+  
+  isUpcoming = now < startDateTime;
+  isCurrentlyActive = now >= startDateTime && now < endDateTime;
+  isExpired = now >= endDateTime;
+  
+  console.log(`📊 Quiz "${quiz.title}": now=${now.toISOString()}, start=${startDateTime.toISOString()}, end=${endDateTime.toISOString()}, isActive=${isCurrentlyActive}, isExpired=${isExpired}`);
+}
       
       // ✅ FIXED: Priority-based counting - TIME-BASED status takes precedence over DB status
       // 1. Draft = draft status and no schedule info
