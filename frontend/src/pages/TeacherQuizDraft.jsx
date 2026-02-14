@@ -234,93 +234,98 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
     };
   }, []);
 
-  // Filter quizzes based on selected status
-  const filteredQuizzes = draftQuizzes.filter((quiz) => {
-    if (filterStatus === "all") return true;
-    if (filterStatus === "draft")
-      return quiz.status === "draft" && !quiz.isScheduled;
-    if (filterStatus === "recentActivity") {
-      // Show quizzes that have ended recently (completed, closed, or past their end time)
-      if (quiz.status === "completed" || quiz.status === "closed") return true;
-      if (((quiz.status === "draft" && quiz.isScheduled) || quiz.status === "scheduled") && quiz.scheduleDate && quiz.endTime) {
-        const now = new Date();
-        const scheduleDate = new Date(quiz.scheduleDate);
-        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-        const [startHour, startMinute] = quiz.startTime ? quiz.startTime.split(':').map(Number) : [0, 0];
-        
-        const endDateTime = new Date(scheduleDate);
-        endDateTime.setHours(endHour, endMinute, 0, 0);
-        
-        // If end time is before start time, quiz spans to next day
-        if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-          endDateTime.setDate(endDateTime.getDate() + 1);
-        }
-        
-        // Show if quiz has ended within the last 30 days
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
-        return now > endDateTime && endDateTime > thirtyDaysAgo;
-      }
-      return false;
+  // Filter quizzes based on selected status with TIME-BASED calculation
+const filteredQuizzes = draftQuizzes.filter((quiz) => {
+  if (filterStatus === "all") return true;
+  
+  // Calculate real-time status for scheduled quizzes
+  const now = new Date();
+  let isCurrentlyActive = false;
+  let isExpired = false;
+  let isUpcoming = false;
+  
+  if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+    const scheduleDate = new Date(quiz.scheduleDate);
+    const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+    const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+    
+    const startDateTime = new Date(scheduleDate);
+    startDateTime.setHours(startHour, startMinute, 0, 0);
+    
+    const endDateTime = new Date(scheduleDate);
+    endDateTime.setHours(endHour, endMinute, 0, 0);
+    
+    // Handle midnight-spanning quizzes
+    if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+      endDateTime.setDate(endDateTime.getDate() + 1);
     }
-    if (filterStatus === "scheduled") {
-      // Only show quizzes that are scheduled but NOT currently active AND NOT expired
-      if ((quiz.status === "draft" && quiz.isScheduled) || quiz.status === "scheduled") {
-        if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
-          const now = new Date();
-          const scheduleDate = new Date(quiz.scheduleDate);
-          const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
-          const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-          
-          const startDateTime = new Date(scheduleDate);
-          startDateTime.setHours(startHour, startMinute, 0, 0);
-          
-          const endDateTime = new Date(scheduleDate);
-          endDateTime.setHours(endHour, endMinute, 0, 0);
-          
-          // If end time is before start time, quiz spans to next day
-          if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-            endDateTime.setDate(endDateTime.getDate() + 1);
-          }
-          
-          // Exclude if currently active OR if already expired (past end time)
-          const isActive = now >= startDateTime && now < endDateTime;
-          const isExpired = now >= endDateTime;
-          
-          return !isActive && !isExpired;
-        }
-        return true;
-      }
-      return false;
+    
+    isUpcoming = now < startDateTime;
+    isCurrentlyActive = now >= startDateTime && now < endDateTime;
+    isExpired = now >= endDateTime;
+    
+    console.log(`Quiz "${quiz.title}":`, {
+      now: now.toISOString(),
+      start: startDateTime.toISOString(),
+      end: endDateTime.toISOString(),
+      isUpcoming,
+      isCurrentlyActive,
+      isExpired
+    });
+  }
+  
+  // DRAFT TAB: Unscheduled drafts only
+  if (filterStatus === "draft") {
+    return quiz.status === "draft" && !quiz.isScheduled;
+  }
+  
+  // SCHEDULED TAB: Future quizzes (not started yet)
+  if (filterStatus === "scheduled") {
+    if (quiz.isScheduled) {
+      return isUpcoming && !isExpired;
     }
-    if (filterStatus === "active") {
-      // Show quizzes with active status OR scheduled quizzes that are currently in their active time window
-      if (quiz.status === "active") return true;
-      if (((quiz.status === "draft" && quiz.isScheduled) || quiz.status === "scheduled") && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
-        // Check if quiz is currently in active time window
-        const now = new Date();
-        const scheduleDate = new Date(quiz.scheduleDate);
-        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
-        const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
-        
-        const startDateTime = new Date(scheduleDate);
-        startDateTime.setHours(startHour, startMinute, 0, 0);
-        
-        const endDateTime = new Date(scheduleDate);
-        endDateTime.setHours(endHour, endMinute, 0, 0);
-        
-        // If end time is before start time, quiz spans to next day
-        if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-          endDateTime.setDate(endDateTime.getDate() + 1);
-        }
-        
-        return now >= startDateTime && now < endDateTime;
-      }
-      return false;
+    return false;
+  }
+  
+  // ACTIVE TAB: Currently in time window
+  if (filterStatus === "active") {
+    if (quiz.isScheduled) {
+      return isCurrentlyActive;
     }
-    return true;
-  });
+    // Fallback for non-scheduled active quizzes
+    return quiz.status === "active";
+  }
+  
+  // RECENT ACTIVITY TAB: Expired/ended quizzes within last 30 days
+  if (filterStatus === "recentActivity") {
+    if (quiz.status === "completed" || quiz.status === "closed") {
+      return true;
+    }
+    
+    if (quiz.isScheduled && quiz.scheduleDate && quiz.endTime) {
+      const scheduleDate = new Date(quiz.scheduleDate);
+      const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+      const [startHour, startMinute] = quiz.startTime ? quiz.startTime.split(':').map(Number) : [0, 0];
+      
+      const endDateTime = new Date(scheduleDate);
+      endDateTime.setHours(endHour, endMinute, 0, 0);
+      
+      // Handle midnight-spanning
+      if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+        endDateTime.setDate(endDateTime.getDate() + 1);
+      }
+      
+      // Show if ended within last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      return now > endDateTime && endDateTime > thirtyDaysAgo;
+    }
+    return false;
+  }
+  
+  return true;
+});
 
   const loadDrafts = async () => {
     try {
@@ -653,117 +658,117 @@ const handleScheduleQuiz = async () => {
           }
           )
         </button>
-        <button
-          onClick={() => setFilterStatus("scheduled")}
-          className={`px-6 py-2.5 rounded-lg font-medium text-sm transition ${
-            filterStatus === "scheduled"
-              ? "bg-blue-600 text-white shadow-md"
-              : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-          }`}
-        >
-          Scheduled (
-          {
-            draftQuizzes.filter((q) => {
-              // Only count scheduled quizzes that are NOT currently active AND NOT expired
-              if ((q.status === "draft" && q.isScheduled) || q.status === "scheduled") {
-                if (q.isScheduled && q.scheduleDate && q.startTime && q.endTime) {
-                  const now = new Date();
-                  const scheduleDate = new Date(q.scheduleDate);
-                  const [startHour, startMinute] = q.startTime.split(':').map(Number);
-                  const [endHour, endMinute] = q.endTime.split(':').map(Number);
-                  
-                  const startDateTime = new Date(scheduleDate);
-                  startDateTime.setHours(startHour, startMinute, 0, 0);
-                  
-                  const endDateTime = new Date(scheduleDate);
-                  endDateTime.setHours(endHour, endMinute, 0, 0);
-                  
-                  // If end time is before start time, quiz spans to next day
-                  if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-                    endDateTime.setDate(endDateTime.getDate() + 1);
-                  }
-                  
-                  // Exclude if currently active OR if already expired
-                  const isActive = now >= startDateTime && now < endDateTime;
-                  const isExpired = now >= endDateTime;
-                  
-                  return !isActive && !isExpired;
-                }
-                return true;
-              }
-              return false;
-            }).length
-          }
-          )
-        </button>
-        <button
-          onClick={() => setFilterStatus("active")}
-          className={`px-6 py-2.5 rounded-lg font-medium text-sm transition ${
-            filterStatus === "active"
-              ? "bg-green-600 text-white shadow-md"
-              : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-          }`}
-        >
-          Active ({
-            draftQuizzes.filter((q) => {
-              if (q.status === "active") return true;
-              if (((q.status === "draft" && q.isScheduled) || q.status === "scheduled") && q.scheduleDate && q.startTime && q.endTime) {
-                const now = new Date();
-                const scheduleDate = new Date(q.scheduleDate);
-                const [startHour, startMinute] = q.startTime.split(':').map(Number);
-                const [endHour, endMinute] = q.endTime.split(':').map(Number);
-                
-                const startDateTime = new Date(scheduleDate);
-                startDateTime.setHours(startHour, startMinute, 0, 0);
-                
-                const endDateTime = new Date(scheduleDate);
-                endDateTime.setHours(endHour, endMinute, 0, 0);
-                
-                // If end time is before start time, quiz spans to next day
-                if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-                  endDateTime.setDate(endDateTime.getDate() + 1);
-                }
-                
-                return now >= startDateTime && now < endDateTime;
-              }
-              return false;
-            }).length
-          })
-        </button>
-        <button
-          onClick={() => setFilterStatus("recentActivity")}
-          className={`px-6 py-2.5 rounded-lg font-medium text-sm transition ${
-            filterStatus === "recentActivity"
-              ? "bg-red-600 text-white shadow-md"
-              : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-          }`}
-        >
-          Recent Activity ({
-            draftQuizzes.filter((q) => {
-              if (q.status === "completed" || q.status === "closed") return true;
-              if (((q.status === "draft" && q.isScheduled) || q.status === "scheduled") && q.scheduleDate && q.endTime) {
-                const now = new Date();
-                const scheduleDate = new Date(q.scheduleDate);
-                const [endHour, endMinute] = q.endTime.split(':').map(Number);
-                const [startHour, startMinute] = q.startTime ? q.startTime.split(':').map(Number) : [0, 0];
-                
-                const endDateTime = new Date(scheduleDate);
-                endDateTime.setHours(endHour, endMinute, 0, 0);
-                
-                // If end time is before start time, quiz spans to next day
-                if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-                  endDateTime.setDate(endDateTime.getDate() + 1);
-                }
-                
-                const thirtyDaysAgo = new Date();
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                
-                return now > endDateTime && endDateTime > thirtyDaysAgo;
-              }
-              return false;
-            }).length
-          })
-        </button>
+        {/* Scheduled Button */}
+<button
+  onClick={() => setFilterStatus("scheduled")}
+  className={`px-6 py-2.5 rounded-lg font-medium text-sm transition ${
+    filterStatus === "scheduled"
+      ? "bg-blue-600 text-white shadow-md"
+      : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+  }`}
+>
+  Scheduled (
+  {
+    draftQuizzes.filter((q) => {
+      if (!q.isScheduled || !q.scheduleDate || !q.startTime || !q.endTime) return false;
+      
+      const now = new Date();
+      const scheduleDate = new Date(q.scheduleDate);
+      const [startHour, startMinute] = q.startTime.split(':').map(Number);
+      const [endHour, endMinute] = q.endTime.split(':').map(Number);
+      
+      const startDateTime = new Date(scheduleDate);
+      startDateTime.setHours(startHour, startMinute, 0, 0);
+      
+      const endDateTime = new Date(scheduleDate);
+      endDateTime.setHours(endHour, endMinute, 0, 0);
+      
+      if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+        endDateTime.setDate(endDateTime.getDate() + 1);
+      }
+      
+      // Upcoming = before start time
+      return now < startDateTime;
+    }).length
+  }
+  )
+</button>
+
+{/* Active Button */}
+<button
+  onClick={() => setFilterStatus("active")}
+  className={`px-6 py-2.5 rounded-lg font-medium text-sm transition ${
+    filterStatus === "active"
+      ? "bg-green-600 text-white shadow-md"
+      : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+  }`}
+>
+  Active (
+  {
+    draftQuizzes.filter((q) => {
+      if (!q.isScheduled || !q.scheduleDate || !q.startTime || !q.endTime) {
+        return q.status === "active";
+      }
+      
+      const now = new Date();
+      const scheduleDate = new Date(q.scheduleDate);
+      const [startHour, startMinute] = q.startTime.split(':').map(Number);
+      const [endHour, endMinute] = q.endTime.split(':').map(Number);
+      
+      const startDateTime = new Date(scheduleDate);
+      startDateTime.setHours(startHour, startMinute, 0, 0);
+      
+      const endDateTime = new Date(scheduleDate);
+      endDateTime.setHours(endHour, endMinute, 0, 0);
+      
+      if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+        endDateTime.setDate(endDateTime.getDate() + 1);
+      }
+      
+      // Currently active = in time window
+      return now >= startDateTime && now < endDateTime;
+    }).length
+  }
+  )
+</button>
+
+{/* Recent Activity Button */}
+<button
+  onClick={() => setFilterStatus("recentActivity")}
+  className={`px-6 py-2.5 rounded-lg font-medium text-sm transition ${
+    filterStatus === "recentActivity"
+      ? "bg-red-600 text-white shadow-md"
+      : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+  }`}
+>
+  Recent Activity (
+  {
+    draftQuizzes.filter((q) => {
+      if (q.status === "completed" || q.status === "closed") return true;
+      
+      if (!q.isScheduled || !q.scheduleDate || !q.endTime) return false;
+      
+      const now = new Date();
+      const scheduleDate = new Date(q.scheduleDate);
+      const [endHour, endMinute] = q.endTime.split(':').map(Number);
+      const [startHour, startMinute] = q.startTime ? q.startTime.split(':').map(Number) : [0, 0];
+      
+      const endDateTime = new Date(scheduleDate);
+      endDateTime.setHours(endHour, endMinute, 0, 0);
+      
+      if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+        endDateTime.setDate(endDateTime.getDate() + 1);
+      }
+      
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      // Expired within last 30 days
+      return now > endDateTime && endDateTime > thirtyDaysAgo;
+    }).length
+  }
+  )
+</button>
       </div>
 
       {/* Loading State */}
@@ -1295,8 +1300,6 @@ const handleScheduleQuiz = async () => {
                   placeholder="Select due date"
                 />
               </div>
-              <div>
-</div>
 
 {/* ✅ NEW: Maximum Attempts Dropdown */}
 <div>

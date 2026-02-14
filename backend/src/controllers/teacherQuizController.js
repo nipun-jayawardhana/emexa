@@ -108,6 +108,7 @@ export const getTeacherQuizzes = async (req, res) => {
 if (quiz.dueDate) {
   // Use dueDate if available
   endDateTime = new Date(quiz.dueDate);
+  endDateTime.setHours(23, 59, 59, 999); 
 } else if (quiz.endTime) {
   // Fallback to endTime if no dueDate
   const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
@@ -122,11 +123,6 @@ if (quiz.dueDate) {
   // No end time specified - treat as active indefinitely after start
   endDateTime = new Date('2099-12-31');
 }
-
-        // ✅ Handle midnight crossover
-        if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-          endDateTime.setDate(endDateTime.getDate() + 1);
-        }
         
         // ✅ Set real-time status
         if (now < startDateTime) {
@@ -611,6 +607,7 @@ export const getQuizStats = async (req, res) => {
   if (quiz.dueDate) {
     // Use dueDate if available
     endDateTime = new Date(quiz.dueDate);
+    endDateTime.setHours(23, 59, 59, 999); 
   } else if (quiz.endTime) {
     // Fallback to endTime if no dueDate
     const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
@@ -742,30 +739,54 @@ export const getSharedQuizzes = async (req, res) => {
 
     console.log(`✅ Found ${quizzes.length} quizzes for ${student.year} - ${student.semester}`);
 
-    // ✅ UPDATED: Process each quiz to add time status AND attempt tracking
+    // ✅ FIXED: Process each quiz with dueDate support
     const processedQuizzes = await Promise.all(quizzes.map(async quiz => {
       const quizObj = quiz.toObject();
       
       let timeStatus = 'active';
       let isCurrentlyActive = true;
 
-      if (quiz.scheduleDate && quiz.startTime && quiz.endTime) {
-        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+      if (quiz.scheduleDate && quiz.startTime) {
         const scheduleDate = new Date(quiz.scheduleDate);
-        scheduleDate.setHours(startHour, startMinute, 0, 0);
+        const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+        
+        const startDateTime = new Date(scheduleDate);
+        startDateTime.setHours(startHour, startMinute, 0, 0);
 
-        if (now < scheduleDate) {
+        // Check if quiz hasn't started yet
+        if (now < startDateTime) {
           timeStatus = 'upcoming';
           isCurrentlyActive = false;
         }
+        
+        // ✅ CRITICAL FIX: Use dueDate if available, otherwise use endTime
+        let endDateTime;
+        if (quiz.dueDate) {
+          endDateTime = new Date(quiz.dueDate);
+          endDateTime.setHours(23, 59, 59, 999); 
+          console.log(`📅 Quiz "${quiz.title}" using dueDate: ${endDateTime.toISOString()}`);
+        } else if (quiz.endTime) {
+          const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+          endDateTime = new Date(scheduleDate);
+          endDateTime.setHours(endHour, endMinute, 0, 0);
+          
+          // Handle midnight-spanning quizzes
+          if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+            endDateTime.setDate(endDateTime.getDate() + 1);
+          }
+          console.log(`⏰ Quiz "${quiz.title}" using endTime: ${endDateTime.toISOString()}`);
+        }
+        
+        // Check if quiz has expired
+        if (endDateTime && now > endDateTime) {
+          timeStatus = 'expired';
+          isCurrentlyActive = false;
+        }
+        
+        console.log(`📊 Quiz "${quiz.title}": now=${now.toISOString()}, end=${endDateTime?.toISOString()}, status=${timeStatus}`);
       }
 
-      if (quiz.dueDate && now > new Date(quiz.dueDate)) {
-        timeStatus = 'expired';
-        isCurrentlyActive = false;
-      }
-
-      // ✅ NEW: Get attempt tracking info for this student
+      // Get attempt tracking info for this student
       const attemptsUsed = await QuizResult.countDocuments({
         userId: req.user.id,
         quizId: quiz._id
@@ -777,7 +798,6 @@ export const getSharedQuizzes = async (req, res) => {
         ...quizObj,
         timeStatus,
         isCurrentlyActive,
-        // ✅ NEW: Attempt tracking fields
         maxAttempts: quiz.maxAttempts || 1,
         attemptsUsed,
         canAttempt,
@@ -854,6 +874,14 @@ export const submitQuizAnswers = async (req, res) => {
     });
 
     console.log(`📊 Attempt check: ${existingAttempts} of ${quiz.maxAttempts} attempts used`);
+    
+    // 🔍 DEBUG: Show all submissions
+    const allSubmissions = await QuizResult.find({
+      userId,
+      quizId: id
+    }).select('submittedAt score abandoned').sort({ submittedAt: -1 });
+    
+    console.log('📋 DEBUG - All submissions for this quiz:', JSON.stringify(allSubmissions, null, 2));
 
     // ✅ STEP 3: Check if student has exceeded attempt limit
     if (existingAttempts >= quiz.maxAttempts) {
@@ -980,64 +1008,130 @@ export const submitQuizAnswers = async (req, res) => {
     console.log(`📊 Student now has ${existingAttempts + 1}/${quiz.maxAttempts} attempts used`);
 
     // ✅ STEP 8: Create submission confirmation notification
-    try {
-      const existingNotification = await Notification.findOne({
-        recipientId: userId,
-        quizId: id,
-        type: 'quiz_graded',
-        createdAt: { $gte: new Date(Date.now() - 5000) }
-      });
+try {
+  const existingNotification = await Notification.findOne({
+    recipientId: userId,
+    quizId: id,
+    type: 'quiz_graded',
+    createdAt: { $gte: new Date(Date.now() - 5000) }
+  });
 
-      if (!existingNotification) {
-        const attemptsRemaining = quiz.maxAttempts - (existingAttempts + 1);
-        const attemptMessage = quiz.maxAttempts > 1 
-          ? ` (Attempt ${existingAttempts + 1}/${quiz.maxAttempts}${attemptsRemaining > 0 ? `, ${attemptsRemaining} remaining` : ', no attempts remaining'})`
-          : '';
+  if (!existingNotification) {
+    const attemptsRemaining = quiz.maxAttempts - (existingAttempts + 1);
+    const attemptMessage = quiz.maxAttempts > 1 
+      ? ` (Attempt ${existingAttempts + 1}/${quiz.maxAttempts}${attemptsRemaining > 0 ? `, ${attemptsRemaining} remaining` : ', no attempts remaining'})`
+      : '';
 
-        await Notification.create({
-          recipientId: userId,
-          recipientRole: 'student',
-          type: 'quiz_graded',
-          title: quiz.title,
-          description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct)${attemptMessage}.`,
-          quizId: id,
-          score: `${score}/100`,
-          status: 'graded',
-          isRead: false,
-          metadata: {
-            submissionId: quizResult._id.toString(),
-            attemptNumber: existingAttempts + 1,
-            maxAttempts: quiz.maxAttempts
-          }
-        });
-        console.log('✅ Submission notification created for student:', userId);
+    await Notification.create({
+      recipientId: userId,
+      recipientRole: 'student',
+      type: 'quiz_graded',
+      title: quiz.title,
+      description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct)${attemptMessage}.`,
+      quizId: id,
+      score: `${score}/100`,
+      status: 'graded',
+      isRead: false,
+      metadata: {
+        submissionId: quizResult._id.toString(),
+        attemptNumber: existingAttempts + 1,
+        maxAttempts: quiz.maxAttempts
       }
+    });
+    console.log('✅ Submission notification created for student:', userId);
+  } else {
+    console.log('⚠️ Duplicate in-app notification detected, skipping creation');
+  }
+} catch (notifError) {
+  console.error('❌ Error creating submission notification:', notifError);
+}
 
-      // Send email notification
-      try {
-        const student = await Student.findById(userId);
-        if (student && student.email) {
-          const emailHtml = await sendQuizSubmissionEmail(
-            student.email,
-            student.name || 'Student',
-            quiz.title,
-            `${score}%`
-          );
+console.log('═══════════════════════════════════════════════════');
+console.log('🔍 DEBUGGING EMAIL NOTIFICATION SEND');
+console.log('═══════════════════════════════════════════════════');
+console.log('📧 User ID:', userId);
+console.log('📧 Quiz ID:', id);
+console.log('📧 Quiz Title:', quiz.title);
+console.log('📧 Score:', score + '%');
+console.log('📧 Correct:', correctAnswers + '/' + quiz.questions.length);
+console.log('📧 Attempt:', (existingAttempts + 1) + '/' + quiz.maxAttempts);
+console.log('═══════════════════════════════════════════════════');
 
-          await sendEmailNotification(
-            userId,
-            student.email,
-            `✅ Quiz Submitted: ${quiz.title}`,
-            emailHtml
-          );
-          console.log('✅ Quiz submission email sent to student:', student.email);
-        }
-      } catch (emailError) {
-        console.error('❌ Error sending submission email:', emailError.message);
-      }
-    } catch (notifError) {
-      console.error('❌ Error creating submission notification:', notifError);
-    }
+try {
+  const student = await Student.findById(userId);
+  console.log('📧 Student lookup result:', student ? '✅ FOUND' : '❌ NOT FOUND');
+  
+  if (student) {
+    console.log('📧 Student Email:', student.email || '❌ NO EMAIL');
+    console.log('📧 Student Name:', student.name || 'Unknown');
+  }
+  
+  if (student && student.email) {
+    console.log('📧 Attempting to send submission email to:', student.email);
+    
+    const attemptsRemaining = quiz.maxAttempts - (existingAttempts + 1);
+    const attemptMessage = quiz.maxAttempts > 1 
+      ? `Attempt ${existingAttempts + 1}/${quiz.maxAttempts}${attemptsRemaining > 0 ? `, ${attemptsRemaining} remaining` : ', no attempts remaining'}`
+      : '';
+    
+    const emailHtml = await sendQuizSubmissionEmail(
+      student.email,
+      student.name || 'Student',
+      quiz.title,
+      `${score}%`,
+      `${correctAnswers}/${quiz.questions.length}`,
+      attemptMessage
+    );
+
+    await sendEmailNotification(
+      userId,
+      student.email,
+      `✅ Quiz Submitted: ${quiz.title}`,
+      emailHtml
+    );
+    console.log('✅ Quiz submission email sent successfully to:', student.email);
+  } else {
+    console.log('⚠️ Student not found or email missing for userId:', userId);
+  }
+} catch (emailError) {
+  console.error('❌ Error sending submission email:', emailError);
+  console.error('❌ Full error details:', emailError.message);
+}
+
+// ✅ STEP 8b: Send email notification (ALWAYS send, separate from duplicate check)
+try {
+  const student = await Student.findById(userId);
+  if (student && student.email) {
+    console.log('📧 Attempting to send submission email to:', student.email);
+    
+    const attemptsRemaining = quiz.maxAttempts - (existingAttempts + 1);
+    const attemptMessage = quiz.maxAttempts > 1 
+      ? `Attempt ${existingAttempts + 1}/${quiz.maxAttempts}${attemptsRemaining > 0 ? `, ${attemptsRemaining} remaining` : ', no attempts remaining'}`
+      : '';
+    
+    const emailHtml = await sendQuizSubmissionEmail(
+      student.email,
+      student.name || 'Student',
+      quiz.title,
+      `${score}%`,
+      `${correctAnswers}/${quiz.questions.length}`,
+      attemptMessage
+    );
+
+    await sendEmailNotification(
+      userId,
+      student.email,
+      `✅ Quiz Submitted: ${quiz.title}`,
+      emailHtml
+    );
+    console.log('✅ Quiz submission email sent successfully to:', student.email);
+  } else {
+    console.log('⚠️ Student not found or email missing for userId:', userId);
+  }
+} catch (emailError) {
+  console.error('❌ Error sending submission email:', emailError);
+  console.error('❌ Full error details:', emailError.message);
+}
 
     // ✅ STEP 9: Check majority completion
     try {

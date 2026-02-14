@@ -449,6 +449,7 @@ const QuizPage = () => {
             let quizExpired = false;
             if (teacherQuiz.dueDate) {
               const dueDateTime = new Date(teacherQuiz.dueDate);
+              dueDateTime.setHours(23, 59, 59, 999); 
               const now = new Date();
               quizExpired = now > dueDateTime;
             }
@@ -670,19 +671,26 @@ useEffect(() => {
   };
 }, [quizSubmitted, showResults, loading]);
 
-// ✅ NEW: Auto-submit if student navigates away
+// ✅ NEW: Auto-submit if student navigates away (FIXED: Only trigger on actual navigation, not page refresh)
 useEffect(() => {
-  // Track if component is mounted
-  let isMounted = true;
+  let isNavigatingAway = false;
+
+  const handleBeforeUnload = () => {
+    isNavigatingAway = true;
+  };
+
+  window.addEventListener('beforeunload', handleBeforeUnload);
 
   return () => {
-    isMounted = false;
+    window.removeEventListener('beforeunload', handleBeforeUnload);
     
-    // If quiz was not submitted and student is leaving, auto-submit
-    if (!quizSubmitted && !showResults && !loading && quizData) {
+    // ONLY auto-submit if:
+    // 1. Student is navigating away (not just component unmount)
+    // 2. Quiz was not submitted
+    // 3. Quiz data exists
+    if (isNavigatingAway && !quizSubmitted && !showResults && quizData) {
       console.log('⚠️ Student left quiz without submitting - recording attempt');
       
-      // Submit quiz in background
       const autoSubmit = async () => {
         try {
           const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
@@ -697,7 +705,7 @@ useEffect(() => {
             {
               answers: answersArray,
               timeTaken,
-              abandonedQuiz: true  // Flag to indicate student left early
+              abandonedQuiz: true
             },
             {
               headers: { Authorization: `Bearer ${token}` }
@@ -713,7 +721,7 @@ useEffect(() => {
       autoSubmit();
     }
   };
-}, [quizSubmitted, showResults, loading, quizData, answers, quizId, quizStartTime]);
+}, [quizSubmitted, showResults, quizData, answers, quizId, quizStartTime]);
 
   const handleAnswerSelect = (optionIndex) => {
     setAnswers({ ...answers, [currentQuestion]: optionIndex });

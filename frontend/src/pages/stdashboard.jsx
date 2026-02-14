@@ -1,3 +1,6 @@
+// FIXED VERSION - Quiz expiration now correctly uses dueDate instead of endTime
+// This fixes the issue where active quizzes were showing as expired
+
 import React, { useState, useEffect, useRef } from "react";
 import camera from "../lib/camera";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
@@ -658,22 +661,37 @@ const StudentDashboard = () => {
                       highlightedQuizId &&
                       String(quizId) === String(highlightedQuizId);
 
-                    // Determine if quiz is active or upcoming
-                    const timeStatus = quiz.timeStatus || "active";
-                    const isActive =
-                      quiz.isCurrentlyActive !== undefined
-                        ? quiz.isCurrentlyActive
-                        : true;
-                    
-                    // Check if quiz is truly expired (due date has passed)
+                    // ✅ FIX: Check expiration using dueDate, not endTime
+                    const now = new Date();
                     let isExpired = false;
+                    let isActive = false;
+                    let timeStatus = 'active';
+
+                    // Check if quiz has started based on startTime
+                    if (quiz.scheduleDate && quiz.startTime) {
+                      const scheduleDate = new Date(quiz.scheduleDate);
+                      const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+                      const startDateTime = new Date(scheduleDate);
+                      startDateTime.setHours(startHour, startMinute, 0, 0);
+                      
+                      if (now < startDateTime) {
+                        timeStatus = 'upcoming';
+                        isActive = false;
+                      } else {
+                        isActive = true;
+                        timeStatus = 'active';
+                      }
+                    }
+
+                    // ✅ CRITICAL FIX: Use dueDate to check if expired
                     if (quiz.dueDate) {
-                      const now = new Date();
                       const dueDateTime = new Date(quiz.dueDate);
-                      isExpired = now > dueDateTime;
-                    } else {
-                      // If no due date, use the old logic
-                      isExpired = timeStatus === "expired";
+                      dueDateTime.setHours(23, 59, 59, 999);
+                      if (now > dueDateTime) {
+                        isExpired = true;
+                        isActive = false;
+                        timeStatus = 'expired';
+                      }
                     }
 
                     console.log("📝 Rendering quiz:", {
@@ -687,6 +705,8 @@ const StudentDashboard = () => {
                       timeStatus,
                       isActive,
                       isExpired,
+                      dueDate: quiz.dueDate,
+                      now: now.toISOString()
                     });
 
                     return (
@@ -743,7 +763,7 @@ const StudentDashboard = () => {
                                 Upcoming
                               </span>
                             )}
-                            {timeStatus === "active" && isActive && (
+                            {timeStatus === "active" && isActive && !isExpired && (
                               <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full font-medium">
                                 Active Now
                               </span>
@@ -811,7 +831,7 @@ const StudentDashboard = () => {
                         </div>
                         <button
   onClick={() => {
-    // ✅ NEW: Check attempt limit first
+    // ✅ Check attempt limit first
     if (quiz.canAttempt === false) {
       alert(
         `You have used all ${quiz.maxAttempts} attempt(s) for this quiz. No more attempts are allowed.`

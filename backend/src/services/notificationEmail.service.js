@@ -108,14 +108,22 @@ export const sendEmailNotification = async (userId, userEmail, subject, htmlCont
     }
 
     // Check if email notifications are enabled
-    const emailNotificationsEnabled = user.notificationSettings?.emailNotifications ?? 
-                                     user.settings?.emailNotifications ?? 
-                                     true; // Default to true if not specified
+const emailNotificationsEnabled = user.notificationSettings?.emailNotifications ?? 
+                                 user.settings?.emailNotifications ?? 
+                                 true; // Default to true if not specified
 
-    if (!emailNotificationsEnabled) {
-      console.log('🔕 Email notifications disabled for user:', userId);
-      return false;
-    }
+console.log(`📧 Email notification settings for user ${userId}:`, {
+  notificationSettings: user.notificationSettings,
+  settings: user.settings,
+  emailNotificationsEnabled
+});
+
+if (!emailNotificationsEnabled) {
+  console.log('🔕 Email notifications disabled for user:', userId);
+  // TEMPORARY: Force send anyway for debugging
+  console.log('⚠️ FORCING EMAIL SEND FOR DEBUGGING');
+  // return false; // Commented out for debugging
+}
 
     // Send email
     const mailOptions = {
@@ -182,10 +190,10 @@ export const sendQuizAssignmentEmail = async (userEmail, userName, quizTitle, qu
   return htmlContent;
 };
 
-/**
+   /**
  * Send quiz submission notification email
  */
-export const sendQuizSubmissionEmail = async (userEmail, userName, quizTitle, score) => {
+export const sendQuizSubmissionEmail = async (userEmail, userName, quizTitle, score, correctAnswers = '', attemptInfo = '') => {
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -195,8 +203,9 @@ export const sendQuizSubmissionEmail = async (userEmail, userName, quizTitle, sc
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
         .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
         .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
-        .score-box { background-color: #c8e6c9; border-left: 4px solid #4CAF50; padding: 15px; margin: 20px 0; text-align: center; }
-        .score-number { font-size: 32px; font-weight: bold; color: #2e7d32; }
+        .score-box { background-color: #c8e6c9; border-left: 4px solid #4CAF50; padding: 20px; margin: 20px 0; text-align: center; }
+        .score-number { font-size: 48px; font-weight: bold; color: #2e7d32; margin: 15px 0; }
+        .details { background-color: #e8f5e9; padding: 15px; margin: 15px 0; border-radius: 5px; }
         .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
       </style>
     </head>
@@ -207,15 +216,22 @@ export const sendQuizSubmissionEmail = async (userEmail, userName, quizTitle, sc
         </div>
         <div class="content">
           <p>Hi <strong>${userName}</strong>,</p>
-          <p>Your quiz submission has been recorded.</p>
+          <p>Your quiz submission has been successfully recorded!</p>
           
           <div class="score-box">
-            <p><strong>Quiz Title:</strong> ${quizTitle}</p>
-            <p class="score-number">${score}</p>
-            <p><strong>Your Score</strong></p>
+            <p style="font-size: 16px; margin-bottom: 10px;"><strong>Quiz Title:</strong> ${quizTitle}</p>
+            <div class="score-number">${score}</div>
+            <p style="font-size: 18px; margin-top: 5px;"><strong>Your Score</strong></p>
+            ${correctAnswers ? `<p style="margin-top: 15px; font-size: 16px;">Correct Answers: <strong>${correctAnswers}</strong></p>` : ''}
           </div>
           
-          <p>You can view your results and detailed feedback by logging into EMEXA.</p>
+          ${attemptInfo ? `
+          <div class="details">
+            <p style="margin: 0; text-align: center; font-size: 15px;"><strong>📊 ${attemptInfo}</strong></p>
+          </div>
+          ` : ''}
+          
+          <p>You can view your detailed results and feedback by logging into EMEXA.</p>
           
           <p>Best regards,<br><strong>EMEXA Team</strong></p>
         </div>
@@ -230,6 +246,7 @@ export const sendQuizSubmissionEmail = async (userEmail, userName, quizTitle, sc
 
   return htmlContent;
 };
+
 
 /**
  * Send profile update confirmation email
