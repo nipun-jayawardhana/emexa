@@ -933,7 +933,7 @@ const handleScheduleQuiz = async () => {
                 </div>
 
                 {/* Scheduled Date/Time Badge and Due Date Badge - Top Right */}
-                <div className="flex flex-col gap-2 items-end">
+                <div className="flex flex-col gap-2 items-center">
                   {quiz.isScheduled && quiz.scheduleDate && (
                     <button
                       onClick={() => {
@@ -988,12 +988,12 @@ const handleScheduleQuiz = async () => {
                           }
                         )}
                       </div>
-                      {quiz.startTime && quiz.endTime && (
-                        <div className="text-xs text-teal-700 font-medium mt-1">
-                          {formatTime12Hour(quiz.startTime)} -{" "}
-                          {formatTime12Hour(quiz.endTime)}
-                        </div>
-                      )}
+                      {/* ✅ FIXED: Show only START time */}
+                        {quiz.startTime && (
+                          <div className="text-xs text-teal-700 font-medium mt-1">
+                            {formatTime12Hour(quiz.startTime)}
+                          </div>
+                       )}
                     </button>
                   )}
                   {quiz.dueDate && (
@@ -1046,12 +1046,18 @@ const handleScheduleQuiz = async () => {
                         </svg>
                       </div>
                       <div className="text-sm font-bold text-orange-900">
-                        {new Date(quiz.dueDate).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </div>
+  {new Date(quiz.dueDate).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })}
+</div>
+{/* ✅ NEW: Show END time as due time */}
+{quiz.endTime && (
+  <div className="text-xs text-orange-700 font-medium mt-1">
+    {formatTime12Hour(quiz.endTime)}
+  </div>
+)}
                     </button>
                   )}
                 </div>
@@ -1347,6 +1353,7 @@ const handleScheduleQuiz = async () => {
     <option value="1">1 Attempt (No Retakes)</option>
     <option value="2">2 Attempts</option>
     <option value="3">3 Attempts</option>
+    <option value="99">Unlimited Attempts</option>
   </select>
   <p className="text-xs text-gray-500 mt-1">
     Students will be limited to this number of quiz attempts

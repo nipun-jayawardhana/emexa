@@ -384,28 +384,50 @@ export const scheduleQuiz = async (req, res) => {
     console.log(`📚 Filtered students by semester: ${semester}, year: ${academicYear} - Count: ${students}`);
     
     // Create notifications for filtered students
-    const formattedDueDate = `${scheduleDate}, ${endTime}`;
-    const notificationResult = await createQuizNotification(quiz._id, {
-      title: quiz.title,
-      subject: quiz.subject,
-      dueDate: formattedDueDate,
-      semester: semester,
-      academicYear: academicYear
-    }, teacherName);
-    
+// ✅ Pass ALL required data including scheduleDate, startTime, endTime, and dueDate
+const notificationResult = await createQuizNotification(quiz._id, {
+  title: quiz.title,
+  subject: quiz.subject,
+  scheduleDate: scheduleDate,    
+  startTime: startTime,          
+  endTime: endTime,              
+  dueDate: dueDate,              
+  semester: semester,
+  academicYear: academicYear
+}, teacherName);
     console.log('🔔 Notification result:', notificationResult);
     
     // ✅ FIXED: Create in-app notification for teacher (removed incorrect require())
     try {
+      // Format dates nicely for teacher notification
+      const formatDateNice = (dateStr) => {
+        if (!dateStr) return null;
+        return new Date(dateStr).toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric'
+        });
+      };
+      const formatTime12H = (t) => {
+        if (!t) return '';
+        const [h, m] = t.split(':');
+        const hr = parseInt(h);
+        const disp = hr === 0 ? 12 : hr > 12 ? hr - 12 : hr;
+        return `${disp}:${m} ${hr >= 12 ? 'PM' : 'AM'}`;
+      };
+
+      const availableFrom = `${formatDateNice(scheduleDate)} at ${formatTime12H(startTime)}`;
+      const dueOn = dueDate
+        ? `${formatDateNice(dueDate)} at ${formatTime12H(endTime)}`
+        : `${formatDateNice(scheduleDate)} at ${formatTime12H(endTime)}`;
+
       await Notification.create({
         recipientId: quiz.teacherId,
         recipientRole: 'teacher',
         type: 'quiz_assigned',
         title: `Quiz Shared: ${quiz.title}`,
-        description: `Your quiz "${quiz.title}" has been shared with ${students} students. Scheduled for ${scheduleDate} from ${startTime} to ${endTime}.`,
+        description: `Your quiz "${quiz.title}" has been shared with ${students} students.\n\n📅 Available from: ${availableFrom}\n⏰ Due: ${dueOn}`,
         quizId: quiz._id,
         instructor: teacherName,
-        dueDate: formattedDueDate,
+        dueDate: dueDate || scheduleDate,
         status: 'completed',
         isRead: false
       });

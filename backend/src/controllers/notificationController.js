@@ -248,17 +248,55 @@ export const createQuizNotification = async (quizId, quizData, teacherName) => {
     }
 
     // Create notifications for filtered students
-    const notifications = students.map(student => ({
-      recipientId: student._id,
-      recipientRole: 'student',
-      type: 'quiz_assigned',
-      title: quizData.title,
-      description: `New quiz assigned covering ${quizData.subject}. Please complete before the deadline.`,
-      quizId: quizId,
-      instructor: teacherName,
-      dueDate: quizData.dueDate || 'No deadline set',
-      status: 'pending'
-    }));
+    // ✅ FIXED: Format dates and times nicely for notification
+const formatDate = (dateStr) => {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+};
+
+const formatTime12Hour = (time24) => {
+  if (!time24) return '';
+  const [hours, minutes] = time24.split(':');
+  const hourNum = parseInt(hours);
+  const displayHour = hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
+  const period = hourNum >= 12 ? 'PM' : 'AM';
+  return `${displayHour}:${minutes} ${period}`;
+};
+
+// Build clear description message
+const scheduleDate = formatDate(quizData.scheduleDate);
+const dueDate = formatDate(quizData.dueDate);
+const startTime = formatTime12Hour(quizData.startTime);
+const endTime = formatTime12Hour(quizData.endTime);
+
+let descriptionMessage = `New quiz assigned by ${teacherName} covering ${quizData.subject || 'multiple topics'}.`;
+
+if (scheduleDate && startTime) {
+  descriptionMessage += `\n\n📅 Available from: ${scheduleDate} at ${startTime}`;
+}
+
+if (dueDate && endTime) {
+  descriptionMessage += `\n⏰ Due: ${dueDate} at ${endTime}`;
+} else if (scheduleDate && endTime) {
+  descriptionMessage += `\n⏰ Ends: ${scheduleDate} at ${endTime}`;  
+}
+
+const notifications = students.map(student => ({
+  recipientId: student._id,
+  recipientRole: 'student',
+  type: 'quiz_assigned',
+  title: quizData.title,
+  description: descriptionMessage,
+  quizId: quizId,
+  instructor: teacherName,
+  dueDate: quizData.dueDate || quizData.scheduleDate || 'No deadline set',
+  status: 'pending'
+}));
 
     console.log('📝 Sample notification:', notifications[0]);
 
