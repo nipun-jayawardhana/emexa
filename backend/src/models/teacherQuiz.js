@@ -210,7 +210,7 @@ teacherQuizSchema.methods.calculateExpiryDate = function() {
   // If end time is before start time (spans to next day), adjust
   if (this.startTime) {
     const [startHour, startMinute] = this.startTime.split(':').map(Number);
-    if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+    if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
       endDateTime.setDate(endDateTime.getDate() + 1);
     }
   }
@@ -244,7 +244,7 @@ teacherQuizSchema.methods.isCurrentlyActive = function() {
   endDateTime.setHours(endHour, endMinute, 0, 0);
   
   // If end time is before start time, quiz spans to next day
-  if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+  if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
     endDateTime.setDate(endDateTime.getDate() + 1);
   }
   
@@ -272,7 +272,7 @@ teacherQuizSchema.methods.getTimeStatus = function() {
   endDateTime.setHours(endHour, endMinute, 0, 0);
   
   // If end time is before start time, quiz spans to next day
-  if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+  if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
     endDateTime.setDate(endDateTime.getDate() + 1);
   }
   

@@ -244,20 +244,36 @@ const filteredQuizzes = draftQuizzes.filter((quiz) => {
   let isExpired = false;
   let isUpcoming = false;
   
-  if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime && quiz.endTime) {
+  // ✅ REMOVED quiz.endTime from the condition - it's optional when dueDate exists
+  if (quiz.isScheduled && quiz.scheduleDate && quiz.startTime) {
     const scheduleDate = new Date(quiz.scheduleDate);
     const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
-    const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
     
     const startDateTime = new Date(scheduleDate);
     startDateTime.setHours(startHour, startMinute, 0, 0);
     
-    const endDateTime = new Date(scheduleDate);
-    endDateTime.setHours(endHour, endMinute, 0, 0);
-    
-    // Handle midnight-spanning quizzes
-    if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-      endDateTime.setDate(endDateTime.getDate() + 1);
+    // ✅ CRITICAL FIX: Use dueDate if available (matching backend exactly)
+    let endDateTime;
+    if (quiz.dueDate) {
+      // Use dueDate and set to end of day
+      endDateTime = new Date(quiz.dueDate);
+      endDateTime.setHours(23, 59, 59, 999);
+      console.log(`📅 Using dueDate for "${quiz.title}":`, endDateTime.toISOString());
+    } else if (quiz.endTime) {
+      // Fallback to endTime
+      const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+      endDateTime = new Date(scheduleDate);
+      endDateTime.setHours(endHour, endMinute, 0, 0);
+      
+      // Handle midnight-spanning quizzes
+      if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
+        endDateTime.setDate(endDateTime.getDate() + 1);
+      }
+      console.log(`⏰ Using endTime for "${quiz.title}":`, endDateTime.toISOString());
+    } else {
+      // No end time specified - treat as active indefinitely after start
+      endDateTime = new Date('2099-12-31');
+      console.log(`♾️  No end time for "${quiz.title}", treating as indefinite`);
     }
     
     isUpcoming = now < startDateTime;
@@ -706,23 +722,32 @@ const handleScheduleQuiz = async () => {
   Active (
   {
     draftQuizzes.filter((q) => {
-      if (!q.isScheduled || !q.scheduleDate || !q.startTime || !q.endTime) {
+      if (!q.isScheduled || !q.scheduleDate || !q.startTime) {
         return q.status === "active";
       }
       
       const now = new Date();
       const scheduleDate = new Date(q.scheduleDate);
       const [startHour, startMinute] = q.startTime.split(':').map(Number);
-      const [endHour, endMinute] = q.endTime.split(':').map(Number);
       
       const startDateTime = new Date(scheduleDate);
       startDateTime.setHours(startHour, startMinute, 0, 0);
       
-      const endDateTime = new Date(scheduleDate);
-      endDateTime.setHours(endHour, endMinute, 0, 0);
-      
-      if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-        endDateTime.setDate(endDateTime.getDate() + 1);
+      // ✅ CRITICAL FIX: Use dueDate if available (matching filter logic)
+      let endDateTime;
+      if (q.dueDate) {
+        endDateTime = new Date(q.dueDate);
+        endDateTime.setHours(23, 59, 59, 999);
+      } else if (q.endTime) {
+        const [endHour, endMinute] = q.endTime.split(':').map(Number);
+        endDateTime = new Date(scheduleDate);
+        endDateTime.setHours(endHour, endMinute, 0, 0);
+        
+        if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
+          endDateTime.setDate(endDateTime.getDate() + 1);
+        }
+      } else {
+        endDateTime = new Date('2099-12-31');
       }
       
       // Currently active = in time window

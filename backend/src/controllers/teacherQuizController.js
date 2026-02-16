@@ -116,9 +116,10 @@ if (quiz.dueDate) {
   endDateTime.setHours(endHour, endMinute, 0, 0);
   
   // Handle midnight crossover
-  if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+  if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
     endDateTime.setDate(endDateTime.getDate() + 1);
-  }
+}
+
 } else {
   // No end time specified - treat as active indefinitely after start
   endDateTime = new Date('2099-12-31');
@@ -615,7 +616,7 @@ export const getQuizStats = async (req, res) => {
     endDateTime.setHours(endHour, endMinute, 0, 0);
     
     // Handle midnight crossover
-    if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+    if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
       endDateTime.setDate(endDateTime.getDate() + 1);
     }
   } else {
@@ -630,29 +631,27 @@ export const getQuizStats = async (req, res) => {
   console.log(`📊 Quiz "${quiz.title}": now=${now.toISOString()}, start=${startDateTime.toISOString()}, end=${endDateTime.toISOString()}, isActive=${isCurrentlyActive}, isExpired=${isExpired}`);
 }
       
-      // ✅ FIXED: Priority-based counting - TIME-BASED status takes precedence over DB status
-      // 1. Draft = draft status and no schedule info
-      if (quiz.status === 'draft' && !quiz.isScheduled) {
-        formattedStats.drafts++;
-      }
-      // 2. Active = TIME-BASED: scheduled quiz currently in its time window (REGARDLESS of DB status)
-      else if (quiz.isScheduled && isCurrentlyActive) {
-        formattedStats.active++;
-      }
-      // 3. Closed/Recent = TIME-BASED: expired scheduled quizzes OR closed status
-      else if ((quiz.isScheduled && isExpired) || quiz.status === 'closed' || quiz.status === 'completed') {
-        formattedStats.closed++;
-      }
-      // 4. Scheduled = TIME-BASED: future scheduled quizzes (not started yet)
-      else if (quiz.isScheduled && isUpcoming) {
-        formattedStats.scheduled++;
-      }
-      // 5. Fallback for non-scheduled quizzes with explicit status
-      else if (quiz.status === 'active') {
-        formattedStats.active++;
-      }
-      else if (quiz.status === 'scheduled') {
-        formattedStats.scheduled++;
+      // ✅ FIX #2: COMPLETELY TIME-BASED counting - separate logic for scheduled vs non-scheduled
+      if (quiz.isScheduled) {
+        // For SCHEDULED quizzes, ONLY use real-time calculation (ignore DB status)
+        if (isUpcoming) {
+          formattedStats.scheduled++;
+        } else if (isCurrentlyActive) {
+          formattedStats.active++;
+        } else if (isExpired) {
+          formattedStats.closed++;
+        }
+      } else {
+        // For NON-SCHEDULED quizzes, use DB status
+        if (quiz.status === 'draft') {
+          formattedStats.drafts++;
+        } else if (quiz.status === 'active') {
+          formattedStats.active++;
+        } else if (quiz.status === 'scheduled') {
+          formattedStats.scheduled++;
+        } else if (quiz.status === 'closed' || quiz.status === 'completed') {
+          formattedStats.closed++;
+        }
       }
     });
     
@@ -771,7 +770,7 @@ export const getSharedQuizzes = async (req, res) => {
           endDateTime.setHours(endHour, endMinute, 0, 0);
           
           // Handle midnight-spanning quizzes
-          if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+          if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
             endDateTime.setDate(endDateTime.getDate() + 1);
           }
           console.log(`⏰ Quiz "${quiz.title}" using endTime: ${endDateTime.toISOString()}`);
