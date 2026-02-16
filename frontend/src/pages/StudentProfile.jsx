@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Eye, EyeOff } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/sidebarorigin';
 import Header from '../components/headerorigin';
@@ -155,8 +155,17 @@ const PasswordModal = ({ isOpen, onClose, onSave }) => {
 const Profile = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   const [activeTab, setActiveTab] = useState('account');
+
+  // Auto-switch to activity tab when navigated from dashboard "View All"
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'activity') {
+      setActiveTab('activity');
+    }
+  }, [searchParams]);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);

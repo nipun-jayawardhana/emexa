@@ -165,7 +165,13 @@ const ActivityTab = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <p className="text-3xl font-bold text-purple-800">{stats.accuracy}%</p>
+            <p className="text-3xl font-bold text-purple-800">
+              {stats.accuracy > 100
+                ? stats.averageScore !== undefined
+                  ? `${parseFloat(stats.averageScore).toFixed(1)}%`
+                  : `${Math.min(stats.accuracy, 100)}%`
+                : `${stats.accuracy}%`}
+            </p>
           </div>
 
           <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-lg border border-orange-200">
@@ -241,19 +247,19 @@ const ActivityTab = () => {
               <div className="text-center">
                 <p className="text-xs text-gray-500 mb-1">Correct Answers</p>
                 <p className="text-lg font-bold text-gray-800">
-                  {activity.correctAnswers}/{activity.totalQuestions}
+                  {/* correctAnswers = actual correct count derived from score */}
+                  {activity.totalQuestions > 0
+                    ? Math.round((activity.score / 100) * activity.totalQuestions)
+                    : 0}/{activity.totalQuestions}
                 </p>
               </div>
 
               <div className="text-center">
                 <p className="text-xs text-gray-500 mb-1">Accuracy</p>
                 <p className="text-lg font-bold text-gray-800">
-                  {activity.totalQuestions > 0 
-                    ? Math.round((activity.correctAnswers / activity.totalQuestions) * 100)
-                    : 0}%
+                  {activity.score !== undefined ? activity.score : 0}%
                 </p>
               </div>
-
               <div className="text-center">
                 <p className="text-xs text-gray-500 mb-1">Hints Used</p>
                 <p className="text-lg font-bold text-gray-800">

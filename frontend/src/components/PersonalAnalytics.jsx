@@ -226,52 +226,71 @@ const PersonalAnalytics = ({ userId }) => {
       {analytics.recentPerformance && analytics.recentPerformance.length > 0 && (
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-gray-900 mb-4">Recent Performance Trend</h3>
-          <div className="relative h-56 bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 border border-gray-200">
-            <div className="absolute left-2 top-4 bottom-8 w-8 flex flex-col justify-between text-xs text-gray-500 font-medium">
-              <span>100</span>
-              <span>75</span>
-              <span>50</span>
-              <span>25</span>
-              <span>0</span>
-            </div>
-
-            <div className="ml-10 mr-2 h-full relative">
-              <div className="absolute inset-0 flex flex-col justify-between pb-8">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="border-t border-gray-300 border-dashed"></div>
-                ))}
+          <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 border border-gray-200">
+            {/* Chart area with fixed height */}
+            <div className="flex items-end gap-2" style={{ height: "180px" }}>
+              {/* Y-axis labels */}
+              <div className="flex flex-col justify-between h-full text-xs text-gray-500 font-medium shrink-0 pb-5">
+                <span>100</span>
+                <span>75</span>
+                <span>50</span>
+                <span>25</span>
+                <span>0</span>
               </div>
 
-              <div className="absolute inset-0 flex items-end justify-around gap-2 pb-8">
-                {analytics.recentPerformance.slice(-8).map((quiz, index) => {
-                  const score = quiz.score || 0;
-                  const height = `${score}%`;
-                  return (
-                    <div key={index} className="flex-1 flex flex-col items-center gap-2 group relative">
-                      <div className="absolute bottom-full mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap z-10 shadow-lg">
-                        <p className="font-semibold">{quiz.title}</p>
-                        <p className="text-gray-300">{quiz.subject}</p>
-                        <p className="font-bold mt-1">{Math.round(score)}%</p>
-                        <p className="text-gray-400 text-xs">
-                          {quiz.correctAnswers}/{quiz.totalQuestions} correct
-                        </p>
-                        {quiz.emotion && (
-                          <p className="text-gray-300 text-xs mt-1">
-                            Emotion: {getEmotionEmoji(quiz.emotion)} {quiz.emotion}
+              {/* Bars + grid */}
+              <div className="flex-1 h-full relative">
+                {/* Dashed grid lines */}
+                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-5">
+                  {[0,1,2,3,4].map((i) => (
+                    <div key={i} className="border-t border-dashed border-gray-300 w-full" />
+                  ))}
+                </div>
+
+                {/* Bars */}
+                <div className="absolute inset-0 flex items-end justify-around gap-1 pb-5">
+                  {analytics.recentPerformance.slice(-8).map((quiz, index) => {
+                    const score = Math.round(quiz.score || 0);
+                    return (
+                      <div
+                        key={index}
+                        className="flex-1 flex flex-col items-center justify-end gap-1 group relative h-full"
+                      >
+                        {/* Tooltip */}
+                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block bg-gray-900 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap z-20 shadow-lg">
+                          <p className="font-semibold">{quiz.title}</p>
+                          {quiz.subject && <p className="text-gray-300">{quiz.subject}</p>}
+                          <p className="font-bold mt-1 text-green-400">{score}%</p>
+                          <p className="text-gray-400 text-xs">
+                            {quiz.correctAnswers}/{quiz.totalQuestions} correct
                           </p>
-                        )}
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                          {quiz.emotion && (
+                            <p className="text-gray-300 text-xs mt-1">
+                              {getEmotionEmoji(quiz.emotion)} {quiz.emotion}
+                            </p>
+                          )}
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" />
+                        </div>
+
+                        {/* Score label above bar */}
+                        <span className={`text-xs font-bold mb-0.5 ${score >= 80 ? 'text-green-600' : score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {score}%
+                        </span>
+
+                        {/* The actual bar */}
+                        <div
+                          className={`w-full rounded-t-md transition-all duration-500 hover:opacity-75 ${getPerformanceColor(score)}`}
+                          style={{ height: `${score}%` }}
+                        />
+
+                        {/* X-axis label */}
+                        <span className="text-xs text-gray-500 font-medium mt-1 shrink-0">
+                          Q{index + 1}
+                        </span>
                       </div>
-                      
-                      <div 
-                        className={`w-full rounded-t transition-all duration-300 hover:opacity-80 ${getPerformanceColor(score)}`}
-                        style={{ height }}
-                      ></div>
-                      
-                      <span className="text-xs text-gray-600 font-medium">Q{index + 1}</span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>

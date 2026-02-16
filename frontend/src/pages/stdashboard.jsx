@@ -900,11 +900,7 @@ const StudentDashboard = () => {
                 </h2>
                 {dashboardData?.recentActivity && dashboardData.recentActivity.length > 0 && (
                   <button 
-                    onClick={() => {
-                      // Show all activities by expanding the list or navigate to a dedicated page
-                      // For now, let's just show a message
-                      alert('Recent Activity: View all feature - Navigate to detailed activity page');
-                    }}
+                    onClick={() => navigate("/profile?tab=activity")}
                     className="text-green-600 text-xs font-medium hover:underline"
                   >
                     View All
