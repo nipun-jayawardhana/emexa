@@ -629,7 +629,6 @@ useEffect(() => {
     return;
   }
 
-  // Block browser back button
   const handlePopState = (e) => {
     e.preventDefault();
     const confirmLeave = window.confirm(
@@ -638,9 +637,9 @@ useEffect(() => {
     );
     
     if (confirmLeave) {
-      // Student confirmed - let them leave and they lose the attempt
-      console.log('🚪 Student left quiz - attempt will be recorded');
-      window.history.back();
+      // Navigate to dashboard directly - NOT back (which would go to permission page)
+      console.log('🚪 Student left quiz - navigating to dashboard');
+      window.location.href = '/dashboard';
     } else {
       // Student wants to stay - push state again to prevent navigation
       window.history.pushState(null, '', window.location.href);
