@@ -217,6 +217,8 @@ const TeacherQuizDraft = ({ setActiveMenuItem, setEditingDraftId }) => {
   const [selectedQuizForDueDate, setSelectedQuizForDueDate] = useState(null);
   const [dueDate, setDueDate] = useState("");
   const [loading, setLoading] = useState(true);
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
   const [filterStatus, setFilterStatus] = useState(() => {
     // Read filter from localStorage on initial load
     const savedFilter = localStorage.getItem("quizFilter");
@@ -473,6 +475,7 @@ const filteredQuizzes = draftQuizzes.filter((quiz) => {
 
   const handleShareQuiz = async () => {
     try {
+      setIsSharing(true);
       // Share quiz - activate it for students with semester and academic year filter
       await teacherQuizService.scheduleQuiz(quizToShare.id, {
         scheduleDate: scheduleDate,
@@ -500,6 +503,8 @@ const filteredQuizzes = draftQuizzes.filter((quiz) => {
         "❌ Failed to share quiz: " +
           (error.response?.data?.message || error.message)
       );
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -529,6 +534,7 @@ const handleScheduleQuiz = async () => {
   }
 
   try {
+    setIsScheduling(true);
     // ✅ DETAILED LOGGING for debugging
     console.log('🗓️ Scheduling quiz:', selectedQuizForSchedule.id);
     console.log('📅 Schedule Date:', scheduleDate);
@@ -585,6 +591,8 @@ const handleScheduleQuiz = async () => {
     console.error('❌ Error scheduling quiz:', error);
     console.error('Error details:', error.response?.data);
     alert("Failed to schedule quiz: " + (error.response?.data?.message || error.message));
+  } finally {
+    setIsScheduling(false);
   }
 };
 
@@ -1360,15 +1368,48 @@ const handleScheduleQuiz = async () => {
                   setAcademicYear("");
                   setMaxAttempts("1");
                 }}
-                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm"
+                disabled={isScheduling}
+                className={`flex-1 px-4 py-2.5 border rounded-lg font-medium text-sm transition ${
+                  isScheduling
+                    ? "border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50"
+                    : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                }`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleScheduleQuiz}
-                className="flex-1 px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm"
+                disabled={isScheduling}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition ${
+                  isScheduling
+                    ? "bg-teal-400 text-white cursor-not-allowed"
+                    : "bg-teal-600 text-white hover:bg-teal-700"
+                }`}
               >
-                Schedule
+                {isScheduling ? (
+                  <>
+                    <svg
+                      className="animate-spin w-4 h-4 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12" cy="12" r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8H4z"
+                      />
+                    </svg>
+                    Scheduling...
+                  </>
+                ) : (
+                  "Schedule"
+                )}
               </button>
             </div>
           </div>
@@ -1480,9 +1521,37 @@ const handleScheduleQuiz = async () => {
               </button>
               <button
                 onClick={handleShareQuiz}
-                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+                disabled={isSharing}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition ${
+                  isSharing
+                    ? "bg-blue-400 text-white cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
               >
-                Share Quiz
+                {isSharing ? (
+                  <>
+                    <svg
+                      className="animate-spin w-4 h-4 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12" cy="12" r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8H4z"
+                      />
+                    </svg>
+                    Sharing...
+                  </>
+                ) : (
+                  "Share Quiz"
+                )}
               </button>
             </div>
           </div>
