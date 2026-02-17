@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Eye, EyeOff } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from '../components/sidebarorigin';
 import Header from '../components/headerorigin';
 import AdminViewWrapper from '../components/AdminViewWrapper';
+import ActivityTab from '../components/ActivityTab'; 
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000';
 
 // Helper function to get full image URL - ADDED for multi-device support
 const getImageUrl = (imagePath) => {
@@ -16,9 +18,9 @@ const getImageUrl = (imagePath) => {
     return imagePath;
   }
   
-  // If it's a relative path, construct full URL
+  // If it's a relative path, construct full URL using API_BASE
   if (imagePath.startsWith('/uploads/')) {
-    return `http://localhost:5000${imagePath}`;
+    return `${API_BASE}${imagePath}`;
   }
   
   return imagePath;
@@ -153,8 +155,17 @@ const PasswordModal = ({ isOpen, onClose, onSave }) => {
 const Profile = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   const [activeTab, setActiveTab] = useState('account');
+
+  // Auto-switch to activity tab when navigated from dashboard "View All"
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'activity') {
+      setActiveTab('activity');
+    }
+  }, [searchParams]);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -206,8 +217,14 @@ const Profile = () => {
 useEffect(() => {
   if (userData?.profileImage && userData.profileImage !== profileImage) {
     console.log('🖼️ Loading profile image from database:', userData.profileImage);
-    setProfileImage(userData.profileImage);
-    localStorage.setItem('studentProfileImage', userData.profileImage);
+    const fullImageUrl = getImageUrl(userData.profileImage);
+    console.log('🖼️ Converted to full URL:', fullImageUrl);
+    setProfileImage(fullImageUrl);
+    // Save the FULL URL to localStorage so Header can use it directly
+    localStorage.setItem('studentProfileImage', fullImageUrl);
+    console.log('💾 Saved to localStorage:', fullImageUrl);
+    // Also dispatch event to notify other components
+    window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: fullImageUrl }));
   } else if (!userData?.profileImage) {
     // Clear profile image if user doesn't have one
     console.log('🖼️ No profile image, clearing...');
@@ -272,7 +289,7 @@ const fetchUserData = async () => {
       try {
         // Fetch the specific user's profile by ID
         const response = await axios.get(
-          `http://localhost:5000/api/users/${viewingUserId}`,
+          `${API_BASE}/api/users/${viewingUserId}`,
           {
             headers: { Authorization: `Bearer ${adminToken}` }
           }
@@ -310,7 +327,7 @@ const fetchUserData = async () => {
         // Set profile image
         if (user.profileImage) {
           console.log('🖼️ Setting profile image:', user.profileImage);
-          setProfileImage(user.profileImage);
+          setProfileImage(getImageUrl(user.profileImage));
         }
 
         setLoading(false);
@@ -342,12 +359,13 @@ const fetchUserData = async () => {
 
     try {
       console.log('👤 Fetching own profile');
-      const response = await axios.get('http://localhost:5000/api/users/profile', {
+      const response = await axios.get(`${API_BASE}/api/users/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       const user = response.data;
       console.log('✅ Fetched own profile data:', user);
+      console.log('🖼️ ProfileImage from API:', user.profileImage);
       
       setUserData(user);
       setFormData({
@@ -377,7 +395,15 @@ const fetchUserData = async () => {
       // Set profile image
       if (user.profileImage) {
         console.log('🖼️ Loading profile image:', user.profileImage);
-        setProfileImage(user.profileImage);
+        const fullImageUrl = getImageUrl(user.profileImage);
+        console.log('🖼️ Converted to full URL:', fullImageUrl);
+        setProfileImage(fullImageUrl);
+        // SAVE TO LOCALSTORAGE IMMEDIATELY
+        localStorage.setItem('studentProfileImage', fullImageUrl);
+        console.log('💾 Saved to localStorage:', fullImageUrl);
+        // Dispatch event for Header to pick up
+        window.dispatchEvent(new CustomEvent('studentProfileImageChanged', { detail: fullImageUrl }));
+        console.log('📢 Dispatched studentProfileImageChanged event');
       }
 
     } catch (apiError) {
@@ -410,7 +436,7 @@ const fetchUserData = async () => {
       setPrivacySettings(fallbackData.privacySettings);
       
       if (fallbackData.profileImage) {
-        setProfileImage(fallbackData.profileImage);
+        setProfileImage(getImageUrl(fallbackData.profileImage));
       }
     }
     
@@ -435,7 +461,7 @@ const fetchUserData = async () => {
     });
     
     if (fallbackImage) {
-      setProfileImage(fallbackImage);
+      setProfileImage(getImageUrl(fallbackImage));
     }
     
   } finally {
@@ -507,11 +533,11 @@ const handleSaveAccountInfo = async () => {
     
     console.log('💾 Saving profile data:', dataToSave);
     
-    let updateUrl = 'http://localhost:5000/api/users/update-profile';
+let updateUrl = `${API_BASE}/api/users/update-profile`;
     
     // If admin is viewing a specific user
     if (isAdminViewing && viewingUserId) {
-      updateUrl = `http://localhost:5000/api/users/${viewingUserId}`;
+      updateUrl = `${API_BASE}/api/users/${viewingUserId}`;
       console.log('👤 Admin updating user:', viewingUserId);
     }
     
@@ -571,7 +597,7 @@ const handleSaveAccountInfo = async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.put(
-        'http://localhost:5000/api/users/change-password',
+        `${API_BASE}/api/users/change-password`,
         {
           currentPassword: currentPassword,
           newPassword: newPassword
@@ -596,7 +622,7 @@ const handleSaveAccountInfo = async () => {
       console.log('🔑 Token:', token ? 'Present' : 'Missing');
       
       const response = await axios.put(
-        'http://localhost:5000/api/users/notification-settings',
+        `${API_BASE}/api/users/notification-settings`,
         notificationSettings,
         { headers: { Authorization: `Bearer ${token}` }}
       );
@@ -624,7 +650,7 @@ const handleSaveAccountInfo = async () => {
       console.log('🔑 Token:', token ? 'Present' : 'Missing');
       
       const response = await axios.put(
-        'http://localhost:5000/api/users/privacy-settings',
+        `${API_BASE}/api/users/privacy-settings`,
         privacySettings,
         { headers: { Authorization: `Bearer ${token}` }}
       );
@@ -647,7 +673,7 @@ const handleSaveAccountInfo = async () => {
   const handleExportData = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/users/export-data', {
+      const response = await axios.get(`${API_BASE}/api/users/export-data`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -932,7 +958,7 @@ const handleProfileImageChange = async (e) => {
 
     // Upload to server
     const response = await axios.post(
-      'http://localhost:5000/api/users/upload-profile',
+      `${API_BASE}/api/users/upload-profile`,
       formData,
       {
         headers: {
@@ -1043,12 +1069,20 @@ const handleProfileImageChange = async (e) => {
               />
               <div className="bg-white rounded-full p-1 shadow-lg">
                 <img
-                  src={profileImage || userData?.profileImage || "https://via.placeholder.com/120"}
+                  key={getImageUrl(profileImage || userData?.profileImage)}
+                  src={getImageUrl(profileImage || userData?.profileImage)}
                   alt="Profile"
                   className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
+                  onLoad={() => {
+                    console.log('✅ Image loaded successfully from:', getImageUrl(profileImage || userData?.profileImage));
+                  }}
                   onError={(e) => {
-                    console.error('❌ Image failed to load:', e.target.src);
-                    e.target.src = "https://via.placeholder.com/120";
+                    console.error('❌ Image failed to load from:', e.target.src);
+                    // Only set fallback if it's not already the fallback (prevent infinite loop)
+                    if (!e.target.src.includes('placeholder')) {
+                      console.log('🔄 Setting fallback image...');
+                      e.target.src = "https://via.placeholder.com/128";
+                    }
                   }}
                 />
               </div>
@@ -1110,7 +1144,7 @@ const handleProfileImageChange = async (e) => {
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                Recent Activity
+                 Activity
                 {activeTab === 'activity' && (
                   <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-600"></div>
                 )}
@@ -1271,49 +1305,7 @@ const handleProfileImageChange = async (e) => {
           )}
 
           {activeTab === 'activity' && (
-            <div className="space-y-6">
-              <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
-
-              {userData?.recentActivity && userData.recentActivity.length > 0 ? (
-                <div className="space-y-4">
-                  {userData.recentActivity.map((activity, index) => (
-                    <div key={index} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                      <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center shrink-0">
-                        <svg className="w-6 h-6 text-teal-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                        </svg>
-                      </div>
-
-                      <div className="flex-1">
-                        <h3 className="font-medium text-teal-600">{activity.title}</h3>
-                        <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
-                          <span>Calendar {new Date(activity.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                          <span>Attempts: {activity.attempts || 1}</span>
-                        </div>
-                      </div>
-
-                      {activity.score && (
-                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          activity.score >= 90 ? 'bg-green-100 text-green-800' :
-                          activity.score >= 80 ? 'bg-blue-100 text-blue-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          Score: {activity.score}%
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                  <p className="text-gray-500 font-medium">No recent activity yet</p>
-                  <p className="text-sm text-gray-400 mt-2">Your quiz attempts will appear here</p>
-                </div>
-              )}
-            </div>
+             <ActivityTab />
           )}
 
           {activeTab === 'privacy' && (

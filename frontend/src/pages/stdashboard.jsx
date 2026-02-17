@@ -1,3 +1,6 @@
+// FIXED VERSION - Quiz expiration now correctly uses dueDate instead of endTime
+// This fixes the issue where active quizzes were showing as expired
+
 import React, { useState, useEffect, useRef } from "react";
 import camera from "../lib/camera";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
@@ -6,6 +9,7 @@ import teacherQuizService from "../services/teacherQuizService";
 import AdminViewWrapper from "../components/AdminViewWrapper";
 import Sidebar from "../components/sidebarorigin";
 import Header from "../components/headerorigin";
+import PersonalAnalytics from '../components/PersonalAnalytics';
 
 // Helper function to convert 24-hour time to 12-hour AM/PM format
 const formatTime12Hour = (time24) => {
@@ -657,13 +661,38 @@ const StudentDashboard = () => {
                       highlightedQuizId &&
                       String(quizId) === String(highlightedQuizId);
 
-                    // Determine if quiz is active or upcoming
-                    const timeStatus = quiz.timeStatus || "active";
-                    const isActive =
-                      quiz.isCurrentlyActive !== undefined
-                        ? quiz.isCurrentlyActive
-                        : true;
-                    const isExpired = timeStatus === "expired";
+                    // ✅ FIX: Check expiration using dueDate, not endTime
+                    const now = new Date();
+                    let isExpired = false;
+                    let isActive = false;
+                    let timeStatus = 'active';
+
+                    // Check if quiz has started based on startTime
+                    if (quiz.scheduleDate && quiz.startTime) {
+                      const scheduleDate = new Date(quiz.scheduleDate);
+                      const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
+                      const startDateTime = new Date(scheduleDate);
+                      startDateTime.setHours(startHour, startMinute, 0, 0);
+                      
+                      if (now < startDateTime) {
+                        timeStatus = 'upcoming';
+                        isActive = false;
+                      } else {
+                        isActive = true;
+                        timeStatus = 'active';
+                      }
+                    }
+
+                    // ✅ CRITICAL FIX: Use dueDate to check if expired
+                    if (quiz.dueDate) {
+                      const dueDateTime = new Date(quiz.dueDate);
+                      dueDateTime.setHours(23, 59, 59, 999);
+                      if (now > dueDateTime) {
+                        isExpired = true;
+                        isActive = false;
+                        timeStatus = 'expired';
+                      }
+                    }
 
                     console.log("📝 Rendering quiz:", {
                       index,
@@ -676,6 +705,8 @@ const StudentDashboard = () => {
                       timeStatus,
                       isActive,
                       isExpired,
+                      dueDate: quiz.dueDate,
+                      now: now.toISOString()
                     });
 
                     return (
@@ -714,17 +745,30 @@ const StudentDashboard = () => {
                             <h3 className="font-semibold text-gray-900 text-sm">
                               {quiz.title}
                             </h3>
+  
+    {quiz.maxAttempts > 1 && quiz.attemptsUsed !== undefined && (
+      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+        quiz.canAttempt 
+          ? 'bg-blue-100 text-blue-700' 
+          : 'bg-red-100 text-red-700'
+      }`}>
+        {quiz.canAttempt 
+          ? `Attempt ${quiz.attemptsUsed + 1}/${quiz.maxAttempts}`
+          : `All ${quiz.maxAttempts} attempts used`
+        }
+      </span>
+    )}
                             {timeStatus === "upcoming" && (
                               <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">
                                 Upcoming
                               </span>
                             )}
-                            {timeStatus === "active" && isActive && (
+                            {timeStatus === "active" && isActive && !isExpired && (
                               <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full font-medium">
                                 Active Now
                               </span>
                             )}
-                            {timeStatus === "expired" && (
+                            {isExpired && (
                               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
                                 Expired
                               </span>
@@ -737,27 +781,16 @@ const StudentDashboard = () => {
                               </span>
                             )}
                             {quiz.scheduleDate &&
-                              quiz.startTime &&
-                              quiz.endTime && (
+                              quiz.startTime && (
                                 <span className="text-blue-600 font-medium">
                                   {(() => {
                                     try {
                                       const scheduleDate = new Date(quiz.scheduleDate);
                                       const [startHour, startMinute] = quiz.startTime.split(':').map(Number);
-                                      const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
                                       
                                       // Create start datetime
                                       const startDateTime = new Date(scheduleDate);
                                       startDateTime.setHours(startHour, startMinute, 0, 0);
-                                      
-                                      // Create end datetime
-                                      const endDateTime = new Date(scheduleDate);
-                                      endDateTime.setHours(endHour, endMinute, 0, 0);
-                                      
-                                      // If end time is before start time, quiz spans to next day
-                                      if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
-                                        endDateTime.setDate(endDateTime.getDate() + 1);
-                                      }
                                       
                                       // Format start time
                                       const startTimeStr = startDateTime.toLocaleTimeString('en-US', {
@@ -770,18 +803,7 @@ const StudentDashboard = () => {
                                         day: 'numeric'
                                       });
                                       
-                                      // Format end time
-                                      const endTimeStr = endDateTime.toLocaleTimeString('en-US', {
-                                        hour: 'numeric',
-                                        minute: '2-digit',
-                                        hour12: true
-                                      });
-                                      const endDateStr = endDateTime.toLocaleDateString('en-US', {
-                                        month: 'short',
-                                        day: 'numeric'
-                                      });
-                                      
-                                      return `${startTimeStr} on ${startDateStr} → ${endTimeStr} on ${endDateStr}`;
+                                      return `Start: ${startTimeStr} on ${startDateStr}`;
                                     } catch {
                                       return "Invalid date/time";
                                     }
@@ -789,6 +811,15 @@ const StudentDashboard = () => {
                                 </span>
                               )}
                           </p>
+                          {quiz.dueDate && (
+                            <p className="text-xs text-red-600 font-semibold mb-1.5">
+                              Due: {new Date(quiz.dueDate).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </p>
+                          )}
                           <p className="text-xs text-gray-600 leading-relaxed">
                             {quiz.description ||
                               (quiz.questions?.length
@@ -799,48 +830,61 @@ const StudentDashboard = () => {
                           </p>
                         </div>
                         <button
-                          onClick={() => {
-                            if (isExpired) {
-                              alert(
-                                "This quiz has expired. The deadline has passed."
-                              );
-                              return;
-                            }
-                            if (!isActive && timeStatus === "upcoming") {
-                              alert(
-                                "This quiz has not started yet. Please wait until the scheduled time."
-                              );
-                              return;
-                            }
-                            const targetId = quiz.id || `quiz-${index}`;
-                            // Navigate to permission page - camera will start only after user clicks "Allow"
-                            navigate(
-                              `/permission?quizId=${encodeURIComponent(
-                                targetId
-                              )}`
-                            );
-                          }}
-                          disabled={
-                            isExpired ||
-                            (!isActive && timeStatus === "upcoming")
-                          }
+  onClick={() => {
+    // ✅ Check attempt limit first
+    if (quiz.canAttempt === false) {
+      alert(
+        `You have used all ${quiz.maxAttempts} attempt(s) for this quiz. No more attempts are allowed.`
+      );
+      return;
+    }
+    if (isExpired) {
+      alert(
+        "This quiz has expired. The deadline has passed."
+      );
+      return;
+    }
+    if (!isActive && timeStatus === "upcoming") {
+      alert(
+        "This quiz has not started yet. Please wait until the scheduled time."
+      );
+      return;
+    }
+    const targetId = quiz.id || `quiz-${index}`;
+    navigate(
+      `/permission?quizId=${encodeURIComponent(
+        targetId
+      )}`
+    );
+  }}
+  disabled={
+    quiz.canAttempt === false ||
+    isExpired ||
+    (!isActive && timeStatus === "upcoming")
+  }
                           style={
                             isExpired ? { backgroundColor: "#FF0000" } : {}
                           }
                           className={`inline-flex items-center justify-center text-white px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap min-w-[80px] ${
-                            isExpired
-                              ? "cursor-not-allowed"
-                              : !isActive && timeStatus === "upcoming"
-                              ? "!bg-gray-300 !text-gray-500 cursor-not-allowed"
-                              : "bg-green-500 hover:bg-green-600"
-                          }`}
+  quiz.canAttempt === false
+    ? "!bg-red-500 !text-white cursor-not-allowed"
+    : isExpired
+    ? "cursor-not-allowed"
+    : !isActive && timeStatus === "upcoming"
+    ? "!bg-gray-300 !text-gray-500 cursor-not-allowed"
+    : "bg-green-500 hover:bg-green-600"
+}`}
                         >
-                          {isExpired
-                            ? "Expired"
-                            : timeStatus === "upcoming"
-                            ? "Not Started"
-                            : "Take Quiz"}
-                        </button>
+                          {quiz.canAttempt === false
+  ? "No Attempts Left"
+  : isExpired
+  ? "Expired"
+  : timeStatus === "upcoming"
+  ? "Not Started"
+  : quiz.attemptsUsed > 0
+  ? `Retake (${quiz.attemptsRemaining} left)`
+  : "Take Quiz"}
+                          </button>
                       </div>
                     );
                   });
@@ -856,11 +900,7 @@ const StudentDashboard = () => {
                 </h2>
                 {dashboardData?.recentActivity && dashboardData.recentActivity.length > 0 && (
                   <button 
-                    onClick={() => {
-                      // Show all activities by expanding the list or navigate to a dedicated page
-                      // For now, let's just show a message
-                      alert('Recent Activity: View all feature - Navigate to detailed activity page');
-                    }}
+                    onClick={() => navigate("/profile?tab=activity")}
                     className="text-green-600 text-xs font-medium hover:underline"
                   >
                     View All
@@ -940,33 +980,8 @@ const StudentDashboard = () => {
               </div>
             </div>
 
-            {/* Personal Analytics */}
-            <div className="bg-white rounded-lg p-5 border border-gray-200">
-              <h2 className="text-base font-bold text-gray-900 mb-4">
-                Personal Analytics
-              </h2>
-              <div className="flex flex-col items-center justify-center py-10">
-                <svg
-                  className="w-12 h-12 text-gray-300 mb-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                  />
-                </svg>
-                <p className="text-gray-500 text-xs mb-3">
-                  Your personal analytics will appear here
-                </p>
-                <button className="bg-green-500 text-white px-4 py-1.5 rounded-lg text-xs font-medium hover:bg-green-600 transition">
-                  View Analytics
-                </button>
-              </div>
-            </div>
+            {/* Personal Analytics with REAL DATA */}
+            <PersonalAnalytics userId={dashboardData?._id} />
           </div>
         </div>
       </div>

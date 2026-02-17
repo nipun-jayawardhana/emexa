@@ -58,6 +58,26 @@ const teacherQuizSchema = new mongoose.Schema({
     type: [String], // Array of grade IDs (e.g., ["1-1", "1-2"])
     required: true
   },
+  
+  // Semester and academic year selection (filters for which students receive this quiz)
+  semester: {
+    type: String,
+    enum: ['1st semester', '2nd semester', null],
+    default: null
+  },
+  academicYear: {
+    type: Number, // Year like 1, 2, 3, 4
+    default: null
+  },
+  
+  // ✅ NEW: Maximum attempts allowed for students
+  maxAttempts: {
+    type: Number,
+    enum: [1, 2, 3, 99],
+    default: 1,
+    required: true
+  },
+  
   dueDate: {
     type: Date,
     required: false
@@ -190,7 +210,7 @@ teacherQuizSchema.methods.calculateExpiryDate = function() {
   // If end time is before start time (spans to next day), adjust
   if (this.startTime) {
     const [startHour, startMinute] = this.startTime.split(':').map(Number);
-    if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+    if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
       endDateTime.setDate(endDateTime.getDate() + 1);
     }
   }
@@ -224,7 +244,7 @@ teacherQuizSchema.methods.isCurrentlyActive = function() {
   endDateTime.setHours(endHour, endMinute, 0, 0);
   
   // If end time is before start time, quiz spans to next day
-  if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+  if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
     endDateTime.setDate(endDateTime.getDate() + 1);
   }
   
@@ -252,7 +272,7 @@ teacherQuizSchema.methods.getTimeStatus = function() {
   endDateTime.setHours(endHour, endMinute, 0, 0);
   
   // If end time is before start time, quiz spans to next day
-  if (endHour < startHour || (endHour === startHour && endMinute < startMinute)) {
+  if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
     endDateTime.setDate(endDateTime.getDate() + 1);
   }
   

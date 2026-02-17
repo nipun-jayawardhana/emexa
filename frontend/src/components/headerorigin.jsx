@@ -6,6 +6,23 @@ import HelpSupportModal from './HelpSupportModal'; // Import the modal
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:5000';
 
+// Helper function to convert relative paths to full URLs
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+  
+  // If it's already a full URL, return as is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  
+  // If it's a relative path, construct full URL using API_BASE
+  if (imagePath.startsWith('/uploads/')) {
+    return `${API_BASE}${imagePath}`;
+  }
+  
+  return imagePath;
+};
+
 // Load cached unread count synchronously
 const loadCachedUnreadCount = () => {
   try {
@@ -88,28 +105,40 @@ const Header = ({ userName, userRole }) => {
   // Load profile image from localStorage and listen for changes
   useEffect(() => {
     const storageKey = userRole === 'admin' ? 'adminProfileImage' : (userRole === 'teacher' ? 'teacherProfileImage' : 'studentProfileImage');
-    const eventName = `${storageKey}Changed`;
+    const eventName = userRole === 'admin' ? 'adminProfileImageChanged' : (userRole === 'teacher' ? 'teacherProfileImageChanged' : 'studentProfileImageChanged');
 
     const storedImage = localStorage.getItem(storageKey);
-    // Only set profile image if it's a valid URL string
-    if (storedImage && storedImage.trim().length > 0 && storedImage.startsWith('http')) {
-      setProfileImage(storedImage);
+    console.log('🖼️ Header - StorageKey:', storageKey);
+    console.log('🖼️ Header - Stored image from localStorage:', storedImage);
+    
+    // Convert relative paths to full URLs
+    if (storedImage && storedImage.trim().length > 0) {
+      const fullUrl = getImageUrl(storedImage);
+      console.log('🖼️ Header - Converted URL:', fullUrl);
+      setProfileImage(fullUrl);
     } else {
+      console.log('🖼️ Header - No image in localStorage');
       setProfileImage(null);
     }
 
     const handleProfileImageChange = (e) => {
-      console.log('Profile image change event received:', e?.detail);
-      setProfileImage(e?.detail);
+      console.log('🖼️ Header - Profile image change event received:', e?.detail);
+      const fullUrl = getImageUrl(e?.detail);
+      console.log('🖼️ Header - Converted event URL:', fullUrl);
+      setProfileImage(fullUrl);
     };
 
     const handleStorageChange = () => {
       const updatedImage = localStorage.getItem(storageKey);
-      setProfileImage(updatedImage);
+      console.log('🖼️ Header - Storage changed:', updatedImage);
+      const fullUrl = getImageUrl(updatedImage);
+      setProfileImage(fullUrl);
     };
 
+    // Listen for both custom events and storage changes
     window.addEventListener(eventName, handleProfileImageChange);
     window.addEventListener('storage', handleStorageChange);
+    
     return () => {
       window.removeEventListener(eventName, handleProfileImageChange);
       window.removeEventListener('storage', handleStorageChange);
@@ -241,6 +270,7 @@ const Header = ({ userName, userRole }) => {
         isOpen={showHelpModal}
         onClose={() => setShowHelpModal(false)}
         userRole={userRole}
+        userName={displayName}
       />
     </>
   );

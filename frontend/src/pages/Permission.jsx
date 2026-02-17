@@ -127,7 +127,7 @@ export default function Permission() {
         }
       }
       // navigate to the quiz page for the selected quiz
-      navigate(`/quiz/${encodeURIComponent(quizId)}`);
+      navigate(`/quiz/${encodeURIComponent(quizId)}`, { replace: true });
     } else {
       alert("Please choose Allow or Deny to continue");
     }

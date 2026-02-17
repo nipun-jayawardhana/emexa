@@ -1,8 +1,8 @@
 // frontend/src/pages/TeacherDashboard.jsx
-// FIXED VERSION - With Actual Data from Database
+// FIXED VERSION - With Auto-Refresh and Notification Listener
 
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import AdminViewWrapper from "../components/AdminViewWrapper";
 import Header from "../components/headerorigin";
@@ -11,8 +11,11 @@ import TeacherQuizzes from "./TeacherQuizzes";
 import TeacherCreateQuiz from "./TeacherCreateQuiz";
 import TeacherQuizDraft from "./TeacherQuizDraft";
 
+const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:5000";
+
 const TeacherDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   
   const adminToken = localStorage.getItem("adminToken");
   const isAdminViewing = localStorage.getItem("adminViewingAs");
@@ -30,6 +33,16 @@ const TeacherDashboard = () => {
   
   const [userName, setUserName] = useState("");
   const [editingDraftId, setEditingDraftId] = useState(null);
+  
+  // ADDED: State for dashboard refresh trigger
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    // Handle navigation state from TeacherProfile
+    if (location.state?.activeMenu) {
+      setActiveMenuItem(location.state.activeMenu);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     if (!isAdminViewing || !adminToken) {
@@ -52,8 +65,34 @@ const TeacherDashboard = () => {
       activeMenuItem !== "quiz-drafts"
     ) {
       setEditingDraftId(null);
+    } else if (activeMenuItem === "quizzes") {
+      // Clear editing state when going to main quiz page
+      setEditingDraftId(null);
     }
   }, [activeMenuItem, editingDraftId]);
+
+  // ADDED: Notification refresh listener (like student dashboard)
+  useEffect(() => {
+    if (activeMenuItem === 'dashboard') {
+      // Force refresh notification count when dashboard is active
+      console.log('🔔 Teacher Dashboard active - refreshing notifications');
+      window.dispatchEvent(new Event('refreshNotifications'));
+      
+      // Listen for quiz submission events to refresh dashboard
+      const handleQuizSubmission = () => {
+        console.log('📝 Quiz submission detected - refreshing dashboard');
+        setRefreshTrigger(prev => prev + 1);
+      };
+      
+      window.addEventListener('quizSubmitted', handleQuizSubmission);
+      window.addEventListener('refreshTeacherDashboard', handleQuizSubmission);
+      
+      return () => {
+        window.removeEventListener('quizSubmitted', handleQuizSubmission);
+        window.removeEventListener('refreshTeacherDashboard', handleQuizSubmission);
+      };
+    }
+  }, [activeMenuItem]);
 
   const teacherMenuItems = [
     {
@@ -98,6 +137,7 @@ const TeacherDashboard = () => {
       ),
       onClick: () => {
         setActiveMenuItem("quizzes");
+        setEditingDraftId(null);
       }
     },
     {
@@ -127,7 +167,7 @@ const TeacherDashboard = () => {
   const renderContent = () => {
     switch (activeMenuItem) {
       case "dashboard":
-        return <DashboardContent />;
+        return <DashboardContent refreshTrigger={refreshTrigger} />; {/* ADDED: Pass refreshTrigger */}
       case "quizzes":
         return <TeacherQuizzes setActiveMenuItem={setActiveMenuItem} />;
       case "create-quiz":
@@ -146,7 +186,7 @@ const TeacherDashboard = () => {
           />
         );
       default:
-        return <DashboardContent />;
+        return <DashboardContent refreshTrigger={refreshTrigger} />;
     }
   };
 
@@ -175,8 +215,8 @@ const TeacherDashboard = () => {
   );
 };
 
-// Dashboard Content Component with ACTUAL DATA
-const DashboardContent = () => {
+// Dashboard Content Component with ACTUAL DATA + AUTO-REFRESH
+const DashboardContent = ({ refreshTrigger }) => { {/* ADDED: Accept refreshTrigger prop */}
   const [loading, setLoading] = useState(true);
   const [dashboardStats, setDashboardStats] = useState(null);
   const [classProgress, setClassProgress] = useState([]);
@@ -185,9 +225,10 @@ const DashboardContent = () => {
   const [students, setStudents] = useState([]);
   const [showAllStudents, setShowAllStudents] = useState(false);
 
+  // FIXED: Add refreshTrigger to dependency array for auto-refresh
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [refreshTrigger]); {/* ADDED: Refresh when refreshTrigger changes */}
 
   const fetchDashboardData = async () => {
     try {
@@ -200,13 +241,15 @@ const DashboardContent = () => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
+      console.log('🔄 Fetching teacher dashboard data...');
+
       // Fetch all dashboard data in parallel
       const [statsRes, progressRes, trendRes, emotionRes, studentsRes] = await Promise.all([
-        axios.get("http://localhost:5000/api/teachers/dashboard/stats", { headers }),
-        axios.get("http://localhost:5000/api/teachers/dashboard/class-progress", { headers }),
-        axios.get("http://localhost:5000/api/teachers/dashboard/engagement-trend", { headers }),
-        axios.get("http://localhost:5000/api/teachers/dashboard/emotional-state", { headers }),
-        axios.get("http://localhost:5000/api/teachers/dashboard/students", { headers })
+        axios.get(`${API_BASE}/api/teachers/dashboard/stats`, { headers }),
+        axios.get(`${API_BASE}/api/teachers/dashboard/class-progress`, { headers }),
+        axios.get(`${API_BASE}/api/teachers/dashboard/engagement-trend`, { headers }),
+        axios.get(`${API_BASE}/api/teachers/dashboard/emotional-state`, { headers }),
+        axios.get(`${API_BASE}/api/teachers/dashboard/students`, { headers })
       ]);
 
       console.log('✅ Dashboard data fetched successfully');
@@ -285,6 +328,7 @@ const DashboardContent = () => {
             </div>
           </div>
         )}
+        
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
           Teacher Dashboard
         </h1>

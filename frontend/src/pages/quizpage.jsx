@@ -29,16 +29,17 @@ const QuizPage = () => {
   const [showBulb, setShowBulb] = useState(false);
   const [showEmojiDialog, setShowEmojiDialog] = useState(false);
   const [showHints, setShowHints] = useState(false);
-  const [revealedHints, setRevealedHints] = useState({}); // Track revealed hints per question
-  const [pendingHintRequest, setPendingHintRequest] = useState(null); // Store hint request details
+  const [revealedHints, setRevealedHints] = useState({}); 
+  const [pendingHintRequest, setPendingHintRequest] = useState(null); 
   const [quizSubmitted, setQuizSubmitted] = useState(showResults);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [quizStartTime] = useState(Date.now());
   const [totalTime, setTotalTime] = useState(0);
-  const [activeFilter, setActiveFilter] = useState("all"); // Start with NO filter selected
+  const [activeFilter, setActiveFilter] = useState("all"); 
   const [quizData, setQuizData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [flaggedQuestions, setFlaggedQuestions] = useState(new Set());
+  const [hasExpired, setHasExpired] = useState(false);
 
   // AI Integration States
   const [sessionId] = useState(
@@ -410,17 +411,28 @@ const QuizPage = () => {
                 ? teacherQuiz.isCurrentlyActive
                 : true;
 
+            // Calculate if quiz has actually started based on real time
+            let hasStarted = true;
+            if (teacherQuiz.scheduleDate && teacherQuiz.startTime) {
+              const scheduleDate = new Date(teacherQuiz.scheduleDate);
+              const [startHour, startMinute] = teacherQuiz.startTime.split(':').map(Number);
+              const startDateTime = new Date(scheduleDate);
+              startDateTime.setHours(startHour, startMinute, 0, 0);
+              const now = new Date();
+              hasStarted = now >= startDateTime;
+            }
+
             console.log(
               "Quiz Page - Time status:",
               timeStatus,
               "Is active:",
               isActive,
+              "Has started:",
+              hasStarted,
             );
 
-            if (
-              timeStatus === "upcoming" ||
-              (!isActive && teacherQuiz.isScheduled)
-            ) {
+            // Only block if quiz hasn't started yet
+            if (!hasStarted) {
               alert(
                 "This quiz has not started yet. Please wait until the scheduled time: " +
                   (teacherQuiz.scheduleDate
@@ -433,7 +445,18 @@ const QuizPage = () => {
               return;
             }
 
-            if (timeStatus === "expired") {
+            // Check if quiz has expired based on actual due date
+            let quizExpired = false;
+            if (teacherQuiz.dueDate) {
+              const dueDateTime = new Date(teacherQuiz.dueDate);
+              dueDateTime.setHours(23, 59, 59, 999); 
+              const now = new Date();
+              quizExpired = now > dueDateTime;
+            }
+
+            setHasExpired(quizExpired);
+
+            if (quizExpired) {
               alert("This quiz has expired. The deadline has passed.");
               window.location.href = "/dashboard";
               return;
@@ -598,6 +621,106 @@ const QuizPage = () => {
     setShowEmojiDialog(false);
     setShowHints(false);
   }, [currentQuestion]);
+
+  // ✅ NEW: Block browser navigation during quiz
+useEffect(() => {
+  if (quizSubmitted || showResults || loading) {
+    // Don't block if quiz is submitted, showing results, or still loading
+    return;
+  }
+
+  const handlePopState = (e) => {
+    e.preventDefault();
+    const confirmLeave = window.confirm(
+      '⚠️ WARNING: Leaving this page will count as using one attempt!\n\n' +
+      'Are you sure you want to leave? This action cannot be undone.'
+    );
+    
+    if (confirmLeave) {
+      // Navigate to dashboard directly - NOT back (which would go to permission page)
+      console.log('🚪 Student left quiz - navigating to dashboard');
+      window.location.href = '/dashboard';
+    } else {
+      // Student wants to stay - push state again to prevent navigation
+      window.history.pushState(null, '', window.location.href);
+    }
+  };
+
+  // Block page refresh and tab close
+  const handleBeforeUnload = (e) => {
+    e.preventDefault();
+    e.returnValue = '⚠️ Leaving this page will count as using one attempt!';
+    return e.returnValue;
+  };
+
+  // Initial push state to enable back button blocking
+  window.history.pushState(null, '', window.location.href);
+  
+  // Add event listeners
+  window.addEventListener('popstate', handlePopState);
+  window.addEventListener('beforeunload', handleBeforeUnload);
+
+  console.log('🔒 Navigation blocking enabled');
+
+  // Cleanup
+  return () => {
+    window.removeEventListener('popstate', handlePopState);
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+    console.log('🔓 Navigation blocking disabled');
+  };
+}, [quizSubmitted, showResults, loading]);
+
+// ✅ NEW: Auto-submit if student navigates away (FIXED: Only trigger on actual navigation, not page refresh)
+useEffect(() => {
+  let isNavigatingAway = false;
+
+  const handleBeforeUnload = () => {
+    isNavigatingAway = true;
+  };
+
+  window.addEventListener('beforeunload', handleBeforeUnload);
+
+  return () => {
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+    
+    // ONLY auto-submit if:
+    // 1. Student is navigating away (not just component unmount)
+    // 2. Quiz was not submitted
+    // 3. Quiz data exists
+    if (isNavigatingAway && !quizSubmitted && !showResults && quizData) {
+      console.log('⚠️ Student left quiz without submitting - recording attempt');
+      
+      const autoSubmit = async () => {
+        try {
+          const timeTaken = Math.floor((Date.now() - quizStartTime) / 1000);
+          const answersArray = Object.entries(answers).map(
+            ([index, answer]) => answer
+          );
+
+          const token = localStorage.getItem('token');
+          
+          await axios.post(
+            `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
+            {
+              answers: answersArray,
+              timeTaken,
+              abandonedQuiz: true
+            },
+            {
+              headers: { Authorization: `Bearer ${token}` }
+            }
+          );
+
+          console.log('✅ Abandoned quiz recorded as attempt');
+        } catch (error) {
+          console.error('❌ Error recording abandoned quiz:', error);
+        }
+      };
+
+      autoSubmit();
+    }
+  };
+}, [quizSubmitted, showResults, quizData, answers, quizId, quizStartTime]);
 
   const handleAnswerSelect = (optionIndex) => {
     setAnswers({ ...answers, [currentQuestion]: optionIndex });
@@ -877,17 +1000,19 @@ const QuizPage = () => {
     setIsSubmitting(true);
     console.log('🚀 Starting quiz submission...');
 
-    // Stop camera capture and release camera resources
-    try {
-      camera.stopCapture();
-    } catch (e) {
-      console.error("Error stopping camera capture:", e);
-    }
-    try {
-      camera.stop();
-      console.log("📷 Camera singleton stopped after quiz submission");
-    } catch (e) {
-      console.error("Error stopping camera:", e);
+    // Stop camera capture and release camera resources (safely check if camera exists)
+    if (typeof camera !== 'undefined' && camera) {
+      try {
+        camera.stopCapture();
+      } catch (e) {
+        console.error("Error stopping camera capture:", e);
+      }
+      try {
+        camera.stop();
+        console.log("📷 Camera singleton stopped after quiz submission");
+      } catch (e) {
+        console.error("Error stopping camera:", e);
+      }
     }
 
     // Stop the local videoStream (separate from camera.js singleton)
@@ -940,29 +1065,34 @@ const QuizPage = () => {
       const token = localStorage.getItem("token");
       console.log("📤 Submitting quiz answers to backend:", quizId);
 
-      const submitResponse = await axios.post(
-        `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
-        {
-          answers: answersArray,
-          timeTaken,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      try {
+        const submitResponse = await axios.post(
+          `${API_BASE}/api/teacher-quizzes/${quizId}/submit`,
+          {
+            answers: answersArray,
+            timeTaken,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
 
-      if (submitResponse.data.success) {
-        console.log("✅ Quiz submitted successfully:", submitResponse.data);
-
-        // Show results immediately (0 seconds delay)
-        setQuizSubmitted(true);
-        setIsSubmitting(false);
-
-        // Trigger notification count refresh
-        window.dispatchEvent(new Event("refreshNotifications"));
+        if (submitResponse.data.success) {
+          console.log("✅ Quiz submitted successfully:", submitResponse.data);
+        }
+      } catch (submitError) {
+        console.error("❌ Error submitting quiz to /submit endpoint:", submitError);
+        // Continue anyway - feedback will still be generated
       }
+
+      // Show results immediately even if submit fails
+      setQuizSubmitted(true);
+      setIsSubmitting(false);
+
+      // Trigger notification count refresh
+      window.dispatchEvent(new Event("refreshNotifications"));
     } catch (submitError) {
-      console.error("❌ Error submitting quiz:", submitError);
+      console.error("❌ Error in submit flow:", submitError);
       setIsSubmitting(false);
     }
 
@@ -994,7 +1124,7 @@ const QuizPage = () => {
         });
 
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:5000/api/feedback", {
+        const response = await fetch(`${API_BASE}/api/feedback`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

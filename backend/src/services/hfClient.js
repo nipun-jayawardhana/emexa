@@ -4,10 +4,10 @@ let hfClient = null;
 
 export const getHfClient = () => {
   // Check if API key exists and is valid
-  const apiKey = process.env.HF_API_KEY;
+  const apiKey = process.env.HF_API_KEY || process.env.HUGGINGFACE_API_KEY;
   
   if (!apiKey) {
-    console.error('❌ HF_API_KEY is not set in environment variables');
+    console.error('❌ HF_API_KEY or HUGGINGFACE_API_KEY is not set in environment variables');
     return null;
   }
   
