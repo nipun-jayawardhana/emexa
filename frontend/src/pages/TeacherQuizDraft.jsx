@@ -256,11 +256,16 @@ const filteredQuizzes = draftQuizzes.filter((quiz) => {
     
     // ✅ CRITICAL FIX: Use dueDate if available (matching backend exactly)
     let endDateTime;
-    if (quiz.dueDate) {
-      // Use dueDate and set to end of day
+    if (quiz.dueDate && quiz.endTime) {
+      // Use dueDate date BUT with the actual endTime hours
+      endDateTime = new Date(quiz.dueDate);
+      const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
+      endDateTime.setHours(endHour, endMinute, 0, 0);
+      console.log(`📅 Using dueDate+endTime for "${quiz.title}":`, endDateTime.toISOString());
+    } else if (quiz.dueDate) {
       endDateTime = new Date(quiz.dueDate);
       endDateTime.setHours(23, 59, 59, 999);
-      console.log(`📅 Using dueDate for "${quiz.title}":`, endDateTime.toISOString());
+      console.log(`📅 Using dueDate only for "${quiz.title}":`, endDateTime.toISOString());
     } else if (quiz.endTime) {
       // Fallback to endTime
       const [endHour, endMinute] = quiz.endTime.split(':').map(Number);
@@ -743,7 +748,12 @@ const handleScheduleQuiz = async () => {
       
       // ✅ CRITICAL FIX: Use dueDate if available (matching filter logic)
       let endDateTime;
-      if (q.dueDate) {
+      if (q.dueDate && q.endTime) {
+        // Use dueDate date BUT with the actual endTime hours
+        endDateTime = new Date(q.dueDate);
+        const [endHour, endMinute] = q.endTime.split(':').map(Number);
+        endDateTime.setHours(endHour, endMinute, 0, 0);
+      } else if (q.dueDate) {
         endDateTime = new Date(q.dueDate);
         endDateTime.setHours(23, 59, 59, 999);
       } else if (q.endTime) {
