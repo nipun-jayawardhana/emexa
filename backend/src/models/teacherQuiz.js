@@ -58,6 +58,26 @@ const teacherQuizSchema = new mongoose.Schema({
     type: [String], // Array of grade IDs (e.g., ["1-1", "1-2"])
     required: true
   },
+  
+  // Semester and academic year selection (filters for which students receive this quiz)
+  semester: {
+    type: String,
+    enum: ['1st semester', '2nd semester', null],
+    default: null
+  },
+  academicYear: {
+    type: Number, // Year like 1, 2, 3, 4
+    default: null
+  },
+  
+  // ✅ NEW: Maximum attempts allowed for students
+  maxAttempts: {
+    type: Number,
+    enum: [1, 2, 3, 99],
+    default: 1,
+    required: true
+  },
+  
   dueDate: {
     type: Date,
     required: false
@@ -88,6 +108,12 @@ const teacherQuizSchema = new mongoose.Schema({
     enum: ['draft', 'scheduled', 'active', 'closed'],
     default: 'draft',
     index: true
+  },
+  
+  // Auto-removal after 1 month
+  expiryDate: {
+    type: Date,
+    index: true // For efficient cleanup queries
   },
   
   // Student interaction tracking
@@ -140,6 +166,12 @@ teacherQuizSchema.index({ scheduleDate: 1, status: 1 });
 // Pre-save middleware to update lastEdited
 teacherQuizSchema.pre('save', function(next) {
   this.lastEdited = new Date();
+  
+  // Auto-calculate expiry date if quiz is scheduled
+  if (this.isScheduled && this.scheduleDate && this.endTime && !this.expiryDate) {
+    this.calculateExpiryDate();
+  }
+  
   next();
 });
 
@@ -160,6 +192,140 @@ teacherQuizSchema.methods.calculateProgress = function() {
   
   this.progress = Math.round((filledQuestions / this.questions.length) * 100);
   return this.progress;
+};
+
+// Instance method to calculate expiry date (1 month after end time)
+teacherQuizSchema.methods.calculateExpiryDate = function() {
+  if (!this.scheduleDate || !this.endTime) {
+    this.expiryDate = null;
+    return null;
+  }
+  
+  const scheduleDate = new Date(this.scheduleDate);
+  const [endHour, endMinute] = this.endTime.split(':').map(Number);
+  
+  const endDateTime = new Date(scheduleDate);
+  endDateTime.setHours(endHour, endMinute, 0, 0);
+  
+  // If end time is before start time (spans to next day), adjust
+  if (this.startTime) {
+    const [startHour, startMinute] = this.startTime.split(':').map(Number);
+    if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
+      endDateTime.setDate(endDateTime.getDate() + 1);
+    }
+  }
+  
+  // Add 1 month to the end time
+  const expiryDate = new Date(endDateTime);
+  expiryDate.setMonth(expiryDate.getMonth() + 1);
+  
+  this.expiryDate = expiryDate;
+  return this.expiryDate;
+};
+
+// Instance method to check if quiz is currently active based on schedule
+teacherQuizSchema.methods.isCurrentlyActive = function() {
+  if (!this.isScheduled || !this.scheduleDate || !this.startTime || !this.endTime) {
+    return false;
+  }
+  
+  const now = new Date();
+  const scheduleDate = new Date(this.scheduleDate);
+  
+  // Parse start and end times (format: "HH:MM")
+  const [startHour, startMinute] = this.startTime.split(':').map(Number);
+  const [endHour, endMinute] = this.endTime.split(':').map(Number);
+  
+  // Create start and end datetime objects for the scheduled date
+  const startDateTime = new Date(scheduleDate);
+  startDateTime.setHours(startHour, startMinute, 0, 0);
+  
+  const endDateTime = new Date(scheduleDate);
+  endDateTime.setHours(endHour, endMinute, 0, 0);
+  
+  // If end time is before start time, quiz spans to next day
+  if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
+    endDateTime.setDate(endDateTime.getDate() + 1);
+  }
+  
+  // Check if current time is between start and end time
+  return now >= startDateTime && now < endDateTime;
+};
+
+// Instance method to get quiz time status (upcoming, active, expired)
+teacherQuizSchema.methods.getTimeStatus = function() {
+  if (!this.isScheduled || !this.scheduleDate || !this.startTime || !this.endTime) {
+    return 'unscheduled';
+  }
+  
+  const now = new Date();
+  const scheduleDate = new Date(this.scheduleDate);
+  
+  // Parse start and end times
+  const [startHour, startMinute] = this.startTime.split(':').map(Number);
+  const [endHour, endMinute] = this.endTime.split(':').map(Number);
+  
+  const startDateTime = new Date(scheduleDate);
+  startDateTime.setHours(startHour, startMinute, 0, 0);
+  
+  const endDateTime = new Date(scheduleDate);
+  endDateTime.setHours(endHour, endMinute, 0, 0);
+  
+  // If end time is before start time, quiz spans to next day
+  if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
+    endDateTime.setDate(endDateTime.getDate() + 1);
+  }
+  
+  if (now < startDateTime) {
+    return 'upcoming';
+  } else if (now >= startDateTime && now < endDateTime) {
+    return 'active';
+  } else {
+    return 'expired';
+  }
+};
+
+// Static method to clean up expired quizzes and notifications
+teacherQuizSchema.statics.cleanupExpiredQuizzes = async function() {
+  const now = new Date();
+  
+  try {
+    // Find all expired quizzes
+    const expiredQuizzes = await this.find({
+      expiryDate: { $lte: now },
+      isDeleted: false
+    });
+    
+    // Soft delete expired quizzes
+    const result = await this.updateMany(
+      { expiryDate: { $lte: now }, isDeleted: false },
+      { 
+        $set: { 
+          isDeleted: true,
+          status: 'closed'
+        } 
+      }
+    );
+    
+    console.log(`Cleaned up ${result.modifiedCount} expired quizzes`);
+    return { success: true, count: result.modifiedCount, quizIds: expiredQuizzes.map(q => q._id) };
+  } catch (error) {
+    console.error('Error cleaning up expired quizzes:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Static method to find quizzes that should be visible (not expired)
+teacherQuizSchema.statics.findVisibleQuizzes = function(teacherId) {
+  const now = new Date();
+  return this.find({
+    teacherId,
+    isDeleted: false,
+    $or: [
+      { expiryDate: { $gt: now } },
+      { expiryDate: null }
+    ]
+  }).sort({ updatedAt: -1 });
 };
 
 // Static method to find teacher's quizzes

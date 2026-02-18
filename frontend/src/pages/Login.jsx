@@ -4,6 +4,25 @@ import logo from "../assets/auth-pages-images/EMEXA Logo.png";
 import api from "../lib/api";
 import "./Form.css";
 
+// Simple encryption/decryption (for basic obfuscation - NOT military-grade security)
+const encryptData = (text) => {
+  try {
+    return btoa(unescape(encodeURIComponent(text)));
+  } catch (e) {
+    console.error("Encryption failed:", e);
+    return text;
+  }
+};
+
+const decryptData = (encrypted) => {
+  try {
+    return decodeURIComponent(escape(atob(encrypted)));
+  } catch (e) {
+    console.error("Decryption failed:", e);
+    return "";
+  }
+};
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -12,8 +31,34 @@ export default function Login() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState([]);
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // 🔑 AUTO-FILL: Load saved credentials on mount
+  useEffect(() => {
+    // Load all saved accounts
+    const savedAccountsData = localStorage.getItem("savedAccounts");
+    if (savedAccountsData) {
+      try {
+        const accounts = JSON.parse(savedAccountsData);
+        setSavedAccounts(accounts);
+        
+        // Auto-fill with the first (most recent) saved account
+        if (accounts.length > 0) {
+          const decryptedEmail = decryptData(accounts[0].email);
+          const decryptedPassword = decryptData(accounts[0].password);
+          setEmail(decryptedEmail);
+          setPassword(decryptedPassword);
+          setRemember(true);
+          console.log("✅ Auto-filled email from saved accounts");
+        }
+      } catch (e) {
+        console.warn("Could not parse saved accounts:", e);
+      }
+    }
+  }, []);
 
   // Show message from registration if exists
   useEffect(() => {
@@ -54,10 +99,55 @@ export default function Login() {
     api
       .post("/auth/login", { email, password })
       .then((res) => {
-        console.log("✅ Login successful - FULL RESPONSE:", res);
+        console.log("✅ Login successful");
 
-        // CRITICAL FIX: Clear admin viewing flags for ALL logins
-        console.log("🧹 Clearing admin preview flags...");
+        // Save "Remember Me" credentials if checked
+        if (remember) {
+          console.log("💾 Saving credentials for Remember Me");
+          // Get existing saved accounts
+          const savedAccountsData = localStorage.getItem("savedAccounts");
+          let accounts = [];
+          try {
+            accounts = savedAccountsData ? JSON.parse(savedAccountsData) : [];
+          } catch (e) {
+            accounts = [];
+          }
+          
+          // Check if this email already exists in saved accounts
+          const existingIndex = accounts.findIndex(acc => {
+            try {
+              return decryptData(acc.email) === email;
+            } catch {
+              return false;
+            }
+          });
+          
+          // Create account object
+          const newAccount = {
+            email: encryptData(email),
+            password: encryptData(password),
+            savedAt: new Date().toISOString()
+          };
+          
+          // Remove if exists, then add to beginning (most recent first)
+          if (existingIndex > -1) {
+            accounts.splice(existingIndex, 1);
+          }
+          accounts.unshift(newAccount);
+          
+          // Keep only last 5 saved accounts
+          if (accounts.length > 5) {
+            accounts = accounts.slice(0, 5);
+          }
+          
+          // Save updated accounts
+          localStorage.setItem("savedAccounts", JSON.stringify(accounts));
+          console.log("💾 Saved", accounts.length, "accounts");
+        } else {
+          console.log("🗑️ Remember Me unchecked - not saving credentials");
+        }
+
+        // Clear admin viewing flags
         localStorage.removeItem("adminViewingAs");
         sessionStorage.removeItem("adminViewingAs");
         console.log("✅ Admin preview flags cleared");
@@ -66,7 +156,6 @@ export default function Login() {
         if (res.user?.role === "admin" || res.user?.role === "Admin") {
           const adminName = res.user?.name || "Admin";
 
-          // Store admin token and user info
           localStorage.setItem("adminToken", res.token);
           localStorage.setItem("adminUser", JSON.stringify(res.user));
           localStorage.setItem("token", res.token);
@@ -75,7 +164,6 @@ export default function Login() {
           localStorage.setItem("userRole", "admin");
 
           setSuccess(`✅ Login successful! Welcome ${adminName}!`);
-          console.log("🚀 Navigating to admin panel");
 
           setTimeout(() => {
             navigate("/admin/user-management");
@@ -83,7 +171,7 @@ export default function Login() {
           return;
         }
 
-        // Regular user flow (students and teachers)
+        // Regular user flow
         const userRole = res.user?.role || "student";
         let userName = "User";
 
@@ -100,24 +188,16 @@ export default function Login() {
             "User";
         }
 
-        console.log("🔍 Extracted userName:", userName);
-
-        // CRITICAL FIX: Clear adminToken for regular users
         localStorage.removeItem("adminToken");
         localStorage.removeItem("adminUser");
-        console.log("🧹 Cleared admin-specific storage for regular user");
 
-        // Save token based on "Remember me" checkbox
+        // Save token
         if (res.token) {
           if (remember) {
             localStorage.setItem("token", res.token);
-            localStorage.setItem("rememberMe", "true");
-            console.log("💾 Token saved to localStorage (remember me)");
           } else {
             sessionStorage.setItem("token", res.token);
             localStorage.setItem("token", res.token);
-            localStorage.removeItem("rememberMe");
-            console.log("💾 Token saved to sessionStorage (this session only)");
           }
         }
 
@@ -133,13 +213,10 @@ export default function Login() {
 
           Object.keys(userData).forEach((key) => {
             localStorage.setItem(key, userData[key]);
-            console.log(`💾 localStorage.${key} =`, userData[key]);
           });
           
-          // Clear any saved menu state to ensure dashboard shows first
           if (userRole === 'teacher') {
             localStorage.removeItem('teacherActiveMenuItem');
-            console.log('🗑️ Cleared teacherActiveMenuItem to show dashboard first');
           }
 
           if (!remember) {
@@ -147,8 +224,6 @@ export default function Login() {
               sessionStorage.setItem(key, userData[key]);
             });
           }
-
-          console.log("✅ User data saved successfully");
 
           // Sync profile image
           try {
@@ -191,10 +266,9 @@ export default function Login() {
           }
         }
 
-        // Show success message
         setSuccess(`✅ Login successful! Welcome back ${userName}!`);
 
-        // Navigate based on user role
+        // Navigate based on role
         let dashboardPath;
         const normalizedRole = (res.user?.role || "student").toLowerCase();
 
@@ -206,8 +280,6 @@ export default function Login() {
           dashboardPath = "/dashboard";
         }
 
-        console.log(`🚀 Navigating to ${dashboardPath} (role: ${normalizedRole})`);
-
         setTimeout(() => {
           navigate(dashboardPath, { replace: true });
         }, 1000);
@@ -217,7 +289,6 @@ export default function Login() {
 
         let errorMessage = "Login failed. Please check your credentials.";
 
-        // Check for approval-related errors
         if (err.pendingApproval) {
           errorMessage = "⏳ Your account is pending admin approval. Please wait for approval before logging in.";
         } else if (err.rejected) {
@@ -266,30 +337,133 @@ export default function Login() {
 
             <div className={`field ${errors.email ? "error" : ""}`}>
               <label>Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  const newEmail = e.target.value;
-                  setEmail(newEmail);
-                  setErrors({});
+              <div style={{ position: "relative" }}>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    const newEmail = e.target.value;
+                    setEmail(newEmail);
+                    setErrors({});
 
-                  if (newEmail.trim()) {
-                    if (!/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(newEmail)) {
-                      setErrors((prev) => ({
-                        ...prev,
-                        email: "Please enter a valid email address",
-                      }));
-                    } else if (newEmail !== newEmail.toLowerCase()) {
-                      setErrors((prev) => ({
-                        ...prev,
-                        email: "Email must be in lowercase only",
-                      }));
+                    if (newEmail.trim()) {
+                      if (!/^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(newEmail)) {
+                        setErrors((prev) => ({
+                          ...prev,
+                          email: "Please enter a valid email address",
+                        }));
+                      } else if (newEmail !== newEmail.toLowerCase()) {
+                        setErrors((prev) => ({
+                          ...prev,
+                          email: "Email must be in lowercase only",
+                        }));
+                      }
                     }
-                  }
-                }}
-                placeholder="Enter your email"
-              />
+                  }}
+                  onFocus={() => setShowAccountDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowAccountDropdown(false), 200)}
+                  placeholder="Enter your email"
+                  autoComplete="email"
+                  style={{
+                    padding: "18px 26px",
+                    fontSize: "16px",
+                    minHeight: "56px",
+                    boxSizing: "border-box",
+                    width: "100%"
+                  }}
+                />
+                
+                {/* Saved Accounts Dropdown */}
+                {showAccountDropdown && savedAccounts.length > 0 && (
+                  <div style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "#fff",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    maxHeight: "250px",
+                    overflowY: "auto",
+                    zIndex: 1000,
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    marginTop: "8px"
+                  }}>
+                    {savedAccounts.map((account, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          padding: "16px 18px",
+                          borderBottom: index < savedAccounts.length - 1 ? "1px solid #f0f0f0" : "none",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          transition: "background-color 0.2s",
+                          backgroundColor: "#fff",
+                          minHeight: "48px"
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f5f5f5"}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#fff"}
+                      >
+                        <div
+                          onClick={() => {
+                            const decryptedEmail = decryptData(account.email);
+                            const decryptedPassword = decryptData(account.password);
+                            setEmail(decryptedEmail);
+                            setPassword(decryptedPassword);
+                            setRemember(true);
+                            setShowAccountDropdown(false);
+                          }}
+                          style={{
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            flex: 1
+                          }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                          </svg>
+                          <span>{decryptData(account.email)}</span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const updatedAccounts = savedAccounts.filter((_, i) => i !== index);
+                            setSavedAccounts(updatedAccounts);
+                            localStorage.setItem("savedAccounts", JSON.stringify(updatedAccounts));
+                            console.log("🗑️ Removed saved account:", decryptData(account.email));
+                          }}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "#999",
+                            padding: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "color 0.2s"
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = "#ff4444"}
+                          onMouseLeave={(e) => e.currentTarget.style.color = "#999"}
+                          title="Remove this account"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               {errors.email && <div className="error-text">{errors.email}</div>}
             </div>
 
@@ -305,6 +479,7 @@ export default function Login() {
                   }}
                   placeholder="Enter your password"
                   style={{ paddingRight: "40px" }}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -317,16 +492,27 @@ export default function Login() {
                     background: "transparent",
                     border: "none",
                     cursor: "pointer",
-                    fontSize: "20px",
                     color: "#888",
-                    padding: "0",
+                    padding: "4px",
                     outline: "none",
-                    lineHeight: "1",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     transition: "color 0.2s ease",
                   }}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                  {showPassword ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  )}
                 </button>
               </div>
               {errors.password && (
@@ -358,7 +544,14 @@ export default function Login() {
                 <input
                   type="checkbox"
                   checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
+                  onChange={(e) => {
+                    const isChecked = e.target.checked;
+                    setRemember(isChecked);
+                    if (!isChecked) {
+                      // Uncheck - don't save this account
+                      console.log("Remember Me unchecked");
+                    }
+                  }}
                 />{" "}
                 Remember me
               </label>

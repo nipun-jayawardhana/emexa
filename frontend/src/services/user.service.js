@@ -91,9 +91,64 @@ export const updateUser = async (id, userData) => {
   }
 };
 
+// ============================================
+// ACTIVITY TRACKING FUNCTIONS
+// ============================================
+
+/**
+ * Get student activities (quiz attempts)
+ * @param {number} limit - Maximum number of activities to fetch
+ * @param {number} skip - Number of activities to skip (for pagination)
+ * @returns {Promise} Response with activities array
+ */
+export const getStudentActivities = async (limit = 50, skip = 0) => {
+  try {
+    console.log('📊 Fetching student activities...');
+    const response = await axios.get(
+      `${API_URL}/users/student/activities`,
+      {
+        params: { limit, skip },
+        headers: getAuthHeaders(),
+        withCredentials: true
+      }
+    );
+
+    console.log('✅ Activities fetched:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error fetching activities:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get student activity statistics
+ * @returns {Promise} Response with statistics (totalQuizzes, averageScore, accuracy, etc.)
+ */
+export const getStudentStats = async () => {
+  try {
+    console.log('📊 Fetching student stats...');
+    const response = await axios.get(
+      `${API_URL}/users/student/stats`,
+      {
+        headers: getAuthHeaders(),
+        withCredentials: true
+      }
+    );
+
+    console.log('✅ Stats fetched:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error fetching stats:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 export default {
   getUsers,
   getUserById,
   deleteUser,
-  updateUser
+  updateUser,
+  getStudentActivities,
+  getStudentStats
 };

@@ -249,12 +249,6 @@ const handleViewUser = (user) => {
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14v7" /></svg>,
       onClick: () => navigateToDashboard("teacher"),
     },
-    {
-      id: "quizzes",
-      label: "Quizzes",
-      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2" /></svg>,
-      onClick: () => navigate("/quizzes"),
-    },
   ];
 
   useEffect(() => {
@@ -797,6 +791,9 @@ const ApprovalTab = ({ approvals = [], title, onApprove, onReject }) => {
                   <h3 className="font-bold text-2xl text-gray-900">{ap.name}</h3>
                   <p className="text-gray-700 mt-2 text-lg">{ap.email}</p>
                   <p className="text-gray-500 mt-3">Requested: {ap.createdAt ? new Date(ap.createdAt).toLocaleDateString() : "N/A"}</p>
+                  <p className="text-gray-600 mt-2">
+                    {ap.year ? `${ap.year}` : 'Year: N/A'}{ap.semester ? ` • ${ap.semester}` : ' • Semester: N/A'}
+                  </p>
                   {ap.qualifications && <p className="mt-6 text-gray-800 text-base"><strong className="font-bold">Qualifications:</strong> {ap.qualifications}</p>}
                   <div className="mt-4">
                     <span className={`px-4 py-2 rounded-lg text-sm font-medium ${

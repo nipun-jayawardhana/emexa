@@ -5,7 +5,10 @@ import {
   markAllAsRead, 
   deleteNotification,
   getUnreadCount,
-  createDataExportNotification
+  createDataExportNotification,
+  cleanupDuplicateNotifications,
+  getNotificationSettings,
+  testNotifications
 } from '../controllers/notificationController.js';
 import { protect } from '../middleware/auth.middleware.js';
 
@@ -20,8 +23,17 @@ router.get('/', getNotifications);
 // Get unread count
 router.get('/unread-count', getUnreadCount);
 
+// Get notification settings
+router.get('/settings', getNotificationSettings);
+
+// Test notifications
+router.post('/test', testNotifications);
+
 // Create data export notification
 router.post('/data-export', createDataExportNotification);
+
+// Cleanup duplicate notifications
+router.post('/cleanup-duplicates', cleanupDuplicateNotifications);
 
 // Mark a notification as read
 router.patch('/:notificationId/read', markAsRead);

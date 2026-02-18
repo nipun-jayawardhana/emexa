@@ -3,13 +3,19 @@ import Student from '../models/student.js';
 import Teacher from '../models/teacher.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { sendResetCodeEmail, sendPasswordChangeEmail, sendPasswordResetEmail } from '../config/email.config.js';
+
+const generateResetCode = () => {
+  // Generate a 6-digit numeric code
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
 
 // ============================================
 // REGISTER - Saves to User collection with pending status
 // ============================================
 export const register = async (req, res) => {
   try {
-    const { fullName, name, email, password, accountType } = req.body;
+    const { fullName, name, email, password, accountType, year, semester } = req.body;
     const userName = fullName || name;
     
     if (!userName || !email || !password) {
@@ -18,8 +24,8 @@ export const register = async (req, res) => {
 
     const role = accountType || 'student';
     const normalizedEmail = email.toLowerCase().trim();
-    
-    console.log('📝 Registration attempt:', { userName, email: normalizedEmail, role });
+
+    console.log('📝 Registration attempt:', { userName, email: normalizedEmail, role, year, semester });
 
     // Check if user already exists
     const existingUser = await User.findOne({ email: normalizedEmail });
@@ -42,7 +48,10 @@ export const register = async (req, res) => {
       role: role,
       approvalStatus: 'pending',
       status: 'Pending',
-      isActive: false
+      isActive: false,
+      year: year || null,
+      semester: semester || null
+      
     });
 
     await newUser.save();
@@ -52,7 +61,9 @@ export const register = async (req, res) => {
       name: newUser.name,
       email: newUser.email,
       role: newUser.role,
-      approvalStatus: newUser.approvalStatus
+      approvalStatus: newUser.approvalStatus,
+      year: newUser.year,
+      semester: newUser.semester
     });
 
     res.status(201).json({
@@ -297,7 +308,9 @@ export const approveStudent = async (req, res) => {
       isActive: true,
       profileImage: userRecord.profileImage,
       notificationSettings: userRecord.notificationSettings,
-      privacySettings: userRecord.privacySettings
+      privacySettings: userRecord.privacySettings,
+      year: userRecord.year,
+      semester: userRecord.semester
     });
     
     await newStudent.save();
@@ -548,16 +561,60 @@ export const rejectTeacher = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
+    
     if (!email) {
-      return res.status(400).json({ message: 'Missing email' });
+      return res.status(400).json({ message: 'Email is required' });
     }
-    console.log('📧 Password reset requested');
-    return res.status(200).json({ 
-      message: 'If the email exists, we will send a password reset link' 
-    });
+
+    const normalizedEmail = email.toLowerCase().trim();
+    console.log('📧 Password reset requested for:', normalizedEmail);
+    
+    // Find user in Student or Teacher collection
+    let user = await Student.findOne({ email: normalizedEmail });
+    
+    if (!user) {
+      user = await Teacher.findOne({ email: normalizedEmail });
+    }
+    
+    if (!user) {
+      // Don't reveal if email exists (security best practice)
+      console.log('⚠️ Email not found, but returning success message');
+      return res.status(200).json({ 
+        message: 'If your email exists in our system, you will receive a reset code shortly.' 
+      });
+    }
+    
+    // Generate reset code
+    const resetCode = generateResetCode();
+    const resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    
+    // Save reset code to user
+    user.resetPasswordCode = resetCode;
+    user.resetPasswordExpiry = resetCodeExpiry;
+    await user.save();
+    
+    console.log('✅ Reset code generated:', resetCode);
+    console.log('⏰ Code expires at:', resetCodeExpiry);
+    
+    // Send email with reset code
+    try {
+      await sendResetCodeEmail(user.email, user.name, resetCode);
+      console.log('✅ Reset code email sent successfully');
+      
+      return res.status(200).json({ 
+        message: 'Password reset code has been sent to your email.',
+        success: true
+      });
+    } catch (emailError) {
+      console.error('❌ Failed to send reset code email:', emailError);
+      return res.status(500).json({ 
+        message: 'Failed to send reset code. Please try again later.' 
+      });
+    }
+    
   } catch (err) {
-    console.error('Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Forgot password error:', err);
+    res.status(500).json({ message: 'Server error. Please try again later.' });
   }
 };
 
@@ -566,35 +623,70 @@ export const resetPassword = async (req, res) => {
     const { email, resetCode, newPassword } = req.body;
     
     if (!email || !resetCode || !newPassword) {
-      return res.status(400).json({ message: 'Missing required fields' });
+      return res.status(400).json({ message: 'All fields are required' });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    console.log('🔐 Reset password attempt for:', normalizedEmail);
+    console.log('📝 Reset code provided:', resetCode);
     
-    let user = await Student.findOne({ email: normalizedEmail }).select('+password');
+    // Find user
+    let user = await Student.findOne({ email: normalizedEmail }).select('+password +resetPasswordCode +resetPasswordExpiry');
     
     if (!user) {
-      user = await Teacher.findOne({ email: normalizedEmail }).select('+password');
+      user = await Teacher.findOne({ email: normalizedEmail }).select('+password +resetPasswordCode +resetPasswordExpiry');
     }
     
     if (!user) {
-      return res.status(400).json({ message: 'Invalid email address' });
+      return res.status(400).json({ message: 'Invalid email or reset code' });
     }
     
-    if (!resetCode || resetCode.trim().length === 0) {
+    // Check if reset code exists
+    if (!user.resetPasswordCode || !user.resetPasswordExpiry) {
+      return res.status(400).json({ message: 'No reset code found. Please request a new one.' });
+    }
+    
+    // Check if code expired
+    if (new Date() > user.resetPasswordExpiry) {
+      console.log('⏰ Reset code expired');
+      return res.status(400).json({ message: 'Reset code has expired. Please request a new one.' });
+    }
+    
+    // Verify reset code
+    if (user.resetPasswordCode !== resetCode.trim()) {
+      console.log('❌ Invalid reset code');
       return res.status(400).json({ message: 'Invalid reset code' });
     }
     
-    user.password = newPassword;
+    console.log('✅ Reset code verified');
+    
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    
+    // Update password and clear reset code
+    user.password = hashedPassword;
+    user.resetPasswordCode = undefined;
+    user.resetPasswordExpiry = undefined;
     await user.save();
     
     console.log('✅ Password reset successful');
+    
+    // Send confirmation email
+    try {
+      await sendPasswordResetEmail(user.email, user.name);
+      console.log('✅ Password reset confirmation email sent');
+    } catch (emailError) {
+      console.error('⚠️ Password reset successful but confirmation email failed:', emailError);
+    }
+    
     return res.status(200).json({ 
-      message: 'Password reset successful.' 
+      message: 'Password reset successful! You can now login with your new password.',
+      success: true
     });
   } catch (err) {
-    console.error('Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Reset password error:', err);
+    res.status(500).json({ message: 'Server error. Please try again later.' });
   }
 };
 
@@ -626,7 +718,7 @@ export const changePassword = async (req, res) => {
     
     const isSamePassword = await user.comparePassword(newPassword);
     if (isSamePassword) {
-      return res.status(400).json({ message: 'New password must be different' });
+      return res.status(400).json({ message: 'New password must be different from current password' });
     }
     
     const salt = await bcrypt.genSalt(10);
@@ -635,12 +727,20 @@ export const changePassword = async (req, res) => {
     user.password = hashedPassword;
     await user.save();
     
-    console.log('✅ Password changed');
+    // Send email notification
+    try {
+      await sendPasswordChangeEmail(user.email, user.name);
+      console.log('✅ Password changed successfully - Email sent');
+    } catch (emailError) {
+      console.error('⚠️ Password changed but email failed:', emailError);
+      // Don't fail the request if email fails
+    }
+    
     return res.status(200).json({ 
-      message: 'Password changed successfully' 
+      message: 'Password changed successfully. A confirmation email has been sent.' 
     });
   } catch (err) {
-    console.error('Error:', err);
+    console.error('❌ Change password error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };

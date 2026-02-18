@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import Header from "../components/headerorigin.jsx";
 
-const HelpSupportModal = ({ isOpen = true, onClose = () => {}, userRole = "student" }) => {
+const HelpSupportModal = ({ isOpen = true, onClose = () => {}, userRole = "student", userName = "User" }) => {
   const [activeTab, setActiveTab] = useState("articles");
   const [selectedCategory, setSelectedCategory] = useState("getting-started");
   const [expandedFAQ, setExpandedFAQ] = useState(null);
@@ -111,7 +111,7 @@ const HelpSupportModal = ({ isOpen = true, onClose = () => {}, userRole = "stude
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[80vh] flex flex-col">
         {/* Header Component */}
         <div className="border-b border-gray-200">
-          <Header />
+          <Header userName={userName} userRole={userRole} />
         </div>
 
         {/* Help & Support Header */}

@@ -1,5 +1,12 @@
 // Sample quiz data (replace with database queries later)
 import Notification from '../models/notification.js';
+import { 
+  sendEmailNotification, 
+  sendQuizSubmissionEmail 
+} from '../services/notificationEmail.service.js';
+import User from '../models/user.js';
+import Student from '../models/student.js';
+import QuizAttempt from '../models/quizAttempt.js'; 
 
 const sampleQuizzes = {
   'matrix-quiz': {
@@ -143,20 +150,85 @@ export const submitQuizAnswers = async (req, res) => {
       submittedAt: new Date()
     };
 
+// CREATE QUIZ ATTEMPT ACTIVITY RECORD
+try {
+  const attemptData = {
+    userId,
+    quizId,
+    sessionId: sessionId || `session-${Date.now()}`,
+    rawScore: correctAnswers,
+    finalScore: score,
+    hintsUsed: hintsUsed || 0,
+    answers: results.map(r => ({
+      questionId: r.questionId.toString(),
+      selectedAnswer: r.userAnswer?.toString(),
+      isCorrect: r.isCorrect
+    })),
+    emotionalSummary: emotionData ? {
+      mostCommonEmotion: emotionData.mostCommonEmotion || 'neutral',
+      confusedCount: emotionData.confusedCount || 0,
+      happyCount: emotionData.happyCount || 0,
+      neutralCount: emotionData.neutralCount || 0,
+      totalEmotionCaptures: emotionData.totalEmotionCaptures || 0
+    } : undefined,
+    completedAt: new Date()
+  };
+
+  const quizAttempt = await QuizAttempt.create(attemptData);
+  console.log('✅ Quiz attempt activity recorded:', quizAttempt._id);
+} catch (activityError) {
+  console.error('❌ Error recording quiz attempt activity:', activityError);
+  // Don't fail the submission if activity recording fails
+}
+
     // Create submission confirmation notification for student
+    // Check if notification already exists for this specific submission
     try {
-      await Notification.create({
+      const existingNotification = await Notification.findOne({
         recipientId: userId,
-        recipientRole: 'student',
-        type: 'quiz_assigned',
-        title: quiz.title || 'Quiz Submitted',
-        description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
         quizId: quizId,
-        score: `${score}/100`,
-        status: 'graded',
-        isRead: false
+        type: 'quiz_assigned',
+        createdAt: { $gte: new Date(Date.now() - 5000) } // Within last 5 seconds
       });
-      console.log('✅ Submission notification created for student:', userId);
+
+      if (!existingNotification) {
+        await Notification.create({
+          recipientId: userId,
+          recipientRole: 'student',
+          type: 'quiz_assigned',
+          title: quiz.title || 'Quiz Submitted',
+          description: `Your submission has been received. You scored ${score}% (${correctAnswers}/${quiz.questions.length} correct).`,
+          quizId: quizId,
+          score: `${score}/100`,
+          status: 'graded',
+          isRead: false
+        });
+        console.log('✅ Submission notification created for student:', userId);
+      } else {
+        console.log('⚠️ Notification already exists for this submission, skipping duplicate');
+      }
+
+      // Send email notification if enabled
+      try {
+        const student = await Student.findById(userId);
+        if (student && student.email) {
+          const emailHtml = await sendQuizSubmissionEmail(
+            student.email,
+            student.name || 'Student',
+            quiz.title || 'Quiz',
+            `${score}%`
+          );
+
+          await sendEmailNotification(
+            userId,
+            student.email,
+            `✅ Quiz Submitted: ${quiz.title || 'Quiz'}`,
+            emailHtml
+          );
+        }
+      } catch (emailError) {
+        console.error('❌ Error sending submission email:', emailError.message);
+      }
     } catch (notifError) {
       console.error('❌ Error creating submission notification:', notifError);
     }

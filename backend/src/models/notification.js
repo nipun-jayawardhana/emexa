@@ -12,10 +12,10 @@ const notificationSchema = new mongoose.Schema({
     required: true
   },
   type: {
-    type: String,
-    enum: ['quiz_assigned', 'quiz_graded', 'reminder', 'announcement', 'data_export'],
-    required: true
-  },
+  type: String,
+  enum: ['quiz_assigned', 'quiz_graded', 'quiz_abandoned', 'quiz_majority_complete', 'reminder', 'announcement', 'data_export'],
+  required: true
+},
   title: {
     type: String,
     required: true
@@ -38,10 +38,10 @@ const notificationSchema = new mongoose.Schema({
     type: String
   },
   status: {
-    type: String,
-    enum: ['pending', 'graded', 'overdue', 'completed'],
-    default: 'pending'
-  },
+  type: String,
+  enum: ['pending', 'graded', 'abandoned', 'overdue', 'completed'],
+  default: 'pending'
+},
   isRead: {
     type: Boolean,
     default: false

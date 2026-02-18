@@ -62,19 +62,56 @@ const Sidebar = ({ activeMenuItem, setActiveMenuItem, menuItems }) => {
 
   const handleConfirmLogout = () => {
     setShowLogoutModal(false);
-    // Clear all auth data
+
+    // 🔑 STEP 1: Backup "Remember Me" credentials BEFORE clearing
+    const rememberMe = localStorage.getItem("rememberMe");
+    const savedEmail = localStorage.getItem("savedEmail");
+    const savedPassword = localStorage.getItem("savedPassword");
+
+    console.log("💾 Preserving remember me data:", {
+      rememberMe,
+      hasEmail: !!savedEmail,
+      hasPassword: !!savedPassword,
+    });
+
+    // 🧹 STEP 2: Clear all auth data
     localStorage.removeItem("token");
     localStorage.removeItem("userName");
     localStorage.removeItem("adminToken");
     localStorage.removeItem("adminUser");
-    localStorage.removeItem("rememberMe");
     localStorage.removeItem("user");
     localStorage.removeItem("userRole");
+    localStorage.removeItem("userEmail");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("studentProfileImage");
+    localStorage.removeItem("teacherProfileImage");
+    
     sessionStorage.removeItem("token");
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("userName");
     sessionStorage.removeItem("userRole");
+    sessionStorage.removeItem("userEmail");
+    sessionStorage.removeItem("userId");
 
+    // 🔑 STEP 3: Restore "Remember Me" credentials if they existed
+    if (rememberMe === "true") {
+      localStorage.setItem("rememberMe", rememberMe);
+      if (savedEmail) {
+        localStorage.setItem("savedEmail", savedEmail);
+      }
+      if (savedPassword) {
+        localStorage.setItem("savedPassword", savedPassword);
+      }
+      console.log("✅ Remember me credentials restored");
+    } else {
+      // If remember me was not enabled, make sure it's cleared
+      localStorage.removeItem("rememberMe");
+      localStorage.removeItem("savedEmail");
+      localStorage.removeItem("savedPassword");
+      console.log("🗑️ Remember me was not enabled - credentials cleared");
+    }
+
+    // 🚀 STEP 4: Navigate to logout/login page
     navigate("/logout");
   };
 

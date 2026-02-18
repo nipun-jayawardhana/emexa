@@ -10,39 +10,16 @@ import {
   deleteQuiz,
   permanentDeleteQuiz,
   getQuizStats,
-  submitQuizAnswers
+  submitQuizAnswers,
+  getQuizSubmission,
+  getSharedQuizzes 
 } from '../controllers/teacherQuizController.js';
 import { protect } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-// Public route - students can access shared quizzes
-router.get('/shared', async (req, res) => {
-  try {
-    const TeacherQuiz = (await import('../models/teacherQuiz.js')).default;
-    const sharedQuizzes = await TeacherQuiz.find({ 
-      $or: [
-        { status: 'active', isScheduled: true },
-        { status: 'scheduled' }
-      ],
-      isDeleted: false 
-    }).select('-__v');
-    
-    console.log('📚 Fetched shared quizzes for students:', sharedQuizzes.length);
-    
-    res.status(200).json({
-      success: true,
-      count: sharedQuizzes.length,
-      quizzes: sharedQuizzes
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch shared quizzes',
-      error: error.message
-    });
-  }
-});
+// Public route - students can access shared quizzes (WITH FILTERING)
+router.get('/shared', protect, getSharedQuizzes);
 
 // Protected routes - require authentication
 router.use(protect);
@@ -63,5 +40,6 @@ router.post('/:id/schedule', scheduleQuiz);            // Schedule a quiz
 
 // Student submission
 router.post('/:id/submit', submitQuizAnswers);         // Submit quiz answers (students)
+router.get('/:id/submission', getQuizSubmission);      // Get saved submission results (students)
 
 export default router;
