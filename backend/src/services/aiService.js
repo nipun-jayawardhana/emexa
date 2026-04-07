@@ -4,132 +4,109 @@ import axios from 'axios';
 class AIService {
   constructor() {
     this.initialized = false;
-    this.geminiApiKey = null;
-    this.geminiEndpoint = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent';
+    this.openRouterApiKey = null;
+    this.endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    this.model = 'google/gemma-3-12b-it:free';
   }
 
-  // Initialize lazily to ensure env vars are loaded
   _ensureInitialized() {
     if (this.initialized) return;
-    
-    this.geminiApiKey = process.env.GEMINI_API_KEY;
-    
-    if (!this.geminiApiKey) {
-      console.error('❌ CRITICAL: GEMINI_API_KEY not found in environment variables!');
-      console.error('   Make sure your .env file has: GEMINI_API_KEY=your_key_here');
-      throw new Error('Gemini API key not configured');
+
+    this.openRouterApiKey = process.env.OPENROUTER_API_KEY;
+
+    if (!this.openRouterApiKey) {
+      console.error('❌ CRITICAL: OPENROUTER_API_KEY not found in environment variables!');
+      throw new Error('OpenRouter API key not configured');
     }
-    
-    console.log('🤖 AI Service initialized');
-    console.log('   Gemini API Key:', `✅ Present (${this.geminiApiKey.substring(0, 10)}...)`);
-    console.log('   Gemini Endpoint:', this.geminiEndpoint);
-    
+
+    console.log('🤖 AI Service initialized (OpenRouter - Free)');
+    console.log('   Model:', this.model);
     this.initialized = true;
   }
 
-  /**
-   * Generate quiz questions using Gemini API
-   */
-  async generateQuizWithGemini(subject, gradeLevel, numberOfQuestions, difficultyLevel = 'medium', topics = []) {
-    this._ensureInitialized(); // Ensure initialization first
-    
-    console.log('🔮 Attempting Gemini API...');
-    
-    if (!this.geminiApiKey) {
-      throw new Error('Gemini API key not configured');
-    }
+  async generateQuizWithOpenRouter(subject, gradeLevel, numberOfQuestions, difficultyLevel = 'medium', topics = []) {
+    this._ensureInitialized();
+    console.log('🔮 Attempting OpenRouter API (Free)...');
 
     try {
       const prompt = this.buildQuizPrompt(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
-      
-      console.log('📤 Sending request to Gemini API...');
-      
+      console.log('📤 Sending request to OpenRouter API...');
+
       const response = await axios.post(
-        `${this.geminiEndpoint}?key=${this.geminiApiKey}`,
+        this.endpoint,
         {
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 2048,
-          }
+          model: this.model,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 2048,
+          temperature: 0.7
         },
         {
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.openRouterApiKey}`,
+            'HTTP-Referer': 'http://localhost:3000',
+            'X-Title': 'Emexa Quiz Generator'
           },
-          timeout: 30000
+          timeout: 60000
         }
       );
 
-      console.log('✅ Gemini API response received');
-      
-      if (!response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-        console.error('❌ Invalid Gemini response structure:', JSON.stringify(response.data, null, 2));
-        throw new Error('Invalid response structure from Gemini API');
+      console.log('✅ OpenRouter API response received');
+
+      if (!response.data?.choices?.[0]?.message?.content) {
+        throw new Error('Invalid response structure from OpenRouter API');
       }
 
-      const generatedText = response.data.candidates[0].content.parts[0].text;
+      const generatedText = response.data.choices[0].message.content;
       console.log('📝 Generated text length:', generatedText.length);
-      
+
       const parsedQuestions = this.parseQuizResponse(generatedText);
       console.log('✅ Successfully parsed', parsedQuestions.length, 'questions');
-      
       return parsedQuestions;
+
     } catch (error) {
-      console.error('❌ Gemini API Error Details:');
-      console.error('   Status:', error.response?.status);
-      console.error('   Error Data:', JSON.stringify(error.response?.data, null, 2));
-      console.error('   Error Message:', error.message);
-      
-      if (error.response?.status === 400) {
-        throw new Error('Invalid request to Gemini API');
-      } else if (error.response?.status === 403) {
-        throw new Error('Gemini API key is invalid or access denied');
-      } else if (error.response?.status === 404) {
-        throw new Error('Gemini model not found - endpoint issue');
-      } else if (error.response?.status === 429) {
-        throw new Error('Gemini API rate limit exceeded');
-      } else if (error.code === 'ECONNABORTED') {
-        throw new Error('Request timed out');
-      }
-      
-      throw new Error(`Gemini API failed: ${error.message}`);
+      console.error('❌ OpenRouter API Error:', error.response?.status, error.message);
+
+      if (error.response?.status === 401) throw new Error('OpenRouter API key is invalid');
+      if (error.response?.status === 429) {
+  console.log('⏳ Rate limited on primary model, switching to fallback...');
+  const originalModel = this.model;
+  this.model = 'meta-llama/llama-3.3-70b-instruct:free';
+  try {
+    const result = await this.generateQuizWithOpenRouter(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
+    this.model = originalModel;
+    return result;
+  } catch (retryError) {
+    this.model = originalModel;
+    throw new Error('OpenRouter rate limit exceeded - please try again in a moment');
+  }
+}
+      if (error.code === 'ECONNABORTED') throw new Error('Request timed out');
+
+      throw new Error(`OpenRouter API failed: ${error.message}`);
     }
   }
 
-  /**
-   * Main method
-   */
   async generateQuiz(params) {
-    this._ensureInitialized(); // Ensure initialization first
-    
+    this._ensureInitialized();
     const { subject, gradeLevel, numberOfQuestions, difficultyLevel, topics } = params;
 
-    console.log('\n🚀 Starting AI Quiz Generation');
+    console.log('\n🚀 Starting AI Quiz Generation (OpenRouter Free)');
     console.log('   Subject:', subject);
     console.log('   Grade:', gradeLevel);
     console.log('   Questions:', numberOfQuestions);
 
     try {
-      return await this.generateQuizWithGemini(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
+      return await this.generateQuizWithOpenRouter(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics);
     } catch (error) {
       console.error('❌ Quiz generation failed:', error.message);
       throw error;
     }
   }
 
-  /**
-   * Build comprehensive prompt for quiz generation
-   */
   buildQuizPrompt(subject, gradeLevel, numberOfQuestions, difficultyLevel, topics) {
     const topicsText = topics && topics.length > 0 ? `focusing on: ${topics.join(', ')}` : '';
-    
+
     return `You are an expert educational content creator. Generate ${numberOfQuestions} multiple-choice quiz questions for ${gradeLevel} students studying ${subject} ${topicsText}.
 
 Requirements:
@@ -150,69 +127,48 @@ CORRECT: [A/B/C/D]
 EXPLANATION: [Brief explanation]
 HINT: [Optional helpful hint]
 
-QUESTION 2: [Write the question here]
-A) [Option A]
-B) [Option B]
-C) [Option C]
-D) [Option D]
-CORRECT: [A/B/C/D]
-EXPLANATION: [Brief explanation]
-HINT: [Optional helpful hint]
-
 [Continue for all ${numberOfQuestions} questions]
 
 Important: Follow this exact format without any additional text or markdown formatting.`;
   }
 
-  /**
-   * Parse AI response into structured quiz data
-   */
   parseQuizResponse(responseText) {
     console.log('🔍 Parsing AI response...');
-    
     const questions = [];
-    
-    // Clean up response text
+
     let cleanedText = responseText
       .replace(/```[\w]*\n/g, '')
       .replace(/```/g, '')
       .trim();
-    
+
     const questionBlocks = cleanedText.split(/QUESTION \d+:/i).filter(block => block.trim());
-    
     console.log('   Found', questionBlocks.length, 'question blocks');
 
     for (let i = 0; i < questionBlocks.length; i++) {
       try {
         const block = questionBlocks[i];
         const lines = block.trim().split('\n').filter(line => line.trim());
-        
         if (lines.length === 0) continue;
-        
+
         const questionText = lines[0].trim();
-        
         const options = [];
         const optionRegex = /^([A-D])\)\s*(.+)$/i;
-        
+
         for (const line of lines) {
           const match = line.match(optionRegex);
           if (match) {
-            options.push({
-              id: options.length + 1,
-              text: match[2].trim(),
-              isCorrect: false
-            });
+            options.push({ id: options.length + 1, text: match[2].trim(), isCorrect: false });
           }
         }
 
         const correctLine = lines.find(line => line.match(/^CORRECT:/i));
-        const correctAnswer = correctLine ? correctLine.replace(/^CORRECT:/i, '').trim().toUpperCase().charAt(0) : null;
+        const correctAnswer = correctLine
+          ? correctLine.replace(/^CORRECT:/i, '').trim().toUpperCase().charAt(0)
+          : null;
 
         if (correctAnswer && correctAnswer.match(/[A-D]/)) {
           const correctIndex = correctAnswer.charCodeAt(0) - 65;
-          if (options[correctIndex]) {
-            options[correctIndex].isCorrect = true;
-          }
+          if (options[correctIndex]) options[correctIndex].isCorrect = true;
         }
 
         const explanationLine = lines.find(line => line.match(/^EXPLANATION:/i));
@@ -236,23 +192,16 @@ Important: Follow this exact format without any additional text or markdown form
       }
     }
 
-    if (questions.length === 0) {
-      throw new Error('Failed to parse any valid questions from AI response');
-    }
+    if (questions.length === 0) throw new Error('Failed to parse any valid questions from AI response');
 
     console.log(`✅ Successfully parsed ${questions.length} questions`);
     return questions;
   }
 
-  /**
-   * Enhance existing questions with AI suggestions
-   */
   async enhanceQuestion(questionData) {
-    this._ensureInitialized(); // Ensure initialization first
-    
+    this._ensureInitialized();
     try {
       const prompt = `Improve this quiz question:
-
 Question: ${questionData.questionText}
 Options: ${questionData.options.map(opt => `${String.fromCharCode(65 + opt.id - 1)}) ${opt.text}`).join('\n')}
 
@@ -262,28 +211,24 @@ HINT: [hint]
 EXPLANATION: [explanation]`;
 
       const response = await axios.post(
-        `${this.geminiEndpoint}?key=${this.geminiApiKey}`,
+        this.endpoint,
+        { model: this.model, messages: [{ role: 'user', content: prompt }], max_tokens: 1000 },
         {
-          contents: [{
-            parts: [{ text: prompt }]
-          }]
-        },
-        {
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.openRouterApiKey}`,
+            'HTTP-Referer': 'http://localhost:3000',
+            'X-Title': 'Emexa Quiz Generator'
+          },
           timeout: 30000
         }
       );
 
-      const result = response.data.candidates[0].content.parts[0].text;
-      
-      const improvedQuestion = result.match(/IMPROVED_QUESTION:\s*(.+?)(?=HINT:)/s)?.[1]?.trim();
-      const hint = result.match(/HINT:\s*(.+?)(?=EXPLANATION:)/s)?.[1]?.trim();
-      const explanation = result.match(/EXPLANATION:\s*(.+?)$/s)?.[1]?.trim();
-
+      const result = response.data.choices[0].message.content;
       return {
-        improvedQuestion: improvedQuestion || questionData.questionText,
-        hint: hint || questionData.hints?.[0] || '',
-        explanation: explanation || ''
+        improvedQuestion: result.match(/IMPROVED_QUESTION:\s*(.+?)(?=HINT:)/s)?.[1]?.trim() || questionData.questionText,
+        hint: result.match(/HINT:\s*(.+?)(?=EXPLANATION:)/s)?.[1]?.trim() || questionData.hints?.[0] || '',
+        explanation: result.match(/EXPLANATION:\s*(.+?)$/s)?.[1]?.trim() || ''
       };
     } catch (error) {
       console.error('Error enhancing question:', error);
@@ -291,11 +236,7 @@ EXPLANATION: [explanation]`;
     }
   }
 
-  /**
-   * Get AI generation suggestions
-   */
   async getGenerationSuggestions(subject, gradeLevel) {
-    // Return simple suggestions without AI call
     return {
       recommendedQuestions: 5,
       topicSuggestions: [

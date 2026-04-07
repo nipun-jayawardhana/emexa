@@ -1,34 +1,54 @@
 // backend/src/services/wellnessAIService.js
-import { HfInference } from '@huggingface/inference';
+import axios from 'axios';
 
 class WellnessAIService {
   constructor() {
-    this.hf = null;
     this.initialized = false;
-    // Using Meta's Llama model - completely FREE!
-    this.model = 'meta-llama/Llama-3.2-3B-Instruct';
+    this.openRouterApiKey = null;
+    this.endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    this.model = 'google/gemma-3-12b-it:free'; // Great for conversational/wellness
   }
 
   _ensureInitialized() {
     if (this.initialized) return;
-    
-    // FIXED: Check for multiple possible environment variable names
-    const apiKey = process.env.HUGGINGFACE_API_KEY ||      // ✅ Your key name
-                   process.env.HUGGING_FACE_API_KEY ||     // Old name
-                   process.env.WELLNESS_AI_API_KEY ||      // Alternative
-                   process.env.HF_API_KEY;                  // Short form
-    
-    if (!apiKey) {
-      console.error('❌ Hugging Face API key not configured');
-      console.error('   Please set one of: HUGGINGFACE_API_KEY, HUGGING_FACE_API_KEY, WELLNESS_AI_API_KEY, or HF_API_KEY');
-      throw new Error('Wellness AI not configured');
+
+    this.openRouterApiKey = process.env.OPENROUTER_API_KEY;
+
+    if (!this.openRouterApiKey) {
+      console.error('❌ CRITICAL: OPENROUTER_API_KEY not found in environment variables!');
+      throw new Error('OpenRouter API key not configured');
     }
-    
-    this.hf = new HfInference(apiKey);
-    
-    console.log('✅ Wellness AI Service initialized with Hugging Face (FREE!)');
+
+    console.log('✅ Wellness AI Service initialized with OpenRouter (FREE!)');
     console.log('🧘 Using model:', this.model);
     this.initialized = true;
+  }
+
+  async _callOpenRouter(messages, maxTokens = 200, temperature = 0.7) {
+    const response = await axios.post(
+      this.endpoint,
+      {
+        model: this.model,
+        messages,
+        max_tokens: maxTokens,
+        temperature
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.openRouterApiKey}`,
+          'HTTP-Referer': 'http://localhost:3000',
+          'X-Title': 'Emexa Wellness AI'
+        },
+        timeout: 30000
+      }
+    );
+
+    if (!response.data?.choices?.[0]?.message?.content) {
+      throw new Error('Invalid response structure from OpenRouter API');
+    }
+
+    return response.data.choices[0].message.content.trim();
   }
 
   /**
@@ -41,28 +61,12 @@ class WellnessAIService {
 
     try {
       const prompt = this._buildMoodAdvicePrompt(mood, emoji, userName, recentMoods);
-      
       console.log('🧠 Generating personalized wellness advice...');
 
-      let fullResponse = '';
-      
-      for await (const chunk of this.hf.chatCompletionStream({
-        model: this.model,
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_tokens: 200,
-        temperature: 0.7
-      })) {
-        if (chunk.choices && chunk.choices[0]?.delta?.content) {
-          fullResponse += chunk.choices[0].delta.content;
-        }
-      }
+      const advice = await this._callOpenRouter([
+        { role: 'user', content: prompt }
+      ], 200, 0.7);
 
-      const advice = fullResponse.trim();
       console.log('✅ Generated personalized advice');
 
       return {
@@ -74,7 +78,7 @@ class WellnessAIService {
 
     } catch (error) {
       console.error('❌ Error generating wellness advice:', error.message);
-      
+
       return {
         success: false,
         advice: this._getFallbackAdvice(mood),
@@ -93,21 +97,10 @@ class WellnessAIService {
     try {
       const prompt = `You are a wellness coach. Generate ONE short wellness tip for students in 1-2 sentences. Focus on: ${userContext.recentActivity || 'study-life balance'}.`;
 
-      let fullResponse = '';
-      
-      for await (const chunk of this.hf.chatCompletionStream({
-        model: this.model,
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 100,
-        temperature: 0.8
-      })) {
-        if (chunk.choices && chunk.choices[0]?.delta?.content) {
-          fullResponse += chunk.choices[0].delta.content;
-        }
-      }
+      const tip = await this._callOpenRouter([
+        { role: 'user', content: prompt }
+      ], 100, 0.8);
 
-      const tip = fullResponse.trim();
-      
       return {
         success: true,
         tip: tip || "Take regular breaks and stay hydrated. Your wellbeing matters!",
@@ -116,7 +109,7 @@ class WellnessAIService {
 
     } catch (error) {
       console.error('❌ Error generating daily tip:', error.message);
-      
+
       return {
         success: false,
         tip: "Remember to take breaks and celebrate small victories. You're doing great!",
@@ -139,26 +132,15 @@ class WellnessAIService {
     }
 
     try {
-      const moodSummary = moodHistory.slice(-7).map(m => 
+      const moodSummary = moodHistory.slice(-7).map(m =>
         `${m.date}: ${m.mood}`
       ).join(', ');
 
       const prompt = `Analyze this student's mood pattern: ${moodSummary}. Provide a brief, caring observation (2-3 sentences) and one suggestion. Be warm and supportive.`;
 
-      let fullResponse = '';
-      
-      for await (const chunk of this.hf.chatCompletionStream({
-        model: this.model,
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 150,
-        temperature: 0.6
-      })) {
-        if (chunk.choices && chunk.choices[0]?.delta?.content) {
-          fullResponse += chunk.choices[0].delta.content;
-        }
-      }
-
-      const insights = fullResponse.trim();
+      const insights = await this._callOpenRouter([
+        { role: 'user', content: prompt }
+      ], 150, 0.6);
 
       return {
         success: true,
@@ -168,7 +150,7 @@ class WellnessAIService {
 
     } catch (error) {
       console.error('❌ Error analyzing mood patterns:', error.message);
-      
+
       return {
         success: false,
         insights: "Keep tracking your moods to help us understand your patterns better!",
@@ -186,14 +168,16 @@ class WellnessAIService {
     const { message, history = [], userName } = messageData;
 
     try {
-      const messages = [
-        {
-          role: "system",
-          content: `You are a compassionate wellness coach for students. Respond in 2-4 sentences. Be supportive, practical, and warm. The student's name is ${userName || 'Student'}.`
-        }
-      ];
+      const systemPrompt = `You are a compassionate wellness coach for students. Respond in 2-4 sentences. Be supportive, practical, and warm. The student's name is ${userName || 'Student'}.`;
 
-      // Add conversation history
+const messages = [
+  {
+    role: 'user',
+    content: systemPrompt + '\n\n' + message
+  }
+];
+
+      // Add conversation history (last 4 messages for context)
       history.slice(-4).forEach(msg => {
         messages.push({
           role: msg.role === 'user' ? 'user' : 'assistant',
@@ -202,27 +186,12 @@ class WellnessAIService {
       });
 
       // Add current message
-      messages.push({
-        role: 'user',
-        content: message
-      });
+      messages.push({ role: 'user', content: message });
 
       console.log('💬 Generating chatbot response...');
 
-      let fullResponse = '';
-      
-      for await (const chunk of this.hf.chatCompletionStream({
-        model: this.model,
-        messages: messages,
-        max_tokens: 200,
-        temperature: 0.7
-      })) {
-        if (chunk.choices && chunk.choices[0]?.delta?.content) {
-          fullResponse += chunk.choices[0].delta.content;
-        }
-      }
+      const chatResponse = await this._callOpenRouter(messages, 200, 0.7);
 
-      const chatResponse = fullResponse.trim();
       console.log('✅ Generated chatbot response');
 
       return {
@@ -233,7 +202,7 @@ class WellnessAIService {
 
     } catch (error) {
       console.error('❌ Error generating chat response:', error.message);
-      
+
       const fallbackResponses = [
         "I understand how you're feeling. Let's work through this together.",
         "Thank you for sharing. Your feelings are valid. How can I help?",
@@ -251,7 +220,7 @@ class WellnessAIService {
   }
 
   _buildMoodAdvicePrompt(mood, emoji, userName, recentMoods) {
-    const moodContext = recentMoods.length > 0 
+    const moodContext = recentMoods.length > 0
       ? `Recent moods: ${recentMoods.slice(-3).join(', ')}`
       : 'First mood entry';
 
